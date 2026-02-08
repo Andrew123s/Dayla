@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>You're Invited to Join Dayla!</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #f7f3ee;
+        }
+        .container {
+            background-color: white;
+            margin: 20px;
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .logo {
+            font-size: 32px;
+            font-weight: bold;
+            color: #3a5a40;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            color: #a3b18a;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+        .invitation-content {
+            margin: 30px 0;
+            text-align: center;
+        }
+        .inviter-name {
+            font-weight: bold;
+            color: #3a5a40;
+        }
+        .trip-name {
+            font-weight: bold;
+            color: #588157;
+            margin: 10px 0;
+        }
+        .cta-button {
+            display: inline-block;
+            background-color: #3a5a40;
+            color: white;
+            padding: 15px 30px;
+            text-decoration: none;
+            border-radius: 50px;
+            font-weight: bold;
+            margin: 20px 0;
+            transition: background-color 0.3s;
+        }
+        .cta-button:hover {
+            background-color: #588157;
+        }
+        .features {
+            background-color: #f7f3ee;
+            padding: 20px;
+            border-radius: 15px;
+            margin: 20px 0;
+        }
+        .feature-item {
+            display: flex;
+            align-items: center;
+            margin: 10px 0;
+        }
+        .feature-icon {
+            color: #a3b18a;
+            margin-right: 10px;
+        }
+        .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #e9edc9;
+            text-align: center;
+            color: #666;
+            font-size: 12px;
+        }
+        .eco-badge {
+            background-color: #e9edc9;
+            color: #3a5a40;
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">🌲 Dayla</div>
+            <div class="subtitle">Adventure Planning Together</div>
+        </div>
+
+        <div class="invitation-content">
+            <h1>You're Invited!</h1>
+            <p><span class="inviter-name">{{inviterName}}</span> has invited you to join their adventure planning dashboard.</p>
+
+            <div class="trip-name">{{tripName}}</div>
+
+            <p>Start planning your next outdoor adventure with collaborative tools, real-time editing, and eco-friendly planning features.</p>
+
+            <a href="{{acceptUrl}}" class="cta-button">Join the Adventure</a>
+
+            <p style="font-size: 12px; color: #666; margin-top: 10px;">
+                This invitation expires in 7 days.
+                <a href="{{declineUrl}}" style="color: #666;">Not interested?</a>
+            </p>
+        </div>
+
+        <div class="features">
+            <h3 style="margin-bottom: 15px; color: #3a5a40;">What you can do together:</h3>
+
+            <div class="feature-item">
+                <span class="feature-icon">📌</span>
+                <span>Create and organize trip plans with sticky notes</span>
+            </div>
+
+            <div class="feature-item">
+                <span class="feature-icon">💬</span>
+                <span>Chat and coordinate in real-time</span>
+            </div>
+
+            <div class="feature-item">
+                <span class="feature-icon">🖼️</span>
+                <span>Share photos and memories from your adventures</span>
+            </div>
+
+            <div class="feature-item">
+                <span class="feature-icon">🌱</span>
+                <span>Track your eco-impact and plan sustainably</span>
+                <span class="eco-badge">ECO-FRIENDLY</span>
+            </div>
+
+            <div class="feature-item">
+                <span class="feature-icon">🎯</span>
+                <span>Get AI-powered trip planning suggestions</span>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>
+                <strong>Dayla</strong> - Plan Adventures, Connect with Nature, Live Sustainably<br>
+                Questions? Contact us at <a href="mailto:hello@dayla.com">hello@dayla.com</a>
+            </p>
+
+            <p style="margin-top: 10px; font-size: 11px;">
+                You're receiving this email because {{inviterName}} invited you to join Dayla.<br>
+                If you don't want to receive these emails, you can <a href="{{unsubscribeUrl}}">unsubscribe</a>.
+            </p>
+        </div>
+    </div>
+</body>
+</html>

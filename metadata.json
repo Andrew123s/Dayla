@@ -1,0 +1,8 @@
+{
+  "name": "Dayla - Nature & Exploration Planner",
+  "description": "A nature-inspired collaborative trip planner for explorers, featuring interactive dashboards, sticky notes, roadmap linking, and a community forum.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
