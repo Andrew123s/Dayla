@@ -1,8 +1,7 @@
 const express = require('express');
 const {
+  getDashboard,
   getActiveUsers,
-  addActiveUser,
-  removeActiveUser,
   joinDashboard,
   leaveDashboard,
   updateActivity,
@@ -17,7 +16,8 @@ const router = express.Router();
 // Protected routes - require authentication
 router.use(protect);
 
-// Dashboard activity routes
+// Dashboard routes
+router.get('/:boardId', getDashboard);
 router.get('/:boardId/active-users', getActiveUsers);
 router.post('/:boardId/join', joinDashboard);
 router.post('/:boardId/leave', leaveDashboard);

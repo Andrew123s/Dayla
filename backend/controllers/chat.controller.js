@@ -80,7 +80,10 @@ const getConversations = async (req, res) => {
       participants: { $exists: true, $ne: [] }
     })
     .populate('participants.user', 'name avatar')
-    .populate('lastMessage')
+    .populate({
+      path: 'lastMessage',
+      populate: { path: 'sender', select: 'name avatar' }
+    })
     .sort({ updatedAt: -1 })
     .lean();
 

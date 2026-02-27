@@ -346,12 +346,13 @@ const createStickyNote = async (req, res) => {
       });
     }
 
-    // Check permissions
+    // Check permissions — owner always allowed
+    const isOwner = dashboard.owner.toString() === req.user._id.toString();
     const collaborator = dashboard.collaborators.find(
       c => c.user.toString() === req.user._id.toString()
     );
 
-    if (!collaborator || collaborator.role === 'viewer') {
+    if (!isOwner && (!collaborator || collaborator.role === 'viewer')) {
       return res.status(403).json({
         success: false,
         message: 'Not authorized to create notes'
@@ -359,8 +360,8 @@ const createStickyNote = async (req, res) => {
     }
 
     const noteData = {
-      id: Math.random().toString(36).substr(2, 9),
-      ...req.body
+      ...req.body,
+      id: req.body.id || Math.random().toString(36).substr(2, 9),
     };
 
     dashboard.notes.push(noteData);
@@ -396,12 +397,13 @@ const updateStickyNote = async (req, res) => {
       });
     }
 
-    // Check permissions
+    // Check permissions — owner always allowed
+    const isOwner = dashboard.owner.toString() === req.user._id.toString();
     const collaborator = dashboard.collaborators.find(
       c => c.user.toString() === req.user._id.toString()
     );
 
-    if (!collaborator || collaborator.role === 'viewer') {
+    if (!isOwner && (!collaborator || collaborator.role === 'viewer')) {
       return res.status(403).json({
         success: false,
         message: 'Not authorized to update notes'
@@ -455,12 +457,13 @@ const deleteStickyNote = async (req, res) => {
       });
     }
 
-    // Check permissions
+    // Check permissions — owner always allowed
+    const isOwner = dashboard.owner.toString() === req.user._id.toString();
     const collaborator = dashboard.collaborators.find(
       c => c.user.toString() === req.user._id.toString()
     );
 
-    if (!collaborator || collaborator.role === 'viewer') {
+    if (!isOwner && (!collaborator || collaborator.role === 'viewer')) {
       return res.status(403).json({
         success: false,
         message: 'Not authorized to delete notes'

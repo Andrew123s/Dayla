@@ -19,6 +19,7 @@ const communityRoutes = require('./routes/community.routes');
 const boardRoutes = require('./routes/board.routes');
 const climatiqRoutes = require('./routes/climatiq.routes');
 const weatherRoutes = require('./routes/weather.routes');
+const packingRoutes = require('./routes/packing.routes');
 
 // Create Express app
 const app = express();
@@ -109,6 +110,7 @@ app.use('/api/community', communityRoutes);
 app.use('/api/boards', boardRoutes);
 app.use('/api/climatiq', climatiqRoutes);
 app.use('/api/weather', weatherRoutes);
+app.use('/api/packing', packingRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {

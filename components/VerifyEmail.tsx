@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { CheckCircle, XCircle, Loader, Leaf } from 'lucide-react';
+import { API_BASE_URL } from '../lib/api';
 
 interface VerifyEmailProps {
   token: string;
@@ -11,7 +12,7 @@ const VerifyEmail: React.FC<VerifyEmailProps> = ({ token, onComplete }) => {
   const [message, setMessage] = useState('');
   const [isResending, setIsResending] = useState(false);
 
-  const API_BASE_URL = '';
+
 
   useEffect(() => {
     verifyEmail();

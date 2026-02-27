@@ -83,30 +83,51 @@ const tripSchemas = {
   }),
 
   createStickyNote: Joi.object({
+    id: Joi.string().optional(),
     type: Joi.string().valid(
       'text', 'image', 'voice', 'weather', 'schedule', 'budget', 'sustainability'
     ).required(),
     x: Joi.number().min(0).required(),
     y: Joi.number().min(0).required(),
     width: Joi.number().min(60).max(800).required(),
-    height: Joi.number().min(60).max(600).required(),
-    content: Joi.string().max(10000).required(),
+    height: Joi.number().min(60).max(800).required(),
+    content: Joi.string().max(50000).required(),
     color: Joi.string().optional(),
     emoji: Joi.string().max(10).optional(),
     linkTo: Joi.string().optional(),
-    scheduledDate: Joi.string().optional()
+    scheduledDate: Joi.string().optional(),
+    audioUrl: Joi.string().optional().allow('', null),
+    crop: Joi.object({
+      x: Joi.number().optional(),
+      y: Joi.number().optional(),
+      zoom: Joi.number().optional()
+    }).optional().allow(null),
+    createdBy: Joi.object().unknown(true).optional().allow(null),
+    lastEditedBy: Joi.object().unknown(true).optional().allow(null)
   }),
 
   updateStickyNote: Joi.object({
+    id: Joi.string().optional(),
+    type: Joi.string().valid(
+      'text', 'image', 'voice', 'weather', 'schedule', 'budget', 'sustainability'
+    ).optional(),
     x: Joi.number().min(0).optional(),
     y: Joi.number().min(0).optional(),
     width: Joi.number().min(60).max(800).optional(),
-    height: Joi.number().min(60).max(600).optional(),
-    content: Joi.string().max(10000).optional(),
+    height: Joi.number().min(60).max(800).optional(),
+    content: Joi.string().max(50000).optional(),
     color: Joi.string().optional(),
     emoji: Joi.string().max(10).optional(),
     linkTo: Joi.string().optional(),
-    scheduledDate: Joi.string().optional()
+    scheduledDate: Joi.string().optional(),
+    audioUrl: Joi.string().optional().allow('', null),
+    crop: Joi.object({
+      x: Joi.number().optional(),
+      y: Joi.number().optional(),
+      zoom: Joi.number().optional()
+    }).optional().allow(null),
+    createdBy: Joi.object().unknown(true).optional().allow(null),
+    lastEditedBy: Joi.object().unknown(true).optional().allow(null)
   })
 };
 

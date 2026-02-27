@@ -13,7 +13,8 @@ import Navigation from './components/Navigation';
 import { Compass, MessageCircle, User as UserIcon, Map, Loader } from 'lucide-react';
 
 // Use empty string for same-origin requests (Vite proxy handles /api/* routes)
-const API_BASE_URL = '';
+import { API_BASE_URL } from './lib/api';
+
 
 const App: React.FC = () => {
   const [view, setView] = useState<ViewType>('auth');

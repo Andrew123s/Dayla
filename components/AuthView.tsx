@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { User } from '../types';
 import { Compass, Leaf, AlertCircle, CheckCircle } from 'lucide-react';
+import { API_BASE_URL } from '../lib/api';
 
 interface AuthViewProps {
   onLogin: (user: User) => void;
@@ -20,8 +21,6 @@ const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
     password: ''
   });
 
-  // Use empty string for same-origin requests (Vite proxy handles /api/* routes)
-  const API_BASE_URL = '';
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;

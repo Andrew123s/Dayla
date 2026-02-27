@@ -69,7 +69,7 @@ const getPosts = async (req, res) => {
       isPublished: true,
       $or: [
         { visibility: 'public' },
-        { visibility: 'friends', author: { $in: req.user.friends } },
+        { visibility: 'friends', author: { $in: req.user.friends || [] } },
         { author: req.user._id }
       ]
     })
@@ -78,13 +78,23 @@ const getPosts = async (req, res) => {
     .populate('likes.user', 'name avatar')
     .sort(sortOption)
     .limit(limit * 1)
-    .skip((page - 1) * limit);
+    .skip((page - 1) * limit)
+    .lean();
+
+    // Add `liked` and `saved` booleans relative to the current user
+    const userId = req.user._id.toString();
+    const enrichedPosts = posts.map(post => ({
+      ...post,
+      liked: (post.likes || []).some(like => (like.user?._id || like.user)?.toString() === userId),
+      saved: (post.saves || []).some(save => (save.user?._id || save.user)?.toString() === userId),
+      likeCount: (post.likes || []).length,
+    }));
 
     const total = await Post.countDocuments({
       isPublished: true,
       $or: [
         { visibility: 'public' },
-        { visibility: 'friends', author: { $in: req.user.friends } },
+        { visibility: 'friends', author: { $in: req.user.friends || [] } },
         { author: req.user._id }
       ]
     });
@@ -92,7 +102,7 @@ const getPosts = async (req, res) => {
     res.status(200).json({
       success: true,
       data: {
-        posts,
+        posts: enrichedPosts,
         pagination: {
           page: parseInt(page),
           limit: parseInt(limit),

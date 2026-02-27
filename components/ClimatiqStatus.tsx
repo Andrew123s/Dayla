@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { CheckCircle, AlertCircle, RefreshCw, Info, Zap } from 'lucide-react';
+import { API_BASE_URL } from '../lib/api';
 
 interface ClimatiqStatusProps {
   onConnectionChange?: (connected: boolean) => void;
@@ -11,7 +12,6 @@ const ClimatiqStatus: React.FC<ClimatiqStatusProps> = ({ onConnectionChange }) =
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const API_BASE_URL = '';
 
   const checkConnection = async () => {
     setIsChecking(true);

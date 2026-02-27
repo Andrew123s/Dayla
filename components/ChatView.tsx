@@ -3,6 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { User, Conversation, Message } from '../types';
 import { Search, Send, Plus, Image as ImageIcon, Phone, MoreVertical, Smile, Mic, Paperclip, Sticker, FileText, Gift, MessageCircle, AlertCircle, X, Users, UserPlus, CheckCircle } from 'lucide-react';
 import { initializeSocket, getSocket, joinConversation, leaveConversation, sendMessage as sendSocketMessage, startTyping, stopTyping } from '../lib/socket';
+import { API_BASE_URL } from '../lib/api';
 
 interface ChatViewProps {
   user: User;
@@ -37,21 +38,28 @@ const ChatView: React.FC<ChatViewProps> = ({ user }) => {
   const [addingMembers, setAddingMembers] = useState(false);
   const [friendSearchQuery, setFriendSearchQuery] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+  const [newChatFriends, setNewChatFriends] = useState<any[]>([]);
+  const [loadingNewChatFriends, setLoadingNewChatFriends] = useState(false);
+  const [creatingDirectChat, setCreatingDirectChat] = useState(false);
+  const [groupFriends, setGroupFriends] = useState<any[]>([]);
+  const [loadingGroupFriends, setLoadingGroupFriends] = useState(false);
+  const [selectedGroupMembers, setSelectedGroupMembers] = useState<Set<string>>(new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
   const groupAvatarInputRef = useRef<HTMLInputElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const groupMenuRef = useRef<HTMLDivElement>(null);
-  // Use empty string for same-origin requests (Vite proxy handles /api/* routes)
-  const API_BASE_URL = '';
 
   // Initialize socket connection
   useEffect(() => {
-    // Get token from localStorage or cookies
-    const token = localStorage.getItem('dayla_token') || document.cookie
+    // Get token from cookies (httpOnly cookies are sent automatically on API requests,
+    // but for socket auth we need a readable token — try auth_token or dayla_token)
+    const token = document.cookie
       .split('; ')
-      .find(row => row.startsWith('token='))
-      ?.split('=')[1];
+      .find(row => row.startsWith('auth_token='))
+      ?.split('=')[1]
+      || localStorage.getItem('auth_token')
+      || localStorage.getItem('dayla_token');
 
     if (token) {
       const socket = initializeSocket(token);
@@ -186,7 +194,10 @@ const ChatView: React.FC<ChatViewProps> = ({ user }) => {
       const data = await response.json();
 
       if (data.success) {
-        setActiveChatMessages(data.data.messages);
+        // Backend returns newest-first; reverse so oldest appears at top, newest at bottom
+        setActiveChatMessages((data.data.messages || []).reverse());
+        // Scroll to bottom after loading
+        setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'auto' }), 150);
       } else {
         setError('Failed to load messages');
       }
@@ -495,6 +506,99 @@ const ChatView: React.FC<ChatViewProps> = ({ user }) => {
     }
   };
 
+  // Fetch friends for new chat modal
+  const fetchNewChatFriends = async () => {
+    setLoadingNewChatFriends(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/auth/friends`, {
+        credentials: 'include',
+      });
+      const data = await response.json();
+      if (data.success) {
+        setNewChatFriends(data.data.friends || []);
+      }
+    } catch (error) {
+      console.error('Error fetching friends for new chat:', error);
+    } finally {
+      setLoadingNewChatFriends(false);
+    }
+  };
+
+  // Fetch friends for group creation modal
+  const fetchGroupFriends = async () => {
+    setLoadingGroupFriends(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/auth/friends`, {
+        credentials: 'include',
+      });
+      const data = await response.json();
+      if (data.success) {
+        setGroupFriends(data.data.friends || []);
+      }
+    } catch (error) {
+      console.error('Error fetching friends for group:', error);
+    } finally {
+      setLoadingGroupFriends(false);
+    }
+  };
+
+  // Start a direct conversation with a friend
+  const startDirectChat = async (friendId: string, friendName: string) => {
+    if (creatingDirectChat) return;
+    setCreatingDirectChat(true);
+    try {
+      // Check if conversation already exists with this friend
+      const existing = conversations.find(conv =>
+        !conv.isGroup && conv.participants.some(
+          p => (p.user?._id || (p.user as any)?.id) === friendId
+        )
+      );
+      if (existing) {
+        setActiveChatId(existing._id || existing.id);
+        setShowNewChatModal(false);
+        return;
+      }
+
+      // Create new direct conversation
+      const response = await fetch(`${API_BASE_URL}/api/chat/conversations`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: friendName,
+          isGroup: false,
+          participants: [friendId],
+        }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        fetchConversations();
+        setActiveChatId(data.data.conversation._id || data.data.conversation.id);
+        setShowNewChatModal(false);
+      } else {
+        setError(data.message || 'Failed to start chat');
+      }
+    } catch (error) {
+      console.error('Error starting direct chat:', error);
+      setError('Failed to start conversation');
+    } finally {
+      setCreatingDirectChat(false);
+    }
+  };
+
+  // Toggle group member selection
+  const toggleGroupMember = (friendId: string) => {
+    setSelectedGroupMembers(prev => {
+      const updated = new Set(prev);
+      if (updated.has(friendId)) {
+        updated.delete(friendId);
+      } else {
+        updated.add(friendId);
+      }
+      return updated;
+    });
+  };
+
   const handleFileAttach = () => {
     fileInputRef.current?.click();
     setShowPlusMenu(false);
@@ -553,7 +657,16 @@ const ChatView: React.FC<ChatViewProps> = ({ user }) => {
           <button onClick={() => setActiveChatId(null)} className="text-[#3a5a40] font-bold text-sm">← Back</button>
           <div className="flex flex-col items-center">
             <h2 className="text-sm font-bold text-stone-800">
-              {activeChat.isGroup ? activeChat.name : (activeChat.participants[0]?.user?.name || (activeChat.participants[0] as any)?.name || 'Unknown')}
+              {activeChat.isGroup
+                ? activeChat.name
+                : (() => {
+                    // For direct chats, show the OTHER participant, not the current user
+                    const other = activeChat.participants.find(
+                      p => (p.user?._id || (p.user as any)?.id) !== user.id
+                    );
+                    return other?.user?.name || (other as any)?.name || activeChat.name || 'Unknown';
+                  })()
+              }
             </h2>
             <span className="text-[10px] text-green-500 font-bold">Online</span>
           </div>
@@ -622,17 +735,43 @@ const ChatView: React.FC<ChatViewProps> = ({ user }) => {
               </div>
             </div>
           ) : (
-            activeChatMessages.map(m => (
-              <div key={m._id} className={`flex ${m.sender._id === user.id ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[80%] p-3 rounded-2xl text-sm ${
-                  m.sender._id === user.id
-                    ? 'bg-[#3a5a40] text-white rounded-tr-none'
-                    : 'bg-stone-100 text-stone-800 rounded-tl-none'
-                }`}>
-                  {m.content}
+            activeChatMessages.map(m => {
+              const isMe = m.sender?._id === user.id;
+              return (
+                <div key={m._id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`max-w-[80%] ${isMe ? '' : 'flex gap-2'}`}>
+                    {/* Show avatar for other users in group chats */}
+                    {!isMe && activeChat.isGroup && (
+                      <div className="flex-shrink-0 mt-1">
+                        {m.sender?.avatar ? (
+                          <img src={m.sender.avatar} className="w-7 h-7 rounded-full object-cover" alt="" />
+                        ) : (
+                          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#588157] to-[#3a5a40] flex items-center justify-center text-white text-[10px] font-bold">
+                            {m.sender?.name?.[0]?.toUpperCase() || '?'}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    <div>
+                      {/* Show sender name in group chats */}
+                      {!isMe && activeChat.isGroup && m.sender?.name && (
+                        <p className="text-[10px] font-semibold text-stone-500 mb-0.5 ml-1">{m.sender.name}</p>
+                      )}
+                      <div className={`p-3 rounded-2xl text-sm ${
+                        isMe
+                          ? 'bg-[#3a5a40] text-white rounded-tr-none'
+                          : 'bg-stone-100 text-stone-800 rounded-tl-none'
+                      }`}>
+                        {m.content}
+                        <div className={`text-[9px] mt-1 ${isMe ? 'text-white/60' : 'text-stone-400'}`}>
+                          {m.createdAt ? new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
           <div ref={messagesEndRef} />
         </div>
@@ -958,7 +1097,7 @@ const ChatView: React.FC<ChatViewProps> = ({ user }) => {
         <div className="flex justify-between items-center mb-4">
           <h1 className="text-2xl font-bold text-[#3a5a40]">Messages</h1>
           <button 
-            onClick={() => setShowNewChatModal(true)}
+            onClick={() => { setShowNewChatModal(true); fetchNewChatFriends(); }}
             className="p-2 bg-[#3a5a40] text-white rounded-full hover:bg-[#588157] transition-colors active:scale-95"
           >
             <Plus size={20} />
@@ -1045,7 +1184,11 @@ const ChatView: React.FC<ChatViewProps> = ({ user }) => {
                           {timeString && <span className="text-[10px] text-stone-400">{timeString}</span>}
                         </div>
                         <p className="text-xs text-stone-500 truncate">
-                          {conv.lastMessage ? 'Last message...' : 'Start a conversation'}
+                          {conv.lastMessage
+                            ? (typeof conv.lastMessage === 'object' && (conv.lastMessage as any)?.content
+                              ? `${(conv.lastMessage as any)?.sender?.name ? (conv.lastMessage as any).sender.name + ': ' : ''}${(conv.lastMessage as any).content}`
+                              : 'Sent a message')
+                            : 'Start a conversation'}
                         </p>
                       </div>
                     </button>
@@ -1062,7 +1205,11 @@ const ChatView: React.FC<ChatViewProps> = ({ user }) => {
                 </div>
                 {conversations.filter(conv => !conv.isGroup).map(conv => {
                   const convId = conv._id || conv.id;
-                  const participant = conv.participants[0];
+                  // Show the OTHER participant, not the current user
+                  const otherParticipant = conv.participants.find(
+                    p => (p.user?._id || (p.user as any)?.id) !== user.id
+                  ) || conv.participants[0];
+                  const participant = otherParticipant;
                   const participantName = participant?.user?.name || (participant as any)?.name || 'Unknown';
                   const participantAvatar = participant?.user?.avatar || (participant as any)?.avatar || null;
                   const validAvatar = participantAvatar && !participantAvatar.includes('picsum.photos') ? participantAvatar : null;
@@ -1094,7 +1241,11 @@ const ChatView: React.FC<ChatViewProps> = ({ user }) => {
                           {timeString && <span className="text-[10px] text-stone-400">{timeString}</span>}
                         </div>
                         <p className="text-xs text-stone-500 truncate">
-                          {conv.lastMessage ? 'Last message...' : 'Start a conversation'}
+                          {conv.lastMessage
+                            ? (typeof conv.lastMessage === 'object' && (conv.lastMessage as any)?.content
+                              ? (conv.lastMessage as any).content
+                              : 'Sent a message')
+                            : 'Start a conversation'}
                         </p>
                       </div>
                     </button>
@@ -1109,25 +1260,25 @@ const ChatView: React.FC<ChatViewProps> = ({ user }) => {
       {/* New Chat Modal */}
       {showNewChatModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4">
-          <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl max-h-[90vh] overflow-hidden animate-slide-up">
+          <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl max-h-[90vh] overflow-hidden animate-slide-up flex flex-col">
             <div className="flex items-center justify-between p-4 border-b border-stone-100">
               <h2 className="text-lg font-bold text-stone-800">New Message</h2>
               <button 
-                onClick={() => setShowNewChatModal(false)}
+                onClick={() => { setShowNewChatModal(false); setSearchQuery(''); }}
                 className="p-2 hover:bg-stone-100 rounded-full transition-colors"
               >
                 <X size={20} className="text-stone-500" />
               </button>
             </div>
             
-            <div className="p-4">
+            <div className="p-4 flex flex-col flex-1 min-h-0">
               <div className="relative mb-4">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" size={16} />
                 <input 
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search for people..."
+                  placeholder="Search friends..."
                   className="w-full bg-stone-50 border border-stone-200 rounded-xl pl-10 pr-4 py-3 text-sm focus:ring-2 focus:ring-[#3a5a40] focus:border-[#3a5a40] outline-none"
                 />
               </div>
@@ -1137,7 +1288,9 @@ const ChatView: React.FC<ChatViewProps> = ({ user }) => {
                   onClick={() => {
                     setShowNewChatModal(false);
                     setShowCreateGroupModal(true);
-                    setError(''); // Clear any previous errors
+                    setSelectedGroupMembers(new Set());
+                    fetchGroupFriends();
+                    setError('');
                   }}
                   className="w-full flex items-center gap-3 p-3 hover:bg-stone-50 rounded-xl transition-colors"
                 >
@@ -1151,19 +1304,54 @@ const ChatView: React.FC<ChatViewProps> = ({ user }) => {
                 </button>
               </div>
               
-              <p className="text-xs text-stone-400 uppercase font-bold mb-3">Users</p>
+              <p className="text-xs text-stone-400 uppercase font-bold mb-3">Friends</p>
               
-              <div className="space-y-2 max-h-[40vh] overflow-y-auto">
-                {/* Empty state - no users available */}
-                <div className="flex flex-col items-center justify-center py-8 text-center">
-                  <div className="w-16 h-16 bg-stone-100 rounded-full flex items-center justify-center mb-4">
-                    <Users size={32} className="text-stone-400" />
+              <div className="space-y-2 max-h-[40vh] overflow-y-auto flex-1">
+                {loadingNewChatFriends ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="flex items-center gap-3 text-stone-500">
+                      <div className="w-6 h-6 border-2 border-stone-300 border-t-[#3a5a40] rounded-full animate-spin"></div>
+                      <span className="text-sm">Loading friends...</span>
+                    </div>
                   </div>
-                  <p className="text-stone-600 font-medium mb-1">No users found</p>
-                  <p className="text-stone-400 text-sm max-w-[200px]">
-                    {searchQuery ? `No results for "${searchQuery}"` : 'Invite friends to start chatting!'}
-                  </p>
-                </div>
+                ) : newChatFriends.filter(f =>
+                    !searchQuery || f.name?.toLowerCase().includes(searchQuery.toLowerCase()) || f.email?.toLowerCase().includes(searchQuery.toLowerCase())
+                  ).length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-8 text-center">
+                    <div className="w-16 h-16 bg-stone-100 rounded-full flex items-center justify-center mb-4">
+                      <Users size={32} className="text-stone-400" />
+                    </div>
+                    <p className="text-stone-600 font-medium mb-1">No friends found</p>
+                    <p className="text-stone-400 text-sm max-w-[200px]">
+                      {searchQuery ? `No results for "${searchQuery}"` : 'Add friends to start chatting!'}
+                    </p>
+                  </div>
+                ) : (
+                  newChatFriends
+                    .filter(f =>
+                      !searchQuery || f.name?.toLowerCase().includes(searchQuery.toLowerCase()) || f.email?.toLowerCase().includes(searchQuery.toLowerCase())
+                    )
+                    .map(friend => (
+                      <button
+                        key={friend._id}
+                        onClick={() => startDirectChat(friend._id, friend.name)}
+                        disabled={creatingDirectChat}
+                        className="w-full flex items-center gap-3 p-3 hover:bg-stone-50 rounded-xl transition-colors disabled:opacity-50"
+                      >
+                        {friend.avatar ? (
+                          <img src={friend.avatar} className="w-12 h-12 rounded-full object-cover" alt={friend.name} />
+                        ) : (
+                          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#588157] to-[#3a5a40] flex items-center justify-center text-white font-semibold text-lg">
+                            {friend.name?.[0]?.toUpperCase() || 'U'}
+                          </div>
+                        )}
+                        <div className="text-left flex-1">
+                          <p className="font-medium text-stone-800 text-sm">{friend.name}</p>
+                          <p className="text-xs text-stone-500">{friend.email}</p>
+                        </div>
+                      </button>
+                    ))
+                )}
               </div>
             </div>
           </div>
@@ -1173,13 +1361,14 @@ const ChatView: React.FC<ChatViewProps> = ({ user }) => {
       {/* Create Group Chat Modal */}
       {showCreateGroupModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4">
-          <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl max-h-[90vh] overflow-hidden animate-slide-up">
+          <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl max-h-[90vh] overflow-hidden animate-slide-up flex flex-col">
             <div className="flex items-center justify-between p-4 border-b border-stone-100">
               <h2 className="text-lg font-bold text-stone-800">Create Group Chat</h2>
               <button 
                 onClick={() => {
                   setShowCreateGroupModal(false);
                   setGroupName('');
+                  setSelectedGroupMembers(new Set());
                   setError('');
                 }}
                 className="p-2 hover:bg-stone-100 rounded-full transition-colors"
@@ -1188,7 +1377,7 @@ const ChatView: React.FC<ChatViewProps> = ({ user }) => {
               </button>
             </div>
             
-            <div className="p-4 space-y-4">
+            <div className="p-4 space-y-4 flex-1 min-h-0 overflow-y-auto">
               {/* Error Message */}
               {error && showCreateGroupModal && (
                 <div className="p-3 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2">
@@ -1208,7 +1397,7 @@ const ChatView: React.FC<ChatViewProps> = ({ user }) => {
                   value={groupName}
                   onChange={(e) => {
                     setGroupName(e.target.value);
-                    if (error) setError(''); // Clear error when typing
+                    if (error) setError('');
                   }}
                   placeholder="Enter group name..."
                   className="w-full bg-stone-50 border border-stone-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-[#3a5a40] focus:border-[#3a5a40] outline-none"
@@ -1217,15 +1406,53 @@ const ChatView: React.FC<ChatViewProps> = ({ user }) => {
 
               {/* Add Members Section */}
               <div>
-                <label className="block text-sm font-medium text-stone-600 mb-2">Add Members</label>
-                <div className="bg-stone-50 border border-stone-200 rounded-xl p-4">
-                  <div className="flex flex-col items-center justify-center py-4 text-center">
-                    <div className="w-12 h-12 bg-stone-100 rounded-full flex items-center justify-center mb-3">
-                      <UserPlus size={24} className="text-stone-400" />
+                <label className="block text-sm font-medium text-stone-600 mb-2">
+                  Add Members {selectedGroupMembers.size > 0 && <span className="text-[#3a5a40]">({selectedGroupMembers.size} selected)</span>}
+                </label>
+                <div className="bg-stone-50 border border-stone-200 rounded-xl overflow-hidden">
+                  {loadingGroupFriends ? (
+                    <div className="flex items-center justify-center py-8">
+                      <div className="flex items-center gap-3 text-stone-500">
+                        <div className="w-6 h-6 border-2 border-stone-300 border-t-[#3a5a40] rounded-full animate-spin"></div>
+                        <span className="text-sm">Loading friends...</span>
+                      </div>
                     </div>
-                    <p className="text-stone-500 text-sm">No friends to add yet</p>
-                    <p className="text-stone-400 text-xs mt-1">Invite friends to add them to groups</p>
-                  </div>
+                  ) : groupFriends.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-6 text-center px-4">
+                      <div className="w-12 h-12 bg-stone-100 rounded-full flex items-center justify-center mb-3">
+                        <UserPlus size={24} className="text-stone-400" />
+                      </div>
+                      <p className="text-stone-500 text-sm">No friends to add yet</p>
+                      <p className="text-stone-400 text-xs mt-1">Add friends first to create a group</p>
+                    </div>
+                  ) : (
+                    <div className="max-h-[30vh] overflow-y-auto divide-y divide-stone-100">
+                      {groupFriends.map(friend => (
+                        <button
+                          key={friend._id}
+                          onClick={() => toggleGroupMember(friend._id)}
+                          className={`w-full flex items-center gap-3 p-3 transition-colors ${
+                            selectedGroupMembers.has(friend._id) ? 'bg-[#3a5a40]/10' : 'hover:bg-white'
+                          }`}
+                        >
+                          {friend.avatar ? (
+                            <img src={friend.avatar} className="w-10 h-10 rounded-full object-cover" alt={friend.name} />
+                          ) : (
+                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#588157] to-[#3a5a40] flex items-center justify-center text-white font-semibold">
+                              {friend.name?.[0]?.toUpperCase() || 'U'}
+                            </div>
+                          )}
+                          <div className="flex-1 text-left">
+                            <p className="font-medium text-stone-800 text-sm">{friend.name}</p>
+                            <p className="text-xs text-stone-500">{friend.email}</p>
+                          </div>
+                          {selectedGroupMembers.has(friend._id) && (
+                            <CheckCircle size={20} className="text-[#3a5a40]" />
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -1249,17 +1476,20 @@ const ChatView: React.FC<ChatViewProps> = ({ user }) => {
                       body: JSON.stringify({
                         name: groupName,
                         isGroup: true,
-                        participants: [] // Creator is added automatically by backend
+                        participants: Array.from(selectedGroupMembers),
                       }),
                     });
 
                     const data = await response.json();
 
                     if (data.success) {
-                      // Refresh conversations
                       fetchConversations();
                       setShowCreateGroupModal(false);
                       setGroupName('');
+                      setSelectedGroupMembers(new Set());
+                      // Open the new group chat
+                      const newConvId = data.data.conversation._id || data.data.conversation.id;
+                      if (newConvId) setActiveChatId(newConvId);
                     } else {
                       setError(data.message || 'Failed to create group');
                     }
@@ -1281,7 +1511,7 @@ const ChatView: React.FC<ChatViewProps> = ({ user }) => {
                 ) : (
                   <>
                     <Users size={18} />
-                    Create Group
+                    Create Group{selectedGroupMembers.size > 0 ? ` (${selectedGroupMembers.size} members)` : ''}
                   </>
                 )}
               </button>

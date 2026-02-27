@@ -6,6 +6,7 @@ import {
   Expense, Participant, BudgetCategory, SustainabilityImpact, OffsetProject, EcoChallenge,
   Trip, SavedCommunityTrip, TripCategory
 } from '../types';
+import { API_BASE_URL } from '../lib/api';
 import {
   Plus, Image as ImageIcon, Mic, Type, Share2, Calendar, Link2, Layout,
   CloudSun, X, MapPin, Wind, Thermometer, CloudRain, Sun, AlertTriangle,
@@ -13,8 +14,9 @@ import {
   CreditCard, PieChart, Users, DollarSign, Filter, Trash2, Leaf, Droplets,
   Trees, Zap, Award, BookOpen, Globe, TrendingDown, Store, Star, Play, Pause, Move, Maximize2, Crop as CropIcon,
   UserPlus, Bell, PenTool, Loader, Cloud, CloudLightning,
-  Sparkles, Mountain, Briefcase, Home, Tent, Compass, Heart, Bookmark, Tag, FolderOpen
+  Sparkles, Mountain, Briefcase, Home, Tent, Compass, Heart, Bookmark, Tag, FolderOpen, Package
 } from 'lucide-react';
+import SmartPacking from './SmartPacking';
 
 interface DashboardProps {
   user: User;
@@ -167,8 +169,9 @@ const VoiceNote: React.FC<{ note: StickyNote }> = ({ note }) => {
 };
 
 const Dashboard: React.FC<DashboardProps> = ({ user }) => {
-  // Dashboard ID - In a real app, this would come from route params or be fetched
+  // Dashboard ID and Trip ID
   const [dashboardId, setDashboardId] = useState<string>('');
+  const [tripId, setTripId] = useState<string>('');
   
   const [notes, setNotes] = useState<StickyNote[]>([]);
   const [isRecording, setIsRecording] = useState(false);
@@ -191,6 +194,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   const [showSusCal, setShowSusCal] = useState(false);
   const [showAddExpense, setShowAddExpense] = useState(false);
   const [showTripsPanel, setShowTripsPanel] = useState(false);
+  const [showSmartPacking, setShowSmartPacking] = useState(false);
 
   // Trips & Saved Data
   const [myTrips, setMyTrips] = useState<Trip[]>([]);
@@ -235,7 +239,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
     setWeatherLoading(true);
     setWeatherError('');
     try {
-      const response = await fetch(`/api/weather?location=${encodeURIComponent(location)}&days=5`, {
+      const response = await fetch(`${API_BASE_URL}/api/weather?location=${encodeURIComponent(location)}&days=5`, {
         credentials: 'include',
       });
       const data = await response.json();
@@ -333,15 +337,38 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
     splitBetweenIds: participants.map(p => p.id)
   });
 
+  // Fetch notes from the backend dashboard
+  const fetchNotes = async (dbId: string) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/boards/${dbId}`, {
+        credentials: 'include',
+      });
+      if (response.ok) {
+        const data = await response.json();
+        const dashboard = data.data?.dashboard;
+        if (dashboard?.notes && Array.isArray(dashboard.notes)) {
+          setNotes(dashboard.notes);
+        }
+      } else {
+        console.warn('Failed to fetch dashboard notes:', response.status);
+      }
+    } catch (err) {
+      console.error('Failed to fetch notes:', err);
+    }
+  };
+
   // Initialize or fetch dashboard on mount
   useEffect(() => {
     const initializeDashboard = async () => {
       try {
-        // Try to get existing dashboard from localStorage
+        // Try to get existing IDs from localStorage
         const storedDashboardId = localStorage.getItem('currentDashboardId');
+        const storedTripId = localStorage.getItem('currentTripId');
         
-        if (storedDashboardId) {
+        if (storedDashboardId && storedTripId) {
           setDashboardId(storedDashboardId);
+          setTripId(storedTripId);
+          fetchNotes(storedDashboardId);
           return;
         }
 
@@ -365,8 +392,11 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
         if (response.ok) {
           const data = await response.json();
           const newDashboardId = data.data.dashboard._id;
+          const newTripId = data.data.trip._id;
           setDashboardId(newDashboardId);
+          setTripId(newTripId);
           localStorage.setItem('currentDashboardId', newDashboardId);
+          localStorage.setItem('currentTripId', newTripId);
         } else {
           const errData = await response.json().catch(() => ({}));
           console.error('Failed to create trip/dashboard:', errData);
@@ -386,7 +416,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
     // Join dashboard via REST API to register as active
     const joinDashboard = async () => {
       try {
-        const response = await fetch(`/api/boards/${dashboardId}/join`, {
+        const response = await fetch(`${API_BASE_URL}/api/boards/${dashboardId}/join`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
@@ -412,7 +442,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
     // Fetch current active users
     const fetchActiveUsers = async () => {
       try {
-        const response = await fetch(`/api/boards/${dashboardId}/active-users`, {
+        const response = await fetch(`${API_BASE_URL}/api/boards/${dashboardId}/active-users`, {
           credentials: 'include',
         });
         if (response.ok) {
@@ -444,7 +474,15 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
     fetchActiveUsers();
 
     // Connect to socket for real-time updates
+    const token = document.cookie
+      .split('; ')
+      .find(row => row.startsWith('auth_token='))
+      ?.split('=')[1]
+      || localStorage.getItem('auth_token')
+      || localStorage.getItem('dayla_token')
+      || '';
     const socket = io(window.location.origin, {
+      auth: { token },
       withCredentials: true,
       transports: ['websocket', 'polling'],
     });
@@ -482,6 +520,22 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
       setEditingUser(null);
     });
 
+    // Listen for real-time note updates from collaborators
+    socket.on('note_updated', (data: { noteId: string; updates: any }) => {
+      setNotes(prev => prev.map(n => n.id === data.noteId ? { ...n, ...data.updates } : n));
+    });
+
+    socket.on('note_created', (data: { note: StickyNote }) => {
+      setNotes(prev => {
+        if (prev.some(n => n.id === data.note.id)) return prev;
+        return [...prev, data.note];
+      });
+    });
+
+    socket.on('note_deleted', (data: { noteId: string }) => {
+      setNotes(prev => prev.filter(n => n.id !== data.noteId));
+    });
+
     socket.on('connect_error', (err: Error) => {
       console.warn('Socket connection error (active users will use REST fallback):', err.message);
     });
@@ -489,7 +543,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
     // Cleanup: leave dashboard and disconnect socket
     return () => {
       if (dashboardId) {
-        fetch(`/api/boards/${dashboardId}/leave`, {
+        fetch(`${API_BASE_URL}/api/boards/${dashboardId}/leave`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
@@ -542,7 +596,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
 
   const updateTripCategory = async (tripId: string, category: TripCategory) => {
     try {
-      const response = await fetch(`/api/trips/${tripId}`, {
+      const response = await fetch(`${API_BASE_URL}/api/trips/${tripId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -582,17 +636,69 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
       crop: type === 'image' ? { x: 0, y: 0, zoom: 1 } : undefined,
       createdBy: author,
     };
-    setNotes([...notes, newNote]);
+    setNotes(prev => [...prev, newNote]);
+
+    // Persist to backend
+    if (tripId) {
+      fetch(`${API_BASE_URL}/api/trips/${tripId}/notes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(newNote),
+      }).catch(err => console.error('Failed to save note:', err));
+    }
+    // Broadcast to collaborators
+    if (socketRef.current && dashboardId) {
+      socketRef.current.emit('note_update', { roomId: dashboardId, noteId: newNote.id, updates: newNote });
+    }
   };
 
   const stampEdit = (noteId: string) => {
     const author = makeAuthor();
-    setNotes(prev => prev.map(n => n.id === noteId ? { ...n, lastEditedBy: author } : n));
+    setNotes(prev => {
+      const updated = prev.map(n => n.id === noteId ? { ...n, lastEditedBy: author } : n);
+      // Persist the changed note to backend
+      const note = updated.find(n => n.id === noteId);
+      if (note && tripId) {
+        fetch(`${API_BASE_URL}/api/trips/${tripId}/notes/${noteId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify(note),
+        }).catch(err => console.error('Failed to update note:', err));
+      }
+      // Broadcast to collaborators
+      if (note && socketRef.current && dashboardId) {
+        socketRef.current.emit('note_update', { roomId: dashboardId, noteId, updates: note });
+      }
+      return updated;
+    });
   };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
+    if (!file) return;
+    try {
+      // Upload image to backend for persistent storage
+      const formData = new FormData();
+      formData.append('image', file);
+      const uploadRes = await fetch('/api/upload/images', {
+        method: 'POST',
+        credentials: 'include',
+        body: formData,
+      });
+      const uploadData = await uploadRes.json();
+      if (uploadData.success && uploadData.data?.url) {
+        addNote('image', uploadData.data.url);
+      } else {
+        // Fallback to base64 if upload fails
+        console.warn('Image upload failed, using local data URL:', uploadData.message);
+        const reader = new FileReader();
+        reader.onload = (event) => addNote('image', event.target?.result as string);
+        reader.readAsDataURL(file);
+      }
+    } catch (err) {
+      console.warn('Image upload error, using local data URL:', err);
       const reader = new FileReader();
       reader.onload = (event) => addNote('image', event.target?.result as string);
       reader.readAsDataURL(file);
@@ -619,11 +725,36 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
         : new MediaRecorder(stream);
       audioChunksRef.current = [];
       mediaRecorderRef.current.ondataavailable = (e) => e.data.size > 0 && audioChunksRef.current.push(e.data);
-      mediaRecorderRef.current.onstop = () => {
+      mediaRecorderRef.current.onstop = async () => {
         if (audioChunksRef.current.length > 0) {
-          const audioBlob = new Blob(audioChunksRef.current, { type: mediaRecorderRef.current?.mimeType || 'audio/webm' });
+          const mimeUsed = mediaRecorderRef.current?.mimeType || 'audio/webm';
+          const audioBlob = new Blob(audioChunksRef.current, { type: mimeUsed });
           if (audioBlob.size > 1000) {
-            addNote('voice', 'Voice Message', '🎙️', undefined, undefined, URL.createObjectURL(audioBlob));
+            // Upload audio to backend for persistent storage
+            try {
+              const ext = mimeUsed.includes('mp4') ? 'mp4' : mimeUsed.includes('ogg') ? 'ogg' : 'webm';
+              const formData = new FormData();
+              formData.append('audio', audioBlob, `voice_${Date.now()}.${ext}`);
+
+              const uploadResponse = await fetch('/api/upload/audio', {
+                method: 'POST',
+                credentials: 'include',
+                body: formData,
+              });
+
+              const uploadData = await uploadResponse.json();
+              if (uploadData.success && uploadData.data?.url) {
+                addNote('voice', 'Voice Message', '🎙️', undefined, undefined, uploadData.data.url);
+              } else {
+                // Fallback to blob URL if upload fails
+                console.warn('Audio upload failed, using local blob URL:', uploadData.message);
+                addNote('voice', 'Voice Message', '🎙️', undefined, undefined, URL.createObjectURL(audioBlob));
+              }
+            } catch (uploadErr) {
+              // Fallback to blob URL if network error
+              console.warn('Audio upload error, using local blob URL:', uploadErr);
+              addNote('voice', 'Voice Message', '🎙️', undefined, undefined, URL.createObjectURL(audioBlob));
+            }
           }
         }
       };
@@ -634,7 +765,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
         setRecordingDuration(prev => prev + 1);
       }, 1000);
     } catch (err: any) {
-      // Use inline alert instead of blocking alert() dialog
       const errName = err?.name || '';
       let message = 'Microphone access is required to record voice notes. Please allow it in your browser settings.';
       if (errName === 'NotAllowedError') {
@@ -642,12 +772,18 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
       } else if (errName === 'NotFoundError') {
         message = 'No microphone found. Please connect a microphone and try again.';
       }
-      setShowAlerts(prev => [...prev, {
-        id: Math.random().toString(36).substr(2, 9),
-        message,
-        type: 'warning',
-        timestamp: new Date()
-      }]);
+
+      // Prevent duplicate mic alerts from stacking — only add if no existing mic alert
+      setShowAlerts(prev => {
+        const hasMicAlert = prev.some(a => a.type === 'warning' && a.message.includes('icrophone'));
+        if (hasMicAlert) return prev; // Don't stack duplicates
+        const alertId = 'mic_' + Date.now();
+        // Auto-remove after 5 seconds
+        setTimeout(() => {
+          setShowAlerts(p => p.filter(a => a.id !== alertId));
+        }, 5000);
+        return [...prev, { id: alertId, message, type: 'warning', timestamp: new Date() }];
+      });
     } finally {
       setMicRequesting(false);
     }
@@ -768,7 +904,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
       }
 
       // Make API call to send invitation email
-      const response = await fetch(`/api/boards/${dashboardId}/invite`, {
+      const response = await fetch(`${API_BASE_URL}/api/boards/${dashboardId}/invite`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -900,7 +1036,21 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
                 <button onClick={(e) => { e.stopPropagation(); toggleLink(note.id); }} className="p-1 hover:bg-[#3a5a40]/10 rounded transition-colors"><Link2 size={16} className="text-[#3a5a40]" /></button>
                 {note.type === 'image' && <button onClick={(e) => { e.stopPropagation(); setCroppingId(croppingId === note.id ? null : note.id); }} className={`p-1 hover:bg-[#3a5a40]/10 rounded transition-colors ${croppingId === note.id ? 'bg-[#3a5a40] text-white' : 'text-[#3a5a40]'}`}><CropIcon size={16} /></button>}
              </div>
-             <button onClick={(e) => { e.stopPropagation(); setNotes(prev => prev.filter(n => n.id !== note.id)); }} className="p-1 hover:bg-red-50 text-red-500 rounded transition-colors"><Trash2 size={16} /></button>
+             <button onClick={(e) => {
+               e.stopPropagation();
+               setNotes(prev => prev.filter(n => n.id !== note.id));
+               // Delete from backend
+               if (tripId) {
+                 fetch(`${API_BASE_URL}/api/trips/${tripId}/notes/${note.id}`, {
+                   method: 'DELETE',
+                   credentials: 'include',
+                 }).catch(err => console.error('Failed to delete note:', err));
+               }
+               // Broadcast deletion to collaborators
+               if (socketRef.current && dashboardId) {
+                 socketRef.current.emit('note_deleted', { roomId: dashboardId, noteId: note.id });
+               }
+             }} className="p-1 hover:bg-red-50 text-red-500 rounded transition-colors"><Trash2 size={16} /></button>
           </div>
 
           {note.type === 'image' ? (
@@ -926,15 +1076,15 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
               </div>
               <textarea
                 className="flex-1 bg-transparent border-none resize-none focus:ring-0 text-sm font-medium text-stone-800 p-0 leading-tight"
-                defaultValue={note.content}
+                value={note.content}
                 onClick={(e) => e.stopPropagation()}
                 onFocus={() => handleNoteEdit(note.id)}
-                onBlur={(e) => {
+                onChange={(e) => {
                   const newContent = e.target.value;
-                  if (newContent !== note.content) {
-                    setNotes(prev => prev.map(n => n.id === note.id ? { ...n, content: newContent } : n));
-                    stampEdit(note.id);
-                  }
+                  setNotes(prev => prev.map(n => n.id === note.id ? { ...n, content: newContent } : n));
+                }}
+                onBlur={() => {
+                  stampEdit(note.id);
                   setTimeout(() => {
                     setEditingNoteId(null);
                     setEditingUser(null);
@@ -1024,12 +1174,24 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
         </button>
       </div>
 
-      {/* Trips Glowing Button */}
+      {/* Ntelipak Glowing Blue Button — bottom-left, above toolbar */}
+      <button
+        onClick={() => setShowSmartPacking(true)}
+        className="ntelipak-btn absolute bottom-[72px] left-3 w-12 h-12 rounded-full flex items-center justify-center z-40 border-2 border-blue-300/50"
+        style={{ marginBottom: 'env(safe-area-inset-bottom, 0px)' }}
+      >
+        <Package size={20} className="text-white drop-shadow-lg" />
+        <span className="ntelipak-glitter-a absolute w-1 h-1 rounded-full bg-white" />
+        <span className="ntelipak-glitter-b absolute w-1 h-1 rounded-full bg-white" />
+      </button>
+
+      {/* Trips Glowing Button — bottom-right, above toolbar */}
       <button
         onClick={() => { setShowTripsPanel(true); fetchTripsData(); }}
-        className="trips-btn absolute bottom-5 right-4 w-14 h-14 rounded-full flex items-center justify-center z-50 border-2 border-pink-300/50"
+        className="trips-btn absolute bottom-[72px] right-3 w-12 h-12 rounded-full flex items-center justify-center z-40 border-2 border-pink-300/50"
+        style={{ marginBottom: 'env(safe-area-inset-bottom, 0px)' }}
       >
-        <Sparkles size={22} className="text-white drop-shadow-lg" />
+        <Sparkles size={20} className="text-white drop-shadow-lg" />
         <span className="glitter-a absolute w-1 h-1 rounded-full bg-white" />
         <span className="glitter-b absolute w-1 h-1 rounded-full bg-white" />
       </button>
@@ -1948,6 +2110,16 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
               <p className="text-[10px] mt-2 text-center max-w-[200px] font-bold">Record voices, upload photos, or add sticky notes to build your roadmap.</p>
             </div>
         </div>
+      )}
+
+      {/* Smart Packing Modal */}
+      {showSmartPacking && (
+        <SmartPacking
+          user={user}
+          tripId={dashboardId}
+          dashboardId={dashboardId}
+          onClose={() => setShowSmartPacking(false)}
+        />
       )}
 
       <style>{`

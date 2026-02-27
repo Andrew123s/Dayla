@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { User } from '../types';
+import { API_BASE_URL } from '../lib/api';
 import { Layout, Compass, MessageCircle, User as UserIcon, Plus, Heart, MapPin, X, ChevronRight, CheckCircle } from 'lucide-react';
 
 interface OnboardingProps {
@@ -78,7 +79,7 @@ const Onboarding: React.FC<OnboardingProps> = ({ user, onComplete }) => {
     } else {
       // Call backend to mark onboarding as complete
       try {
-        const response = await fetch(`/api/auth/complete-onboarding`, {
+        const response = await fetch(`${API_BASE_URL}/api/auth/complete-onboarding`, {
           method: 'POST',
           credentials: 'include', // Use cookie-based auth
           headers: {

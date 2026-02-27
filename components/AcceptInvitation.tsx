@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { CheckCircle, XCircle, Loader, Leaf } from 'lucide-react';
 import { User } from '../types';
+import { API_BASE_URL } from '../lib/api';
 
 interface AcceptInvitationProps {
   invitationId: string;
@@ -19,7 +20,6 @@ const AcceptInvitation: React.FC<AcceptInvitationProps> = ({
   const [message, setMessage] = useState('');
   const [dashboardName, setDashboardName] = useState('');
 
-  const API_BASE_URL = '';
 
   useEffect(() => {
     if (!user) {

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Users, AlertCircle, CheckCircle } from 'lucide-react';
+import { API_BASE_URL } from '../lib/api';
 
 interface JoinGroupProps {
   inviteCode: string;
@@ -11,7 +12,7 @@ const JoinGroup: React.FC<JoinGroupProps> = ({ inviteCode }) => {
   const [success, setSuccess] = useState(false);
   const [groupName, setGroupName] = useState('');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const API_BASE_URL = '';
+
 
   useEffect(() => {
     checkAuthAndJoin();

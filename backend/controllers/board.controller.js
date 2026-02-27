@@ -12,7 +12,7 @@ const getActiveUsers = async (req, res) => {
 
     const dashboard = await Dashboard.findById(boardId)
       .populate('activeUsers.userId', 'name avatar')
-      .select('activeUsers');
+      .select('activeUsers owner collaborators');
 
     if (!dashboard) {
       return res.status(404).json({
@@ -22,10 +22,10 @@ const getActiveUsers = async (req, res) => {
     }
 
     // Check if user has access to this dashboard
-    const isCollaborator = dashboard.collaborators.some(c =>
+    const isCollaborator = (dashboard.collaborators || []).some(c =>
       c.user.toString() === req.user._id.toString()
     );
-    const isOwner = dashboard.owner.toString() === req.user._id.toString();
+    const isOwner = dashboard.owner && dashboard.owner.toString() === req.user._id.toString();
 
     if (!isOwner && !isCollaborator) {
       return res.status(403).json({
@@ -448,7 +448,55 @@ const getPendingInvitations = async (req, res) => {
   }
 };
 
+// @desc    Get full dashboard (including notes)
+// @route   GET /api/boards/:boardId
+// @access  Private
+const getDashboard = async (req, res) => {
+  try {
+    const { boardId } = req.params;
+
+    const dashboard = await Dashboard.findById(boardId)
+      .populate('owner', 'name avatar')
+      .populate('collaborators.user', 'name avatar')
+      .populate('activeUsers.userId', 'name avatar');
+
+    if (!dashboard) {
+      return res.status(404).json({
+        success: false,
+        message: 'Dashboard not found'
+      });
+    }
+
+    // Check if user has access
+    const isOwner = dashboard.owner._id.toString() === req.user._id.toString();
+    const isCollaborator = dashboard.collaborators.some(c =>
+      c.user && c.user._id ? c.user._id.toString() === req.user._id.toString()
+        : c.user.toString() === req.user._id.toString()
+    );
+
+    if (!isOwner && !isCollaborator) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to view this dashboard'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: { dashboard }
+    });
+  } catch (error) {
+    logger.error('Get dashboard error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get dashboard',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
+  getDashboard,
   getActiveUsers,
   joinDashboard,
   leaveDashboard,

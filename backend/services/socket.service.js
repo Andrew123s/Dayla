@@ -13,7 +13,17 @@ const rooms = new Map();
 const initializeSocket = (io) => {
   io.use(async (socket, next) => {
     try {
-      const token = socket.handshake.auth.token;
+      // Support token from auth handshake OR from cookies
+      let token = socket.handshake.auth.token;
+
+      if (!token) {
+        // Try to extract token from cookies sent with the handshake
+        const cookieHeader = socket.handshake.headers.cookie || '';
+        const match = cookieHeader.match(/auth_token=([^;]+)/);
+        if (match) {
+          token = match[1];
+        }
+      }
 
       if (!token) {
         return next(new Error('Authentication token required'));
@@ -211,6 +221,32 @@ const initializeSocket = (io) => {
       }
     });
 
+    // Handle note deletion (real-time sync)
+    socket.on('note_deleted', async (data) => {
+      try {
+        const { roomId, noteId } = data;
+
+        // Remove note from dashboard in database
+        await Dashboard.findByIdAndUpdate(roomId, {
+          $pull: { notes: { id: noteId } },
+          $set: { lastModified: new Date() }
+        });
+
+        // Broadcast deletion to other users in room
+        socket.to(roomId).emit('note_deleted', {
+          noteId,
+          deletedBy: {
+            userId: user._id,
+            userName: user.name,
+          },
+          timestamp: new Date()
+        });
+      } catch (error) {
+        logger.error('Note delete error:', error);
+        socket.emit('error', { message: 'Failed to delete note' });
+      }
+    });
+
     // Handle new message
     socket.on('send_message', async (data) => {
       try {
@@ -276,6 +312,78 @@ const initializeSocket = (io) => {
         logger.error('Send message error:', error);
         socket.emit('error', { message: 'Failed to send message' });
       }
+    });
+
+    // ═══ PACKING — Real-time collaboration events ═══════════════════════
+
+    // Item added to packing list
+    socket.on('packing:item_added', (data) => {
+      const { roomId, item } = data;
+      logger.info(`[packing:item_added] ${user.name} added "${item.name}" in room ${roomId}`);
+      socket.to(roomId).emit('packing:item_added', {
+        item,
+        addedBy: { userId: user._id, name: user.name, avatar: user.avatar },
+        timestamp: new Date(),
+      });
+    });
+
+    // Item packed / unpacked
+    socket.on('packing:item_packed', (data) => {
+      const { roomId, itemId, packed } = data;
+      logger.info(`[packing:item_packed] ${user.name} ${packed ? 'packed' : 'unpacked'} item ${itemId} in room ${roomId}`);
+      socket.to(roomId).emit('packing:item_packed', {
+        itemId,
+        packed,
+        packedBy: { userId: user._id, name: user.name, avatar: user.avatar },
+        timestamp: new Date(),
+      });
+    });
+
+    // Member assigned to item
+    socket.on('packing:member_assigned', (data) => {
+      const { roomId, itemId, assignedTo } = data;
+      logger.info(`[packing:member_assigned] ${user.name} assigned item ${itemId} to ${assignedTo.name} in room ${roomId}`);
+      socket.to(roomId).emit('packing:member_assigned', {
+        itemId,
+        assignedTo,
+        assignedBy: { userId: user._id, name: user.name, avatar: user.avatar },
+        timestamp: new Date(),
+      });
+    });
+
+    // Duplicate detected
+    socket.on('packing:duplicate_detected', (data) => {
+      const { roomId, duplicates } = data;
+      logger.info(`[packing:duplicate_detected] ${duplicates.length} duplicates detected by ${user.name} in room ${roomId}`);
+      socket.to(roomId).emit('packing:duplicate_detected', {
+        duplicates,
+        detectedBy: { userId: user._id, name: user.name },
+        timestamp: new Date(),
+      });
+    });
+
+    // Template applied
+    socket.on('packing:template_applied', (data) => {
+      const { roomId, templateName, addedCount } = data;
+      logger.info(`[packing:template_applied] ${user.name} applied template "${templateName}" (+${addedCount} items) in room ${roomId}`);
+      socket.to(roomId).emit('packing:template_applied', {
+        templateName,
+        addedCount,
+        appliedBy: { userId: user._id, name: user.name, avatar: user.avatar },
+        timestamp: new Date(),
+      });
+    });
+
+    // Item removed from packing list
+    socket.on('packing:item_removed', (data) => {
+      const { roomId, itemId, itemName } = data;
+      logger.info(`[packing:item_removed] ${user.name} removed "${itemName}" in room ${roomId}`);
+      socket.to(roomId).emit('packing:item_removed', {
+        itemId,
+        itemName,
+        removedBy: { userId: user._id, name: user.name, avatar: user.avatar },
+        timestamp: new Date(),
+      });
     });
 
     // Handle typing indicators

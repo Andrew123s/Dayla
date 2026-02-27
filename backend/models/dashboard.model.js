@@ -35,7 +35,7 @@ const stickyNoteSchema = new mongoose.Schema({
   content: {
     type: String,
     required: true,
-    maxlength: [10000, 'Content cannot exceed 10,000 characters']
+    maxlength: [50000, 'Content cannot exceed 50,000 characters']
   },
   color: {
     type: String,
@@ -62,6 +62,14 @@ const stickyNoteSchema = new mongoose.Schema({
     x: { type: Number, default: 0 },
     y: { type: Number, default: 0 },
     zoom: { type: Number, default: 1 }
+  },
+  createdBy: {
+    type: mongoose.Schema.Types.Mixed,
+    default: null
+  },
+  lastEditedBy: {
+    type: mongoose.Schema.Types.Mixed,
+    default: null
   }
 }, { _id: false });
 

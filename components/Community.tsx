@@ -3,6 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { User, Post } from '../types';
 import { Heart, MessageCircle, MapPin, Share, Save, Plus, Image as ImageIcon, X, Send, AlertCircle, CheckCircle, Loader, UserPlus } from 'lucide-react';
 import { initializeSocket, getSocket } from '../lib/socket';
+import { API_BASE_URL } from '../lib/api';
 
 interface CommunityProps {
   user: User;
@@ -27,12 +28,15 @@ const Community: React.FC<CommunityProps> = ({ user }) => {
     imagePreview: null as string | null
   });
   const fileInputRef = useRef<HTMLInputElement>(null);
-  // Use empty string for same-origin requests (Vite proxy handles /api/* routes)
-  const API_BASE_URL = '';
 
   // Initialize socket connection
   useEffect(() => {
-    const token = localStorage.getItem('dayla_token');
+    const token = document.cookie
+      .split('; ')
+      .find(row => row.startsWith('auth_token='))
+      ?.split('=')[1]
+      || localStorage.getItem('auth_token')
+      || localStorage.getItem('dayla_token');
     if (token) {
       initializeSocket(token);
     }
@@ -63,7 +67,7 @@ const Community: React.FC<CommunityProps> = ({ user }) => {
       console.log('Post liked:', data);
       setPosts(prev => prev.map(post => 
         (post._id || post.id) === data.postId
-          ? { ...post, likes: data.likeCount }
+          ? { ...post, likeCount: data.likeCount }
           : post
       ));
     });
@@ -135,7 +139,7 @@ const Community: React.FC<CommunityProps> = ({ user }) => {
       if (data.success) {
         setPosts(prev => prev.map(post =>
           (post._id || post.id) === postId
-            ? { ...post, likes: data.data.likeCount, liked: data.data.liked }
+            ? { ...post, likeCount: data.data.likeCount, liked: data.data.liked }
             : post
         ));
       }
@@ -392,7 +396,7 @@ const Community: React.FC<CommunityProps> = ({ user }) => {
             const locationName = (post as any).location?.name || 'Unknown Location';
             const postImages = (post as any).images || [];
             const mainImage = postImages.length > 0 ? postImages[0].url : '';
-            const likeCount = (post as any).likeCount || (post as any).likes?.length || 0;
+            const likeCount = (post as any).likeCount ?? (Array.isArray((post as any).likes) ? (post as any).likes.length : 0);
             const comments = (post as any).comments || [];
             const isLiked = (post as any).liked || false;
             const isSaved = (post as any).saved || false;

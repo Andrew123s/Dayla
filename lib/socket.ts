@@ -1,6 +1,7 @@
 import { io, Socket } from 'socket.io-client';
+import { API_BASE_URL } from './api';
 
-const SOCKET_URL = 'http://localhost:3005';
+const SOCKET_URL = API_BASE_URL || window.location.origin;
 
 let socket: Socket | null = null;
 
@@ -13,6 +14,7 @@ export const initializeSocket = (token: string): Socket => {
     auth: {
       token
     },
+    withCredentials: true, // Send cookies with the WebSocket handshake
     transports: ['websocket', 'polling'],
     reconnection: true,
     reconnectionDelay: 1000,
