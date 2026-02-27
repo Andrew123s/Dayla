@@ -16,10 +16,10 @@ const generateToken = (id) => {
 const getCookieOptions = () => {
   const isProduction = process.env.NODE_ENV === 'production';
   return {
-    httpOnly: true, // Prevents JavaScript access to cookie
-    secure: isProduction, // Only send over HTTPS in production
-    sameSite: 'lax', // CSRF protection (works with proxy in dev)
-    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days in milliseconds
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: isProduction ? 'none' : 'lax', // 'none' required for cross-domain cookies in production
+    maxAge: 7 * 24 * 60 * 60 * 1000,
     path: '/',
   };
 };
@@ -31,8 +31,11 @@ const setTokenCookie = (res, token) => {
 
 // Clear auth token cookie
 const clearTokenCookie = (res) => {
+  const isProduction = process.env.NODE_ENV === 'production';
   res.cookie('auth_token', '', {
     httpOnly: true,
+    secure: isProduction,
+    sameSite: isProduction ? 'none' : 'lax',
     expires: new Date(0),
     path: '/',
   });

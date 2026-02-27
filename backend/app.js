@@ -24,59 +24,44 @@ const packingRoutes = require('./routes/packing.routes');
 // Create Express app
 const app = express();
 
-// Security middleware
-app.use(helmet({
-  crossOriginResourcePolicy: { policy: "cross-origin" }
-}));
+// Build allowed origins list once
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'http://localhost:3002',
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:3000',
+  'http://127.0.0.1:3002',
+  process.env.FRONTEND_URL
+].filter(Boolean);
 
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
-  message: 'Too many requests from this IP, please try again later.',
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-app.use('/api/', limiter);
-
-// CORS configuration
+// CORS must be before helmet so preflight OPTIONS requests aren't blocked
 app.use(cors({
   origin: function (origin, callback) {
-    console.log('CORS Origin:', origin); // Debug log
-
-    // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
-
-    const allowedOrigins = [
-      'http://localhost:5173',  // Vite dev server
-      'http://localhost:3000',  // Alternative frontend port
-      'http://localhost:3002',  // Backend port (for testing)
-      'http://127.0.0.1:5173',  // Alternative localhost
-      'http://127.0.0.1:3000',  // Alternative localhost
-      'http://127.0.0.1:3002',  // Backend port (for testing)
-      process.env.FRONTEND_URL
-    ].filter(Boolean);
-
-    console.log('Allowed origins:', allowedOrigins);
-
-    if (allowedOrigins.includes(origin)) {
-      console.log('✅ Origin allowed:', origin);
-      return callback(null, true);
-    }
-
-    // Allow all origins in development
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('✅ Development mode - allowing all origins');
-      return callback(null, true);
-    }
-
-    console.log('❌ Origin blocked:', origin);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    if (process.env.NODE_ENV !== 'production') return callback(null, true);
     return callback(new Error('Not allowed by CORS'));
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin']
 }));
+
+// Security middleware (after CORS so preflight isn't blocked)
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" }
+}));
+
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  message: 'Too many requests from this IP, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use('/api/', limiter);
 
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
