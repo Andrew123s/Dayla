@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { User } from '../types';
-import { API_BASE_URL } from '../lib/api';
+import { API_BASE_URL, authFetch } from '../lib/api';
 import { 
   Settings, LogOut, Edit3, Camera, Map, Award, Users, X, Save, 
   Bell, Shield, Moon, Globe, ChevronRight, Loader, Check, AlertCircle,
@@ -62,9 +62,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onLogout }) => {
 
   const fetchUserStats = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
-        credentials: 'include',
-      });
+      const response = await authFetch(`${API_BASE_URL}/api/auth/me`);
       
       if (response.ok) {
         const data = await response.json();
@@ -107,9 +105,8 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onLogout }) => {
       const formData = new FormData();
       formData.append('avatar', file);
 
-      const response = await fetch(`${API_BASE_URL}/api/auth/upload-avatar`, {
+      const response = await authFetch(`${API_BASE_URL}/api/auth/upload-avatar`, {
         method: 'POST',
-        credentials: 'include',
         body: formData,
       });
 
@@ -138,9 +135,8 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onLogout }) => {
     setMessage({ type: '', text: '' });
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
+      const response = await authFetch(`${API_BASE_URL}/api/auth/me`, {
         method: 'PUT',
-        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
         },
@@ -183,9 +179,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onLogout }) => {
   const fetchVisitedPlaces = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/trips/visited`, {
-        credentials: 'include',
-      });
+      const response = await authFetch(`${API_BASE_URL}/api/trips/visited`);
 
       if (response.ok) {
         const data = await response.json();

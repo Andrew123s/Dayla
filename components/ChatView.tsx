@@ -3,7 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { User, Conversation, Message } from '../types';
 import { Search, Send, Plus, Image as ImageIcon, Phone, MoreVertical, Smile, Mic, Paperclip, Sticker, FileText, Gift, MessageCircle, AlertCircle, X, Users, UserPlus, CheckCircle } from 'lucide-react';
 import { initializeSocket, getSocket, joinConversation, leaveConversation, sendMessage as sendSocketMessage, startTyping, stopTyping } from '../lib/socket';
-import { API_BASE_URL } from '../lib/api';
+import { API_BASE_URL, authFetch } from '../lib/api';
 
 interface ChatViewProps {
   user: User;
@@ -164,21 +164,22 @@ const ChatView: React.FC<ChatViewProps> = ({ user }) => {
   }, []);
 
   const fetchConversations = async () => {
+    setError('');
     try {
-      const response = await fetch(`${API_BASE_URL}/api/chat/conversations`, {
-        credentials: 'include', // Use cookie-based auth
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        setConversations(data.data.conversations);
-      } else {
-        setError('Failed to load conversations');
+      const response = await authFetch(`${API_BASE_URL}/api/chat/conversations`);
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new Error('Server returned an unexpected response');
       }
-    } catch (error) {
-      console.error('Error fetching conversations:', error);
-      setError('Failed to load conversations');
+      const data = await response.json();
+      if (data.success) {
+        setConversations(Array.isArray(data.data?.conversations) ? data.data.conversations : []);
+      } else {
+        throw new Error(data.message || 'Failed to load conversations');
+      }
+    } catch (err) {
+      console.error('Error fetching conversations:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load conversations');
     } finally {
       setLoading(false);
     }
@@ -187,9 +188,7 @@ const ChatView: React.FC<ChatViewProps> = ({ user }) => {
   const fetchMessages = async (conversationId: string) => {
     try {
       setLoadingMessages(true);
-      const response = await fetch(`${API_BASE_URL}/api/chat/conversations/${conversationId}/messages`, {
-        credentials: 'include', // Use cookie-based auth
-      });
+      const response = await authFetch(`${API_BASE_URL}/api/chat/conversations/${conversationId}/messages`);
 
       const data = await response.json();
 
@@ -319,10 +318,9 @@ const ChatView: React.FC<ChatViewProps> = ({ user }) => {
     console.log('Saving group profile:', { conversationId: activeChatId, name: editGroupName.trim() });
     setEditingGroup(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/chat/conversations/${activeChatId}`, {
+      const response = await authFetch(`${API_BASE_URL}/api/chat/conversations/${activeChatId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ name: editGroupName.trim() })
       });
 
@@ -363,9 +361,8 @@ const ChatView: React.FC<ChatViewProps> = ({ user }) => {
     formData.append('avatar', file);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/chat/conversations/${activeChatId}/avatar`, {
+      const response = await authFetch(`${API_BASE_URL}/api/chat/conversations/${activeChatId}/avatar`, {
         method: 'POST',
-        credentials: 'include',
         body: formData
       });
 
@@ -394,9 +391,8 @@ const ChatView: React.FC<ChatViewProps> = ({ user }) => {
     setError('');
     setSuccessMessage('');
     try {
-      const response = await fetch(`${API_BASE_URL}/api/chat/conversations/${activeChatId}/invite-link`, {
-        method: 'POST',
-        credentials: 'include'
+      const response = await authFetch(`${API_BASE_URL}/api/chat/conversations/${activeChatId}/invite-link`, {
+        method: 'POST'
       });
 
       const data = await response.json();
@@ -432,9 +428,7 @@ const ChatView: React.FC<ChatViewProps> = ({ user }) => {
     setSelectedFriends(new Set());
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/auth/friends`, {
-        credentials: 'include'
-      });
+      const response = await authFetch(`${API_BASE_URL}/api/auth/friends`);
 
       const data = await response.json();
 
@@ -476,10 +470,9 @@ const ChatView: React.FC<ChatViewProps> = ({ user }) => {
     console.log('Adding members to group:', { conversationId: activeChatId, memberIds: Array.from(selectedFriends) });
     setAddingMembers(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/chat/conversations/${activeChatId}/members`, {
+      const response = await authFetch(`${API_BASE_URL}/api/chat/conversations/${activeChatId}/members`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ userIds: Array.from(selectedFriends) })
       });
 
@@ -510,9 +503,7 @@ const ChatView: React.FC<ChatViewProps> = ({ user }) => {
   const fetchNewChatFriends = async () => {
     setLoadingNewChatFriends(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/auth/friends`, {
-        credentials: 'include',
-      });
+      const response = await authFetch(`${API_BASE_URL}/api/auth/friends`);
       const data = await response.json();
       if (data.success) {
         setNewChatFriends(data.data.friends || []);
@@ -528,9 +519,7 @@ const ChatView: React.FC<ChatViewProps> = ({ user }) => {
   const fetchGroupFriends = async () => {
     setLoadingGroupFriends(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/auth/friends`, {
-        credentials: 'include',
-      });
+      const response = await authFetch(`${API_BASE_URL}/api/auth/friends`);
       const data = await response.json();
       if (data.success) {
         setGroupFriends(data.data.friends || []);
@@ -560,9 +549,8 @@ const ChatView: React.FC<ChatViewProps> = ({ user }) => {
       }
 
       // Create new direct conversation
-      const response = await fetch(`${API_BASE_URL}/api/chat/conversations`, {
+      const response = await authFetch(`${API_BASE_URL}/api/chat/conversations`, {
         method: 'POST',
-        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: friendName,
@@ -615,9 +603,8 @@ const ChatView: React.FC<ChatViewProps> = ({ user }) => {
           formData.append('files', file);
         });
 
-        const response = await fetch(`${API_BASE_URL}/api/upload/documents`, {
+        const response = await authFetch(`${API_BASE_URL}/api/upload/documents`, {
           method: 'POST',
-          credentials: 'include', // Use cookie-based auth
           body: formData,
         });
 
@@ -1467,9 +1454,8 @@ const ChatView: React.FC<ChatViewProps> = ({ user }) => {
                   
                   setCreatingGroup(true);
                   try {
-                    const response = await fetch(`${API_BASE_URL}/api/chat/conversations`, {
+                    const response = await authFetch(`${API_BASE_URL}/api/chat/conversations`, {
                       method: 'POST',
-                      credentials: 'include',
                       headers: {
                         'Content-Type': 'application/json',
                       },

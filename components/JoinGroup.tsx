@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Users, AlertCircle, CheckCircle } from 'lucide-react';
-import { API_BASE_URL } from '../lib/api';
+import { API_BASE_URL, authFetch } from '../lib/api';
 
 interface JoinGroupProps {
   inviteCode: string;
@@ -21,9 +21,7 @@ const JoinGroup: React.FC<JoinGroupProps> = ({ inviteCode }) => {
   const checkAuthAndJoin = async () => {
     try {
       // Check if user is authenticated
-      const authResponse = await fetch(`${API_BASE_URL}/api/auth/check`, {
-        credentials: 'include'
-      });
+      const authResponse = await authFetch(`${API_BASE_URL}/api/auth/check`);
 
       const authData = await authResponse.json();
 
@@ -37,9 +35,8 @@ const JoinGroup: React.FC<JoinGroupProps> = ({ inviteCode }) => {
       setIsLoggedIn(true);
 
       // User is logged in - attempt to join
-      const joinResponse = await fetch(`${API_BASE_URL}/api/chat/join/${inviteCode}`, {
+      const joinResponse = await authFetch(`${API_BASE_URL}/api/chat/join/${inviteCode}`, {
         method: 'POST',
-        credentials: 'include'
       });
 
       const joinData = await joinResponse.json();

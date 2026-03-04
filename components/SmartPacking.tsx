@@ -4,7 +4,7 @@ import {
   User, PackingList, PackingItem, PackingLuggage, PackingSuggestion, PackingTemplate,
   PackingItemCategory, TripCategory, Participant,
 } from '../types';
-import { API_BASE_URL } from '../lib/api';
+import { API_BASE_URL, authFetch } from '../lib/api';
 import {
   X, Plus, Check, Trash2, Search, ChevronDown, ChevronUp, Package, Plane, Weight,
   AlertTriangle, Star, ShoppingCart, Users, Loader, RefreshCw, Zap, Shield, Shirt,
@@ -80,20 +80,13 @@ const SmartPacking: React.FC<SmartPackingProps> = ({ user, tripId, dashboardId, 
 
   const socketRef = useRef<Socket | null>(null);
 
-  // ─── Auth header ────────────────────────────────────────────────────
-  const authHeaders = useCallback(() => {
-    const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
-    return {
-      'Content-Type': 'application/json',
-      ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-    };
-  }, []);
+  const jsonHeaders = { 'Content-Type': 'application/json' };
 
   // ─── Fetch packing list ────────────────────────────────────────────
   const fetchList = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await fetch(`${API_BASE_URL}/api/packing/${tripId}`, { headers: authHeaders() });
+      const res = await authFetch(`${API_BASE_URL}/api/packing/${tripId}`, { headers: jsonHeaders });
       const data = await res.json();
       if (data.success) setList(data.data);
     } catch (err) {
@@ -101,12 +94,12 @@ const SmartPacking: React.FC<SmartPackingProps> = ({ user, tripId, dashboardId, 
     } finally {
       setLoading(false);
     }
-  }, [tripId, authHeaders]);
+  }, [tripId]);
 
   // ─── Fetch suggestions ─────────────────────────────────────────────
   const fetchSuggestions = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/packing/${tripId}/suggestions`, { headers: authHeaders() });
+      const res = await authFetch(`${API_BASE_URL}/api/packing/${tripId}/suggestions`, { headers: jsonHeaders });
       const data = await res.json();
       if (data.success) {
         setSuggestions(data.data.suggestions || []);
@@ -115,18 +108,18 @@ const SmartPacking: React.FC<SmartPackingProps> = ({ user, tripId, dashboardId, 
     } catch (err) {
       console.error('Failed to fetch suggestions:', err);
     }
-  }, [tripId, authHeaders]);
+  }, [tripId]);
 
   // ─── Fetch templates ───────────────────────────────────────────────
   const fetchTemplates = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/packing/templates`, { headers: authHeaders() });
+      const res = await authFetch(`${API_BASE_URL}/api/packing/templates`, { headers: jsonHeaders });
       const data = await res.json();
       if (data.success) setTemplates(data.data || []);
     } catch (err) {
       console.error('Failed to fetch templates:', err);
     }
-  }, [authHeaders]);
+  }, []);
 
   // ─── Socket setup ──────────────────────────────────────────────────
   useEffect(() => {
@@ -193,9 +186,9 @@ const SmartPacking: React.FC<SmartPackingProps> = ({ user, tripId, dashboardId, 
   async function handleGenerate() {
     setGenerating(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/packing/${tripId}/generate`, {
+      const res = await authFetch(`${API_BASE_URL}/api/packing/${tripId}/generate`, {
         method: 'POST',
-        headers: authHeaders(),
+        headers: jsonHeaders,
         body: JSON.stringify({
           activities: genActivities.length ? genActivities : undefined,
           airline: genAirline || undefined,
@@ -220,9 +213,9 @@ const SmartPacking: React.FC<SmartPackingProps> = ({ user, tripId, dashboardId, 
   async function handleAddItem() {
     if (!newName.trim()) return;
     try {
-      const res = await fetch(`${API_BASE_URL}/api/packing/${tripId}/items`, {
+      const res = await authFetch(`${API_BASE_URL}/api/packing/${tripId}/items`, {
         method: 'POST',
-        headers: authHeaders(),
+        headers: jsonHeaders,
         body: JSON.stringify({
           name: newName.trim(),
           category: newCategory,
@@ -249,9 +242,9 @@ const SmartPacking: React.FC<SmartPackingProps> = ({ user, tripId, dashboardId, 
 
   async function handleTogglePacked(itemId: string, packed: boolean) {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/packing/${tripId}/items/${itemId}`, {
+      const res = await authFetch(`${API_BASE_URL}/api/packing/${tripId}/items/${itemId}`, {
         method: 'PUT',
-        headers: authHeaders(),
+        headers: jsonHeaders,
         body: JSON.stringify({ packed }),
       });
       const data = await res.json();
@@ -266,9 +259,9 @@ const SmartPacking: React.FC<SmartPackingProps> = ({ user, tripId, dashboardId, 
 
   async function handleRemoveItem(itemId: string, itemName: string) {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/packing/${tripId}/items/${itemId}`, {
+      const res = await authFetch(`${API_BASE_URL}/api/packing/${tripId}/items/${itemId}`, {
         method: 'DELETE',
-        headers: authHeaders(),
+        headers: jsonHeaders,
       });
       const data = await res.json();
       if (data.success) {
@@ -282,9 +275,9 @@ const SmartPacking: React.FC<SmartPackingProps> = ({ user, tripId, dashboardId, 
 
   async function handleAssignItem(itemId: string, assignedToId: string | null) {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/packing/${tripId}/items/${itemId}`, {
+      const res = await authFetch(`${API_BASE_URL}/api/packing/${tripId}/items/${itemId}`, {
         method: 'PUT',
-        headers: authHeaders(),
+        headers: jsonHeaders,
         body: JSON.stringify({ assignedTo: assignedToId }),
       });
       const data = await res.json();
@@ -305,9 +298,9 @@ const SmartPacking: React.FC<SmartPackingProps> = ({ user, tripId, dashboardId, 
 
   async function handleApplyTemplate(templateId: string, templateName: string) {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/packing/${tripId}/apply-template`, {
+      const res = await authFetch(`${API_BASE_URL}/api/packing/${tripId}/apply-template`, {
         method: 'POST',
-        headers: authHeaders(),
+        headers: jsonHeaders,
         body: JSON.stringify({ templateId }),
       });
       const data = await res.json();

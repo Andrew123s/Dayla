@@ -6,7 +6,7 @@ import {
   Expense, Participant, BudgetCategory, SustainabilityImpact, OffsetProject, EcoChallenge,
   Trip, SavedCommunityTrip, TripCategory
 } from '../types';
-import { API_BASE_URL } from '../lib/api';
+import { API_BASE_URL, authFetch } from '../lib/api';
 import {
   Plus, Image as ImageIcon, Mic, Type, Share2, Calendar, Link2, Layout,
   CloudSun, X, MapPin, Wind, Thermometer, CloudRain, Sun, AlertTriangle,
@@ -239,9 +239,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
     setWeatherLoading(true);
     setWeatherError('');
     try {
-      const response = await fetch(`${API_BASE_URL}/api/weather?location=${encodeURIComponent(location)}&days=5`, {
-        credentials: 'include',
-      });
+      const response = await authFetch(`${API_BASE_URL}/api/weather?location=${encodeURIComponent(location)}&days=5`);
       const data = await response.json();
       if (!response.ok || !data.success) {
         throw new Error(data.message || 'Failed to fetch weather');
@@ -298,10 +296,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
       const end = new Date(tripDates.endDate || Date.now());
       const duration = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)));
 
-      const response = await fetch(`${API_BASE_URL}/api/climatiq/realtime`, {
+      const response = await authFetch(`${API_BASE_URL}/api/climatiq/realtime`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({
           ...ecoConfig,
           duration,
@@ -344,9 +341,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   // Fetch notes from the backend dashboard
   const fetchNotes = async (dbId: string) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/boards/${dbId}`, {
-        credentials: 'include',
-      });
+      const response = await authFetch(`${API_BASE_URL}/api/boards/${dbId}`);
       if (response.ok) {
         const data = await response.json();
         const dashboard = data.data?.dashboard;
@@ -377,12 +372,11 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
         }
 
         // Create a new trip (which automatically creates a dashboard)
-        const response = await fetch(`${API_BASE_URL}/api/trips`, {
+        const response = await authFetch(`${API_BASE_URL}/api/trips`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          credentials: 'include',
           body: JSON.stringify({
             name: 'My Adventure',
             description: 'Planning our next adventure',
@@ -420,10 +414,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
     // Join dashboard via REST API to register as active
     const joinDashboard = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/api/boards/${dashboardId}/join`, {
+        const response = await authFetch(`${API_BASE_URL}/api/boards/${dashboardId}/join`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
         });
         if (response.ok) {
           const data = await response.json();
@@ -446,9 +439,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
     // Fetch current active users
     const fetchActiveUsers = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/api/boards/${dashboardId}/active-users`, {
-          credentials: 'include',
-        });
+        const response = await authFetch(`${API_BASE_URL}/api/boards/${dashboardId}/active-users`);
         if (response.ok) {
           const data = await response.json();
           if (data.data?.activeUsers) {
@@ -547,10 +538,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
     // Cleanup: leave dashboard and disconnect socket
     return () => {
       if (dashboardId) {
-        fetch(`${API_BASE_URL}/api/boards/${dashboardId}/leave`, {
+        authFetch(`${API_BASE_URL}/api/boards/${dashboardId}/leave`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
         }).catch(() => {});
       }
       socket.emit('leave_room', { roomId: dashboardId, roomType: 'dashboard' });
@@ -564,8 +554,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
     setTripsLoading(true);
     try {
       const [tripsRes, savedRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/api/trips`, { credentials: 'include' }),
-        fetch(`${API_BASE_URL}/api/community/saved`, { credentials: 'include' }),
+        authFetch(`${API_BASE_URL}/api/trips`),
+        authFetch(`${API_BASE_URL}/api/community/saved`),
       ]);
 
       if (tripsRes.ok) {
@@ -600,10 +590,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
 
   const updateTripCategory = async (tripId: string, category: TripCategory) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/trips/${tripId}`, {
+      const response = await authFetch(`${API_BASE_URL}/api/trips/${tripId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ category }),
       });
       if (response.ok) {
@@ -644,10 +633,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
 
     // Persist to backend
     if (tripId) {
-      fetch(`${API_BASE_URL}/api/trips/${tripId}/notes`, {
+      authFetch(`${API_BASE_URL}/api/trips/${tripId}/notes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify(newNote),
       }).catch(err => console.error('Failed to save note:', err));
     }
@@ -664,10 +652,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
       // Persist the changed note to backend
       const note = updated.find(n => n.id === noteId);
       if (note && tripId) {
-        fetch(`${API_BASE_URL}/api/trips/${tripId}/notes/${noteId}`, {
+        authFetch(`${API_BASE_URL}/api/trips/${tripId}/notes/${noteId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
           body: JSON.stringify(note),
         }).catch(err => console.error('Failed to update note:', err));
       }
@@ -686,9 +673,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
       // Upload image to backend for persistent storage
       const formData = new FormData();
       formData.append('image', file);
-      const uploadRes = await fetch(`${API_BASE_URL}/api/upload/images`, {
+      const uploadRes = await authFetch(`${API_BASE_URL}/api/upload/images`, {
         method: 'POST',
-        credentials: 'include',
         body: formData,
       });
       const uploadData = await uploadRes.json();
@@ -740,9 +726,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
               const formData = new FormData();
               formData.append('audio', audioBlob, `voice_${Date.now()}.${ext}`);
 
-              const uploadResponse = await fetch(`${API_BASE_URL}/api/upload/audio`, {
+              const uploadResponse = await authFetch(`${API_BASE_URL}/api/upload/audio`, {
                 method: 'POST',
-                credentials: 'include',
                 body: formData,
               });
 
@@ -908,12 +893,11 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
       }
 
       // Make API call to send invitation email
-      const response = await fetch(`${API_BASE_URL}/api/boards/${dashboardId}/invite`, {
+      const response = await authFetch(`${API_BASE_URL}/api/boards/${dashboardId}/invite`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
         body: JSON.stringify({ email, role: 'editor' }),
       });
 
@@ -1045,9 +1029,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
                setNotes(prev => prev.filter(n => n.id !== note.id));
                // Delete from backend
                if (tripId) {
-                 fetch(`${API_BASE_URL}/api/trips/${tripId}/notes/${note.id}`, {
+                 authFetch(`${API_BASE_URL}/api/trips/${tripId}/notes/${note.id}`, {
                    method: 'DELETE',
-                   credentials: 'include',
                  }).catch(err => console.error('Failed to delete note:', err));
                }
                // Broadcast deletion to collaborators

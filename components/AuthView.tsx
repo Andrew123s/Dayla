@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { User } from '../types';
 import { Compass, Leaf, AlertCircle, CheckCircle } from 'lucide-react';
-import { API_BASE_URL } from '../lib/api';
+import { API_BASE_URL, setAuthToken } from '../lib/api';
 
 interface AuthViewProps {
   onLogin: (user: User) => void;
@@ -82,9 +82,10 @@ const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
           // Clear form
           setFormData({ name: '', email: '', password: '' });
         } else {
-          // Login successful - Token is now stored in HTTP-only cookie by the server
-          console.log('Authentication successful, calling onLogin with user:', data.data.user);
-          // Call onLogin with user data - this will trigger navigation in App.tsx
+          // Store token for cross-domain auth
+          if (data.data.token) {
+            setAuthToken(data.data.token);
+          }
           onLogin(data.data.user);
         }
       } else {

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { CheckCircle, AlertCircle, RefreshCw, Info, Zap } from 'lucide-react';
-import { API_BASE_URL } from '../lib/api';
+import { API_BASE_URL, authFetch } from '../lib/api';
 
 interface ClimatiqStatusProps {
   onConnectionChange?: (connected: boolean) => void;
@@ -18,9 +18,7 @@ const ClimatiqStatus: React.FC<ClimatiqStatusProps> = ({ onConnectionChange }) =
     setError(null);
     
     try {
-      const response = await fetch(`${API_BASE_URL}/api/climatiq/validate`, {
-        credentials: 'include',
-      });
+      const response = await authFetch(`${API_BASE_URL}/api/climatiq/validate`);
       
       const data = await response.json();
       const connected = data.success && data.connected;

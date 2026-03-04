@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { CheckCircle, XCircle, Loader, Leaf } from 'lucide-react';
 import { User } from '../types';
-import { API_BASE_URL } from '../lib/api';
+import { API_BASE_URL, authFetch } from '../lib/api';
 
 interface AcceptInvitationProps {
   invitationId: string;
@@ -32,9 +32,8 @@ const AcceptInvitation: React.FC<AcceptInvitationProps> = ({
 
   const acceptInvitation = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/boards/invitations/${invitationId}/accept`, {
+      const response = await authFetch(`${API_BASE_URL}/api/boards/invitations/${invitationId}/accept`, {
         method: 'POST',
-        credentials: 'include',
       });
 
       const data = await response.json();

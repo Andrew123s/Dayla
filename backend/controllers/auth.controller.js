@@ -123,7 +123,8 @@ const register = async (req, res) => {
       success: true,
       message: 'Registration successful!',
       data: {
-        user: userData
+        user: userData,
+        token
       }
     });
   } catch (error) {
@@ -211,14 +212,15 @@ const login = async (req, res) => {
 
     logger.info(`User logged in: ${user.email}`);
 
-    // Set token in HTTP-only cookie
+    // Set token in HTTP-only cookie (same-origin) and response body (cross-origin)
     setTokenCookie(res, token);
 
     res.status(200).json({
       success: true,
       message: 'Login successful',
       data: {
-        user: userData
+        user: userData,
+        token
       }
     });
   } catch (error) {

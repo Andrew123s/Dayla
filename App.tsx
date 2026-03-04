@@ -12,8 +12,7 @@ import AcceptInvitation from './components/AcceptInvitation';
 import Navigation from './components/Navigation';
 import { Compass, MessageCircle, User as UserIcon, Map, Loader } from 'lucide-react';
 
-// Use empty string for same-origin requests (Vite proxy handles /api/* routes)
-import { API_BASE_URL } from './lib/api';
+import { API_BASE_URL, authFetch, clearAuthToken } from './lib/api';
 
 
 const App: React.FC = () => {
@@ -46,10 +45,7 @@ const App: React.FC = () => {
     // If no verification token or invitation, check auth status
     const checkAuthStatus = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/api/auth/check`, {
-          method: 'GET',
-          credentials: 'include', // Include cookies
-        });
+        const response = await authFetch(`${API_BASE_URL}/api/auth/check`);
 
         if (response.ok) {
           const data = await response.json();
@@ -125,11 +121,7 @@ const App: React.FC = () => {
 
   const handleLogout = async () => {
     try {
-      // Call logout API to clear the cookie server-side
-      await fetch(`${API_BASE_URL}/api/auth/logout`, {
-        method: 'POST',
-        credentials: 'include',
-      });
+      await authFetch(`${API_BASE_URL}/api/auth/logout`, { method: 'POST' });
     } catch (error) {
       console.error('Logout error:', error);
     }
@@ -137,6 +129,7 @@ const App: React.FC = () => {
     setCurrentUser(null);
     setShowOnboarding(false);
     localStorage.removeItem('dayla_user');
+    clearAuthToken();
     // Don't remove onboarding completion so returning users don't see it again
     setView('auth');
   };

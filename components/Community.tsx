@@ -3,7 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { User, Post } from '../types';
 import { Heart, MessageCircle, MapPin, Share, Save, Plus, Image as ImageIcon, X, Send, AlertCircle, CheckCircle, Loader, UserPlus } from 'lucide-react';
 import { initializeSocket, getSocket } from '../lib/socket';
-import { API_BASE_URL } from '../lib/api';
+import { API_BASE_URL, authFetch } from '../lib/api';
 
 interface CommunityProps {
   user: User;
@@ -106,9 +106,7 @@ const Community: React.FC<CommunityProps> = ({ user }) => {
   const fetchPosts = async () => {
     setError('');
     try {
-      const response = await fetch(`${API_BASE_URL}/api/community/posts`, {
-        credentials: 'include',
-      });
+      const response = await authFetch(`${API_BASE_URL}/api/community/posts`);
 
       const contentType = response.headers.get('content-type') || '';
       if (!contentType.includes('application/json')) {
@@ -132,10 +130,9 @@ const Community: React.FC<CommunityProps> = ({ user }) => {
 
   const handleLike = async (postId: string) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/community/posts/${postId}/likes`, {
+      const response = await authFetch(`${API_BASE_URL}/api/community/posts/${postId}/likes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({})
       });
 
@@ -164,10 +161,9 @@ const Community: React.FC<CommunityProps> = ({ user }) => {
 
     setCommentingPostId(activePostId);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/community/posts/${activePostId}/comments`, {
+      const response = await authFetch(`${API_BASE_URL}/api/community/posts/${activePostId}/comments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ content: commentText.trim() })
       });
 
@@ -192,10 +188,9 @@ const Community: React.FC<CommunityProps> = ({ user }) => {
 
   const handleSaveTrip = async (postId: string) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/community/posts/${postId}/save`, {
+      const response = await authFetch(`${API_BASE_URL}/api/community/posts/${postId}/save`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include'
       });
 
       const data = await response.json();
@@ -216,10 +211,9 @@ const Community: React.FC<CommunityProps> = ({ user }) => {
 
   const handleSendFriendRequest = async (authorId: string) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/auth/friend-request/${authorId}`, {
+      const response = await authFetch(`${API_BASE_URL}/api/auth/friend-request/${authorId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include'
       });
 
       const data = await response.json();
@@ -273,9 +267,8 @@ const Community: React.FC<CommunityProps> = ({ user }) => {
         const formData = new FormData();
         formData.append('files', newPost.image);
 
-        const uploadResponse = await fetch(`${API_BASE_URL}/api/upload/documents`, {
+        const uploadResponse = await authFetch(`${API_BASE_URL}/api/upload/documents`, {
           method: 'POST',
-          credentials: 'include',
           body: formData,
         });
 
@@ -303,10 +296,9 @@ const Community: React.FC<CommunityProps> = ({ user }) => {
 
       console.log('Creating post with data:', postData);
 
-      const response = await fetch(`${API_BASE_URL}/api/community/posts`, {
+      const response = await authFetch(`${API_BASE_URL}/api/community/posts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify(postData),
       });
 
