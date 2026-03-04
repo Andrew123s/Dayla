@@ -298,7 +298,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
       const end = new Date(tripDates.endDate || Date.now());
       const duration = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)));
 
-      const response = await fetch('/api/climatiq/realtime', {
+      const response = await fetch(`${API_BASE_URL}/api/climatiq/realtime`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -307,6 +307,10 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
           duration,
         }),
       });
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new Error('Server returned an unexpected response. Please try again later.');
+      }
       const data = await response.json();
       if (!response.ok || !data.success) {
         throw new Error(data.message || 'Failed to calculate emissions');
@@ -373,7 +377,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
         }
 
         // Create a new trip (which automatically creates a dashboard)
-        const response = await fetch('/api/trips', {
+        const response = await fetch(`${API_BASE_URL}/api/trips`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -560,8 +564,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
     setTripsLoading(true);
     try {
       const [tripsRes, savedRes] = await Promise.all([
-        fetch('/api/trips', { credentials: 'include' }),
-        fetch('/api/community/saved', { credentials: 'include' }),
+        fetch(`${API_BASE_URL}/api/trips`, { credentials: 'include' }),
+        fetch(`${API_BASE_URL}/api/community/saved`, { credentials: 'include' }),
       ]);
 
       if (tripsRes.ok) {
@@ -682,7 +686,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
       // Upload image to backend for persistent storage
       const formData = new FormData();
       formData.append('image', file);
-      const uploadRes = await fetch('/api/upload/images', {
+      const uploadRes = await fetch(`${API_BASE_URL}/api/upload/images`, {
         method: 'POST',
         credentials: 'include',
         body: formData,
@@ -736,7 +740,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
               const formData = new FormData();
               formData.append('audio', audioBlob, `voice_${Date.now()}.${ext}`);
 
-              const uploadResponse = await fetch('/api/upload/audio', {
+              const uploadResponse = await fetch(`${API_BASE_URL}/api/upload/audio`, {
                 method: 'POST',
                 credentials: 'include',
                 body: formData,

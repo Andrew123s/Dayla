@@ -120,7 +120,7 @@ const SmartPacking: React.FC<SmartPackingProps> = ({ user, tripId, dashboardId, 
   // ─── Fetch templates ───────────────────────────────────────────────
   const fetchTemplates = useCallback(async () => {
     try {
-      const res = await fetch('/api/packing/templates', { headers: authHeaders() });
+      const res = await fetch(`${API_BASE_URL}/api/packing/templates`, { headers: authHeaders() });
       const data = await res.json();
       if (data.success) setTemplates(data.data || []);
     } catch (err) {
