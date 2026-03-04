@@ -27,11 +27,12 @@ const App: React.FC = () => {
   // Check for verification token or invitation in URL
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
+    const path = window.location.pathname;
     const token = urlParams.get('token');
     const invitation = urlParams.get('invitationId');
     
-    if (token) {
-      setVerificationToken(token);
+    if (token || path === '/verify-email') {
+      if (token) setVerificationToken(token);
       setIsLoading(false);
       return;
     }
