@@ -49,6 +49,8 @@ const register = async (req, res) => {
     console.log('Registration request received:', { name: req.body.name, email: req.body.email });
     const { name, email, password, bio, interests } = req.body;
 
+    const requireEmailVerification = process.env.EMAIL_VERIFICATION_REQUIRED === 'true';
+
     // Check if user exists
     const existingUser = await User.findOne({ email });
     if (existingUser) {
@@ -62,40 +64,66 @@ const register = async (req, res) => {
     const verificationToken = generateVerificationToken();
     const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
-    // Create user with verification token
+    // Create user — auto-verify if email verification is disabled
     const user = await User.create({
       name,
       email,
       password,
       bio,
       interests: interests || [],
-      emailVerified: false,
-      emailVerificationToken: verificationToken,
-      emailVerificationExpires: verificationExpires
+      emailVerified: !requireEmailVerification,
+      emailVerificationToken: requireEmailVerification ? verificationToken : undefined,
+      emailVerificationExpires: requireEmailVerification ? verificationExpires : undefined
     });
 
-    // Build confirmation URL
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-    const confirmationUrl = `${frontendUrl}/verify-email?token=${verificationToken}`;
+    if (requireEmailVerification) {
+      // Build confirmation URL and send email
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+      const confirmationUrl = `${frontendUrl}/verify-email?token=${verificationToken}`;
 
-    // Send confirmation email
-    try {
-      await sendConfirmationEmail(user.email, user.name, confirmationUrl);
-      logger.info(`Confirmation email sent to ${user.email}`);
-    } catch (emailError) {
-      logger.error('Failed to send confirmation email:', emailError);
-      // Continue with registration even if email fails
+      try {
+        await sendConfirmationEmail(user.email, user.name, confirmationUrl);
+        logger.info(`Confirmation email sent to ${user.email}`);
+      } catch (emailError) {
+        logger.error('Failed to send confirmation email:', emailError);
+      }
+
+      logger.info(`New user registered: ${user.email} - awaiting email verification`);
+
+      return res.status(201).json({
+        success: true,
+        message: 'Registration successful! Please check your email to verify your account before logging in.',
+        requiresVerification: true,
+        data: {
+          email: user.email
+        }
+      });
     }
 
-    logger.info(`New user registered: ${user.email} - awaiting email verification`);
+    // No email verification required — log the user in directly
+    logger.info(`New user registered: ${user.email} - auto-verified`);
 
-    // DO NOT issue JWT token until email is verified
+    const token = generateToken(user._id);
+    setTokenCookie(res, token);
+
+    const userData = {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      avatar: user.avatar,
+      bio: user.bio,
+      interests: user.interests,
+      ecoScore: user.ecoScore,
+      badges: user.badges,
+      emailVerified: user.emailVerified,
+      onboardingCompleted: user.onboardingCompleted
+    };
+
     res.status(201).json({
       success: true,
-      message: 'Registration successful! Please check your email to verify your account before logging in.',
-      requiresVerification: true,
+      message: 'Registration successful!',
       data: {
-        email: user.email
+        user: userData
       }
     });
   } catch (error) {
@@ -150,8 +178,9 @@ const login = async (req, res) => {
       });
     }
 
-    // Check if email is verified
-    if (!user.emailVerified) {
+    // Check if email is verified (only enforce when verification is required)
+    const requireEmailVerification = process.env.EMAIL_VERIFICATION_REQUIRED === 'true';
+    if (requireEmailVerification && !user.emailVerified) {
       return res.status(403).json({
         success: false,
         message: 'Please verify your email before logging in. Check your inbox for the verification link.',
@@ -480,13 +509,13 @@ const resendVerification = async (req, res) => {
     if (user.emailVerified) {
       return res.status(400).json({
         success: false,
-        message: 'Email is already verified'
+        message: 'Email is already verified. You can log in now.'
       });
     }
 
     // Generate new verification token
     const verificationToken = generateVerificationToken();
-    const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+    const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
     // Update user with new token
     user.emailVerificationToken = verificationToken;
@@ -497,21 +526,27 @@ const resendVerification = async (req, res) => {
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
     const confirmationUrl = `${frontendUrl}/verify-email?token=${verificationToken}`;
 
-    // Send confirmation email
-    await sendConfirmationEmail(user.email, user.name, confirmationUrl);
-
-    logger.info(`Verification email resent to ${user.email}`);
+    // Try to send email, but don't fail if it doesn't work
+    try {
+      await sendConfirmationEmail(user.email, user.name, confirmationUrl);
+      logger.info(`Verification email resent to ${user.email}`);
+    } catch (emailError) {
+      logger.error('Failed to send verification email:', emailError);
+      return res.status(200).json({
+        success: true,
+        message: 'If your email is correct, you will receive a verification link shortly. Please also check your spam folder.'
+      });
+    }
 
     res.status(200).json({
       success: true,
-      message: 'Verification email sent successfully'
+      message: 'Verification email sent! Please check your inbox and spam folder.'
     });
   } catch (error) {
     logger.error('Resend verification error:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to resend verification email',
-      error: error.message
+      message: 'Something went wrong. Please try again later.'
     });
   }
 };
