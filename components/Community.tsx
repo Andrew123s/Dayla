@@ -104,22 +104,27 @@ const Community: React.FC<CommunityProps> = ({ user }) => {
   }, []);
 
   const fetchPosts = async () => {
+    setError('');
     try {
       const response = await fetch(`${API_BASE_URL}/api/community/posts`, {
-        credentials: 'include', // Use cookie-based auth
+        credentials: 'include',
       });
 
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new Error('Server returned an unexpected response');
+      }
+
       const data = await response.json();
-      console.log('Fetched posts:', data);
 
       if (data.success) {
-        setPosts(data.data.posts);
+        setPosts(Array.isArray(data.data?.posts) ? data.data.posts : []);
       } else {
-        setError('Failed to load posts');
+        throw new Error(data.message || 'Failed to load posts');
       }
-    } catch (error) {
-      console.error('Error fetching posts:', error);
-      setError('Failed to load posts');
+    } catch (err) {
+      console.error('Error fetching posts:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load posts');
     } finally {
       setLoading(false);
     }
