@@ -17,7 +17,10 @@ const Navigation: React.FC<NavigationProps> = ({ currentView, setView }) => {
   ];
 
   return (
-    <nav className="h-20 bg-white border-t border-stone-100 flex items-center justify-around px-4 pb-4 sticky bottom-0 z-50">
+    <nav
+      className="bg-white border-t border-stone-100 flex items-center justify-around px-4 pt-2 shrink-0 z-50"
+      style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom, 12px))' }}
+    >
       {navItems.map((item) => {
         const Icon = item.icon;
         const isActive = currentView === item.id;

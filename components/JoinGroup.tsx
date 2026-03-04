@@ -76,7 +76,7 @@ const JoinGroup: React.FC<JoinGroupProps> = ({ inviteCode }) => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-[#f7f3ee] to-[#e8dcc4] flex items-center justify-center p-4">
+      <div className="min-h-[var(--app-height,100dvh)] bg-gradient-to-br from-[#f7f3ee] to-[#e8dcc4] flex items-center justify-center p-4">
         <div className="bg-white rounded-3xl shadow-2xl p-8 max-w-md w-full text-center">
           <div className="w-16 h-16 mx-auto mb-4 border-4 border-[#3a5a40] border-t-transparent rounded-full animate-spin"></div>
           <h2 className="text-xl font-bold text-stone-800 mb-2">Joining Group...</h2>
@@ -88,7 +88,7 @@ const JoinGroup: React.FC<JoinGroupProps> = ({ inviteCode }) => {
 
   if (!isLoggedIn) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-[#f7f3ee] to-[#e8dcc4] flex items-center justify-center p-4">
+      <div className="min-h-[var(--app-height,100dvh)] bg-gradient-to-br from-[#f7f3ee] to-[#e8dcc4] flex items-center justify-center p-4">
         <div className="bg-white rounded-3xl shadow-2xl p-8 max-w-md w-full">
           <div className="w-20 h-20 mx-auto mb-6 bg-gradient-to-br from-[#588157] to-[#3a5a40] rounded-full flex items-center justify-center">
             <Users size={40} className="text-white" />
@@ -118,7 +118,7 @@ const JoinGroup: React.FC<JoinGroupProps> = ({ inviteCode }) => {
 
   if (success) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-[#f7f3ee] to-[#e8dcc4] flex items-center justify-center p-4">
+      <div className="min-h-[var(--app-height,100dvh)] bg-gradient-to-br from-[#f7f3ee] to-[#e8dcc4] flex items-center justify-center p-4">
         <div className="bg-white rounded-3xl shadow-2xl p-8 max-w-md w-full text-center">
           <div className="w-20 h-20 mx-auto mb-6 bg-green-100 rounded-full flex items-center justify-center">
             <CheckCircle size={40} className="text-green-600" />
@@ -135,7 +135,7 @@ const JoinGroup: React.FC<JoinGroupProps> = ({ inviteCode }) => {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-[#f7f3ee] to-[#e8dcc4] flex items-center justify-center p-4">
+      <div className="min-h-[var(--app-height,100dvh)] bg-gradient-to-br from-[#f7f3ee] to-[#e8dcc4] flex items-center justify-center p-4">
         <div className="bg-white rounded-3xl shadow-2xl p-8 max-w-md w-full text-center">
           <div className="w-20 h-20 mx-auto mb-6 bg-red-100 rounded-full flex items-center justify-center">
             <AlertCircle size={40} className="text-red-600" />

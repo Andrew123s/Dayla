@@ -144,7 +144,7 @@ const App: React.FC = () => {
   // Show loading screen while checking auth status
   if (isLoading) {
     return (
-      <div className="h-screen w-full bg-[#3a5a40] flex flex-col items-center justify-center">
+      <div className="w-full bg-[#3a5a40] flex flex-col items-center justify-center" style={{ height: 'var(--app-height, 100dvh)' }}>
         <div className="w-12 h-12 border-4 border-white/30 border-t-white rounded-full animate-spin mb-4"></div>
         <p className="text-white/70 text-sm">Loading...</p>
       </div>
@@ -198,7 +198,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="flex flex-col h-screen w-full bg-[#f7f3ee] max-w-md mx-auto shadow-2xl relative overflow-hidden border-x border-stone-200">
+    <div className="flex flex-col w-full bg-[#f7f3ee] max-w-md mx-auto shadow-2xl relative overflow-hidden border-x border-stone-200" style={{ height: 'var(--app-height, 100dvh)' }}>
       <main className="flex-1 overflow-hidden relative">
         {view === 'dashboard' && <Dashboard user={currentUser!} />}
         {view === 'community' && <Community user={currentUser!} />}

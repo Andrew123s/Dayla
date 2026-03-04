@@ -59,7 +59,7 @@ const AcceptInvitation: React.FC<AcceptInvitationProps> = ({
   };
 
   return (
-    <div className="h-screen w-full bg-[#3a5a40] flex flex-col items-center justify-center p-8 text-white">
+    <div className="w-full bg-[#3a5a40] flex flex-col items-center justify-center p-8 text-white" style={{ height: 'var(--app-height, 100dvh)' }}>
       <div className="mb-12 text-center">
         <div className="bg-white/10 p-6 rounded-[2.5rem] backdrop-blur-xl inline-block mb-4 shadow-2xl">
           <Leaf size={64} className="text-[#a3b18a]" />
