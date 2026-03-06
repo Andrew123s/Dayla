@@ -346,7 +346,6 @@ const createStickyNote = async (req, res) => {
       });
     }
 
-    // Check permissions — owner always allowed
     const isOwner = dashboard.owner.toString() === req.user._id.toString();
     const collaborator = dashboard.collaborators.find(
       c => c.user.toString() === req.user._id.toString()
@@ -364,9 +363,10 @@ const createStickyNote = async (req, res) => {
       id: req.body.id || Math.random().toString(36).substr(2, 9),
     };
 
-    dashboard.notes.push(noteData);
-    dashboard.lastModified = new Date();
-    await dashboard.save();
+    await Dashboard.findByIdAndUpdate(dashboard._id, {
+      $push: { notes: noteData },
+      $set: { lastModified: new Date() },
+    });
 
     res.status(201).json({
       success: true,
@@ -397,7 +397,6 @@ const updateStickyNote = async (req, res) => {
       });
     }
 
-    // Check permissions — owner always allowed
     const isOwner = dashboard.owner.toString() === req.user._id.toString();
     const collaborator = dashboard.collaborators.find(
       c => c.user.toString() === req.user._id.toString()
@@ -421,17 +420,22 @@ const updateStickyNote = async (req, res) => {
       });
     }
 
-    dashboard.notes[noteIndex] = {
-      ...dashboard.notes[noteIndex],
-      ...req.body
-    };
-    dashboard.lastModified = new Date();
-    await dashboard.save();
+    const $set = { lastModified: new Date() };
+    const updates = req.body;
+    for (const key of Object.keys(updates)) {
+      $set[`notes.${noteIndex}.${key}`] = updates[key];
+    }
+
+    const updated = await Dashboard.findByIdAndUpdate(
+      dashboard._id,
+      { $set },
+      { new: true }
+    );
 
     res.status(200).json({
       success: true,
       message: 'Sticky note updated successfully',
-      data: { note: dashboard.notes[noteIndex] }
+      data: { note: updated.notes[noteIndex] }
     });
   } catch (error) {
     logger.error('Update sticky note error:', error);
@@ -457,7 +461,6 @@ const deleteStickyNote = async (req, res) => {
       });
     }
 
-    // Check permissions — owner always allowed
     const isOwner = dashboard.owner.toString() === req.user._id.toString();
     const collaborator = dashboard.collaborators.find(
       c => c.user.toString() === req.user._id.toString()
@@ -470,11 +473,10 @@ const deleteStickyNote = async (req, res) => {
       });
     }
 
-    dashboard.notes = dashboard.notes.filter(
-      note => note.id !== req.params.noteId
-    );
-    dashboard.lastModified = new Date();
-    await dashboard.save();
+    await Dashboard.findByIdAndUpdate(dashboard._id, {
+      $pull: { notes: { id: req.params.noteId } },
+      $set: { lastModified: new Date() },
+    });
 
     res.status(200).json({
       success: true,

@@ -38,7 +38,8 @@ const getActiveUsers = async (req, res) => {
       success: true,
       data: {
         activeUsers: dashboard.activeUsers,
-        count: dashboard.activeUsers.length
+        count: dashboard.activeUsers.length,
+        collaboratorCount: 1 + (dashboard.collaborators || []).length,
       }
     });
   } catch (error) {
@@ -95,7 +96,8 @@ const joinDashboard = async (req, res) => {
       message: 'Successfully joined dashboard',
       data: {
         activeUsers: dashboard.activeUsers,
-        count: dashboard.activeUsers.length
+        count: dashboard.activeUsers.length,
+        collaboratorCount: 1 + (dashboard.collaborators || []).length,
       }
     });
   } catch (error) {
@@ -223,12 +225,9 @@ const inviteUser = async (req, res) => {
       });
     }
 
-    // Check if user is already invited or is a collaborator
+    // Check if user is already invited
     const existingInvitation = dashboard.invitations.find(inv =>
       inv.email === email && inv.status === 'pending'
-    );
-    const existingCollaborator = dashboard.collaborators.find(c =>
-      c.user.email === email // This would need user population
     );
 
     if (existingInvitation) {
@@ -236,6 +235,21 @@ const inviteUser = async (req, res) => {
         success: false,
         message: 'User is already invited'
       });
+    }
+
+    // Check if user is already a collaborator (by looking up their email)
+    const targetUser = await User.findOne({ email }).select('_id');
+    if (targetUser) {
+      const alreadyCollaborator = dashboard.collaborators.some(
+        c => c.user.toString() === targetUser._id.toString()
+      );
+      const isAlreadyOwner = dashboard.owner.toString() === targetUser._id.toString();
+      if (alreadyCollaborator || isAlreadyOwner) {
+        return res.status(400).json({
+          success: false,
+          message: 'User is already a collaborator'
+        });
+      }
     }
 
     // Create invitation

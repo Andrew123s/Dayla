@@ -225,7 +225,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   const [editingTripCategory, setEditingTripCategory] = useState<string | null>(null);
 
   // Collaboration Features
-  const [activeUsers, setActiveUsers] = useState<User[]>([user]); // Start with current user
+  const [activeUsers, setActiveUsers] = useState<User[]>([user]);
+  const [collaboratorCount, setCollaboratorCount] = useState(1);
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [showInviteModal, setShowInviteModal] = useState(false);
@@ -360,7 +361,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
     splitBetweenIds: participants.map(p => p.id)
   });
 
-  // Fetch notes from the backend dashboard
+  // Fetch notes and collaborator data from the backend dashboard
   const fetchNotes = async (dbId: string) => {
     try {
       const response = await authFetch(`${API_BASE_URL}/api/boards/${dbId}`);
@@ -370,6 +371,27 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
         if (dashboard?.notes && Array.isArray(dashboard.notes)) {
           setNotes(dashboard.notes);
         }
+        // Extract collaborator count: owner (1) + collaborators array
+        const collabs = dashboard?.collaborators || [];
+        setCollaboratorCount(1 + collabs.length);
+        // Update participants from collaborator data
+        const parts: Participant[] = [
+          { id: user.id, name: 'You', avatar: user.avatar || '' },
+        ];
+        collabs.forEach((c: any) => {
+          const cUser = c.user;
+          if (cUser) {
+            const cId = cUser._id || cUser;
+            if (cId.toString() !== user.id) {
+              parts.push({
+                id: cId.toString(),
+                name: cUser.name || 'Collaborator',
+                avatar: cUser.avatar || '',
+              });
+            }
+          }
+        });
+        if (parts.length > 0) setParticipants(parts);
       } else {
         console.warn('Failed to fetch dashboard notes:', response.status);
       }
@@ -452,6 +474,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
             }));
             setActiveUsers(users);
           }
+          if (data.data?.collaboratorCount) {
+            setCollaboratorCount(data.data.collaboratorCount);
+          }
         }
       } catch (err) {
         console.error('Failed to join dashboard:', err);
@@ -473,13 +498,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
               interests: [],
             }));
             setActiveUsers(users.length > 0 ? users : [user]);
-            // Update participants from collaborator info
-            const parts: Participant[] = users.map(u => ({
-              id: u.id,
-              name: u.id === user.id ? 'You' : u.name,
-              avatar: u.avatar || '',
-            }));
-            if (parts.length > 0) setParticipants(parts);
+          }
+          if (data.data?.collaboratorCount) {
+            setCollaboratorCount(data.data.collaboratorCount);
           }
         }
       } catch (err) {
@@ -487,8 +508,26 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
       }
     };
 
+    // Refresh collaborator count from dashboard
+    const refreshCollaborators = async () => {
+      try {
+        const response = await authFetch(`${API_BASE_URL}/api/boards/${dashboardId}`);
+        if (response.ok) {
+          const data = await response.json();
+          const dashboard = data.data?.dashboard;
+          if (dashboard) {
+            const collabs = dashboard.collaborators || [];
+            setCollaboratorCount(1 + collabs.length);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to refresh collaborators:', err);
+      }
+    };
+
     joinDashboard();
     fetchActiveUsers();
+    refreshCollaborators();
 
     // Connect to socket for real-time updates
     const token = document.cookie
@@ -521,6 +560,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
         if (exists) return prev;
         return [...prev, { id: data.userId, name: data.name, avatar: data.avatar || '' }];
       });
+      refreshCollaborators();
     });
 
     socket.on('user_left', (data: { userId: string }) => {
@@ -659,6 +699,16 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newNote),
+      }).then(async (res) => {
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          if (res.status === 403) {
+            setNotes(prev => prev.filter(n => n.id !== newNote.id));
+            const alert = { id: Math.random().toString(36).substr(2, 9), message: data.message || 'Not authorized to create notes', type: 'warning' as const, timestamp: new Date() };
+            setShowAlerts(prev => [...prev, alert]);
+            setTimeout(() => setShowAlerts(prev => prev.filter(a => a.id !== alert.id)), 4000);
+          }
+        }
       }).catch(err => console.error('Failed to save note:', err));
     }
     // Broadcast to collaborators
@@ -671,16 +721,21 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
     const author = makeAuthor();
     setNotes(prev => {
       const updated = prev.map(n => n.id === noteId ? { ...n, lastEditedBy: author } : n);
-      // Persist the changed note to backend
       const note = updated.find(n => n.id === noteId);
       if (note && tripId) {
         authFetch(`${API_BASE_URL}/api/trips/${tripId}/notes/${noteId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(note),
+        }).then(async (res) => {
+          if (!res.ok && res.status === 403) {
+            const data = await res.json().catch(() => ({}));
+            const alert = { id: Math.random().toString(36).substr(2, 9), message: data.message || 'Not authorized to edit notes', type: 'warning' as const, timestamp: new Date() };
+            setShowAlerts(prev => [...prev, alert]);
+            setTimeout(() => setShowAlerts(prev => prev.filter(a => a.id !== alert.id)), 4000);
+          }
         }).catch(err => console.error('Failed to update note:', err));
       }
-      // Broadcast to collaborators
       if (note && socketRef.current && dashboardId) {
         socketRef.current.emit('note_update', { roomId: dashboardId, noteId, updates: note });
       }
@@ -988,10 +1043,10 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {/* Active Users Counter */}
-          <div className="flex items-center gap-1 px-3 py-1 bg-[#3a5a40]/10 rounded-full">
+          {/* Collaborators Counter */}
+          <div className="flex items-center gap-1 px-3 py-1 bg-[#3a5a40]/10 rounded-full" title={`${collaboratorCount} assigned · ${activeUsers.length} online`}>
             <Users size={14} className="text-[#3a5a40]" />
-            <span className="text-xs font-bold text-[#3a5a40]">{activeUsers.length}</span>
+            <span className="text-xs font-bold text-[#3a5a40]">{collaboratorCount}</span>
           </div>
 
           {/* Invite Button */}
@@ -1036,14 +1091,21 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
              </div>
              <button onClick={(e) => {
                e.stopPropagation();
+               const removedNote = note;
                setNotes(prev => prev.filter(n => n.id !== note.id));
-               // Delete from backend
                if (tripId) {
                  authFetch(`${API_BASE_URL}/api/trips/${tripId}/notes/${note.id}`, {
                    method: 'DELETE',
+                 }).then(async (res) => {
+                   if (!res.ok && res.status === 403) {
+                     setNotes(prev => [...prev, removedNote]);
+                     const data = await res.json().catch(() => ({}));
+                     const alert = { id: Math.random().toString(36).substr(2, 9), message: data.message || 'Not authorized to delete notes', type: 'warning' as const, timestamp: new Date() };
+                     setShowAlerts(prev => [...prev, alert]);
+                     setTimeout(() => setShowAlerts(prev => prev.filter(a => a.id !== alert.id)), 4000);
+                   }
                  }).catch(err => console.error('Failed to delete note:', err));
                }
-               // Broadcast deletion to collaborators
                if (socketRef.current && dashboardId) {
                  socketRef.current.emit('note_deleted', { roomId: dashboardId, noteId: note.id });
                }

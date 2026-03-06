@@ -105,7 +105,7 @@ const generateList = async (req, res) => {
     // Save to database — upsert
     let list = await PackingList.findOne({ tripId });
     if (!list) {
-      list = new PackingList({
+      list = await PackingList.create({
         tripId,
         owner: req.user._id,
         collaborators: trip.collaborators.map(c => ({ user: c, role: 'editor' })),
@@ -129,12 +129,9 @@ const generateList = async (req, res) => {
         shopUrl: i.shopUrl || null,
         addedBy: req.user._id,
         packed: false,
-        _unusedFlag: i._unusedFlag || false,
-        _favoriteFlag: i._favoriteFlag || false,
       }));
 
-    list.items.push(...newItems);
-    list.generatedFrom = {
+    const generatedFrom = {
       weather: !!weatherData,
       activities: effectiveActivities,
       duration: days,
@@ -148,11 +145,17 @@ const generateList = async (req, res) => {
       conditions: weatherData ? [...new Set(weatherData.forecast.map(f => f.condition))] : [],
     };
 
+    const updateOps = {
+      $set: { generatedFrom },
+    };
+    if (newItems.length > 0) {
+      updateOps.$push = { items: { $each: newItems } };
+    }
     if (airline) {
-      list.airlineRestrictions = packingService.getAirlineRestrictions(airline);
+      updateOps.$set.airlineRestrictions = packingService.getAirlineRestrictions(airline);
     }
 
-    await list.save();
+    await PackingList.findByIdAndUpdate(list._id, updateOps);
     const populated = await PackingList.getForTrip(tripId);
 
     res.status(200).json({
@@ -182,7 +185,7 @@ const addItem = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Item name is required' });
     }
 
-    let list = await PackingList.findOne({ tripId });
+    const list = await PackingList.findOne({ tripId });
     if (!list) {
       return res.status(404).json({ success: false, message: 'Packing list not found' });
     }
@@ -202,11 +205,12 @@ const addItem = async (req, res) => {
       shopUrl: packingService.getShopLink(name),
     };
 
-    // Check for duplicates
     const duplicates = packingService.detectDuplicates([...list.items, newItem]);
 
-    list.items.push(newItem);
-    await list.save();
+    await PackingList.findByIdAndUpdate(
+      list._id,
+      { $push: { items: newItem } }
+    );
 
     const populated = await PackingList.getForTrip(tripId);
     const addedItem = populated.items[populated.items.length - 1];
@@ -229,7 +233,7 @@ const addItem = async (req, res) => {
 const updateItem = async (req, res) => {
   try {
     const { tripId, itemId } = req.params;
-    const updates = req.body; // { packed, assignedTo, quantity, notes, etc. }
+    const updates = req.body;
 
     const list = await PackingList.findOne({ tripId });
     if (!list) {
@@ -241,21 +245,27 @@ const updateItem = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Item not found' });
     }
 
-    // Apply updates
+    const $set = {};
     if (updates.packed !== undefined) {
-      item.packed = updates.packed;
-      item.packedBy = updates.packed ? req.user._id : null;
-      item.packedAt = updates.packed ? new Date() : null;
+      $set['items.$.packed'] = updates.packed;
+      $set['items.$.packedBy'] = updates.packed ? req.user._id : null;
+      $set['items.$.packedAt'] = updates.packed ? new Date() : null;
     }
-    if (updates.assignedTo !== undefined) item.assignedTo = updates.assignedTo;
-    if (updates.quantity !== undefined) item.quantity = updates.quantity;
-    if (updates.notes !== undefined) item.notes = updates.notes;
-    if (updates.name !== undefined) item.name = updates.name;
-    if (updates.category !== undefined) item.category = updates.category;
-    if (updates.isShared !== undefined) item.isShared = updates.isShared;
-    if (updates.isEssential !== undefined) item.isEssential = updates.isEssential;
+    if (updates.assignedTo !== undefined) $set['items.$.assignedTo'] = updates.assignedTo || null;
+    if (updates.quantity !== undefined) $set['items.$.quantity'] = updates.quantity;
+    if (updates.notes !== undefined) $set['items.$.notes'] = updates.notes;
+    if (updates.name !== undefined) $set['items.$.name'] = updates.name;
+    if (updates.category !== undefined) $set['items.$.category'] = updates.category;
+    if (updates.isShared !== undefined) $set['items.$.isShared'] = updates.isShared;
+    if (updates.isEssential !== undefined) $set['items.$.isEssential'] = updates.isEssential;
 
-    await list.save();
+    if (Object.keys($set).length > 0) {
+      await PackingList.findOneAndUpdate(
+        { tripId, 'items._id': itemId },
+        { $set }
+      );
+    }
+
     const populated = await PackingList.getForTrip(tripId);
 
     res.status(200).json({ success: true, data: populated.items.id(itemId), list: populated });
@@ -277,8 +287,10 @@ const removeItem = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Packing list not found' });
     }
 
-    list.items.pull({ _id: itemId });
-    await list.save();
+    await PackingList.findByIdAndUpdate(
+      list._id,
+      { $pull: { items: { _id: itemId } } }
+    );
     const populated = await PackingList.getForTrip(tripId);
 
     res.status(200).json({ success: true, message: 'Item removed', list: populated });
@@ -301,15 +313,19 @@ const addLuggage = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Packing list not found' });
     }
 
-    list.luggage.push({
+    const newBag = {
       name: name || 'New Bag',
       type: type || 'checked',
       maxWeight: maxWeight || 23000,
       maxVolume: maxVolume || 62000,
       airline: airline || '',
       color: color || '#3a5a40',
-    });
-    await list.save();
+    };
+
+    await PackingList.findByIdAndUpdate(
+      list._id,
+      { $push: { luggage: newBag } }
+    );
     const populated = await PackingList.getForTrip(tripId);
 
     res.status(201).json({ success: true, data: populated });
@@ -331,8 +347,10 @@ const removeLuggage = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Packing list not found' });
     }
 
-    list.luggage.pull({ _id: luggageId });
-    await list.save();
+    await PackingList.findByIdAndUpdate(
+      list._id,
+      { $pull: { luggage: { _id: luggageId } } }
+    );
     const populated = await PackingList.getForTrip(tripId);
 
     res.status(200).json({ success: true, data: populated });
@@ -487,7 +505,7 @@ const applyTemplate = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Template not found' });
     }
 
-    let list = await PackingList.findOne({ tripId });
+    const list = await PackingList.findOne({ tripId });
     if (!list) {
       return res.status(404).json({ success: false, message: 'Packing list not found' });
     }
@@ -507,12 +525,14 @@ const applyTemplate = async (req, res) => {
         shopUrl: packingService.getShopLink(ti.name),
       }));
 
-    list.items.push(...newItems);
-    await list.save();
+    if (newItems.length > 0) {
+      await PackingList.findByIdAndUpdate(
+        list._id,
+        { $push: { items: { $each: newItems } } }
+      );
+    }
 
-    // Increment usage count
-    template.usageCount += 1;
-    await template.save();
+    await PackingTemplate.findByIdAndUpdate(templateId, { $inc: { usageCount: 1 } });
 
     const populated = await PackingList.getForTrip(tripId);
 
@@ -542,6 +562,7 @@ async function seedSystemTemplates() {
       name: 'Weekend Getaway',
       description: 'Perfect for a 2-3 day trip',
       type: 'system',
+      isActive: true,
       durationRange: { min: 1, max: 3 },
       items: [
         { name: 'T-Shirt', category: 'clothing', quantity: 3, isEssential: true },
@@ -560,6 +581,7 @@ async function seedSystemTemplates() {
       name: 'Hiking Adventure',
       description: 'Essential gear for trail exploration',
       type: 'system',
+      isActive: true,
       tripCategory: 'hiking',
       items: packingService.ACTIVITY_GEAR.hiking.map(g => ({
         name: g.name, category: g.category, quantity: 1, isEssential: g.isEssential,
@@ -571,6 +593,7 @@ async function seedSystemTemplates() {
       name: 'Beach Vacation',
       description: 'Sun, sand, and sea essentials',
       type: 'system',
+      isActive: true,
       tripCategory: 'beach',
       items: packingService.ACTIVITY_GEAR.beach.map(g => ({
         name: g.name, category: g.category, quantity: 1, isEssential: g.isEssential,
@@ -582,6 +605,7 @@ async function seedSystemTemplates() {
       name: 'Business Trip',
       description: 'Professional travel essentials',
       type: 'system',
+      isActive: true,
       tripCategory: 'business',
       items: packingService.ACTIVITY_GEAR.business.map(g => ({
         name: g.name, category: g.category, quantity: 1, isEssential: g.isEssential,
@@ -593,6 +617,7 @@ async function seedSystemTemplates() {
       name: 'Winter Essentials',
       description: 'Cold weather packing template',
       type: 'system',
+      isActive: true,
       season: 'winter',
       items: [
         { name: 'Heavy Jacket', category: 'clothing', quantity: 1, isEssential: true },
@@ -607,12 +632,18 @@ async function seedSystemTemplates() {
     },
   ];
 
-  try {
-    await PackingTemplate.insertMany(templates);
-    logger.info('Seeded system packing templates');
-  } catch (err) {
-    logger.warn('Template seeding skipped (may already exist):', err.message);
+  for (const tpl of templates) {
+    try {
+      await PackingTemplate.findOneAndUpdate(
+        { name: tpl.name, type: 'system' },
+        { $setOnInsert: tpl },
+        { upsert: true }
+      );
+    } catch (err) {
+      logger.warn(`Template "${tpl.name}" seed skipped:`, err.message);
+    }
   }
+  logger.info('System packing templates seeded/verified');
 }
 
 module.exports = {
