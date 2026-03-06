@@ -772,14 +772,15 @@ const sendFriendRequest = async (req, res) => {
       });
     }
 
-    // Add friend request to target user
-    targetUser.friendRequests.push({
-      from: currentUser._id,
-      status: 'pending',
-      createdAt: new Date()
+    await User.findByIdAndUpdate(userId, {
+      $push: {
+        friendRequests: {
+          from: currentUser._id,
+          status: 'pending',
+          createdAt: new Date()
+        }
+      }
     });
-
-    await targetUser.save();
 
     // Emit WebSocket event
     const io = req.app.get('io');
@@ -842,15 +843,17 @@ const acceptFriendRequest = async (req, res) => {
       });
     }
 
-    // Add to friends list
-    currentUser.friends.push(userId);
-    requestUser.friends.push(req.user._id);
+    await User.findOneAndUpdate(
+      { _id: req.user._id, 'friendRequests._id': friendRequest._id },
+      {
+        $addToSet: { friends: userId },
+        $set: { 'friendRequests.$.status': 'accepted' }
+      }
+    );
 
-    // Update request status to accepted
-    friendRequest.status = 'accepted';
-
-    await currentUser.save();
-    await requestUser.save();
+    await User.findByIdAndUpdate(userId, {
+      $addToSet: { friends: req.user._id }
+    });
 
     // Emit WebSocket events
     const io = req.app.get('io');
@@ -970,8 +973,10 @@ const declineFriendRequest = async (req, res) => {
       });
     }
 
-    friendRequest.status = 'declined';
-    await currentUser.save();
+    await User.findOneAndUpdate(
+      { _id: req.user._id, 'friendRequests._id': friendRequest._id },
+      { $set: { 'friendRequests.$.status': 'declined' } }
+    );
 
     logger.info(`Friend request declined: ${userId} → ${req.user.email}`);
 
@@ -1047,6 +1052,72 @@ const markNotificationsRead = async (req, res) => {
   }
 };
 
+// @desc    Search users by name or email (with friend status)
+// @route   GET /api/auth/search?q=query
+// @access  Private
+const searchUsers = async (req, res) => {
+  try {
+    const { q } = req.query;
+    if (!q || q.trim().length < 2) {
+      return res.status(200).json({ success: true, data: { users: [] } });
+    }
+
+    const regex = new RegExp(q.trim(), 'i');
+    const results = await User.find({
+      _id: { $ne: req.user._id },
+      $or: [{ name: regex }, { email: regex }],
+    })
+      .select('name email avatar bio')
+      .limit(20);
+
+    const currentUser = await User.findById(req.user._id).select('friends friendRequests');
+    const friendIds = new Set((currentUser.friends || []).map(f => f.toString()));
+
+    const sentPendingIds = new Set();
+    const receivedPendingIds = new Set();
+
+    const allUsersWithRequests = await User.find({
+      _id: { $in: results.map(r => r._id) },
+      'friendRequests.from': req.user._id,
+      'friendRequests.status': 'pending',
+    }).select('_id');
+    allUsersWithRequests.forEach(u => sentPendingIds.add(u._id.toString()));
+
+    (currentUser.friendRequests || []).forEach(fr => {
+      if (fr.status === 'pending') {
+        receivedPendingIds.add(fr.from.toString());
+      }
+    });
+
+    const users = results.map(u => {
+      const uid = u._id.toString();
+      let friendStatus = 'none';
+      if (friendIds.has(uid)) friendStatus = 'friend';
+      else if (sentPendingIds.has(uid)) friendStatus = 'pending_sent';
+      else if (receivedPendingIds.has(uid)) friendStatus = 'pending_received';
+
+      return {
+        _id: u._id,
+        name: u.name,
+        email: u.email,
+        avatar: u.avatar,
+        bio: u.bio,
+        friendStatus,
+      };
+    });
+
+    users.sort((a, b) => {
+      const order: Record<string, number> = { friend: 0, pending_received: 1, pending_sent: 2, none: 3 };
+      return (order[a.friendStatus] ?? 3) - (order[b.friendStatus] ?? 3);
+    });
+
+    res.status(200).json({ success: true, data: { users } });
+  } catch (error) {
+    logger.error('Search users error:', error);
+    res.status(500).json({ success: false, message: 'Failed to search users', error: error.message });
+  }
+};
+
 module.exports = {
   register,
   login,
@@ -1066,5 +1137,6 @@ module.exports = {
   getPendingFriendRequests,
   declineFriendRequest,
   getNotifications,
-  markNotificationsRead
+  markNotificationsRead,
+  searchUsers
 };

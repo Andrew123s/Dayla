@@ -18,7 +18,8 @@ const {
   getPendingFriendRequests,
   declineFriendRequest,
   getNotifications,
-  markNotificationsRead
+  markNotificationsRead,
+  searchUsers
 } = require('../controllers/auth.controller');
 const { protect } = require('../middleware/auth.middleware');
 const { validate, userSchemas } = require('../utils/validator');
@@ -63,6 +64,7 @@ router.use(protect); // All routes below require authentication
 router.get('/check', checkAuth); // Check auth status and get user
 router.post('/logout', logout); // Logout and clear cookie
 router.get('/me', getMe);
+router.get('/search', searchUsers);
 router.get('/friends', getFriends);
 router.get('/friend-requests/pending', getPendingFriendRequests);
 router.post('/friend-request/:userId', sendFriendRequest);

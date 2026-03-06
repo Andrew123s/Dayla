@@ -41,6 +41,11 @@ const ChatView: React.FC<ChatViewProps> = ({ user }) => {
   const [newChatFriends, setNewChatFriends] = useState<any[]>([]);
   const [loadingNewChatFriends, setLoadingNewChatFriends] = useState(false);
   const [creatingDirectChat, setCreatingDirectChat] = useState(false);
+  const [findFriendsQuery, setFindFriendsQuery] = useState('');
+  const [findFriendsResults, setFindFriendsResults] = useState<any[]>([]);
+  const [searchingUsers, setSearchingUsers] = useState(false);
+  const [sendingRequest, setSendingRequest] = useState<string | null>(null);
+  const findFriendsTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [groupFriends, setGroupFriends] = useState<any[]>([]);
   const [loadingGroupFriends, setLoadingGroupFriends] = useState(false);
   const [selectedGroupMembers, setSelectedGroupMembers] = useState<Set<string>>(new Set());
@@ -574,6 +579,98 @@ const ChatView: React.FC<ChatViewProps> = ({ user }) => {
     }
   };
 
+  // Search users for Find Friends
+  const handleFindFriendsSearch = (query: string) => {
+    setFindFriendsQuery(query);
+    if (findFriendsTimerRef.current) clearTimeout(findFriendsTimerRef.current);
+
+    if (!query.trim() || query.trim().length < 2) {
+      setFindFriendsResults([]);
+      setSearchingUsers(false);
+      return;
+    }
+
+    setSearchingUsers(true);
+    findFriendsTimerRef.current = setTimeout(async () => {
+      try {
+        const response = await authFetch(`${API_BASE_URL}/api/auth/search?q=${encodeURIComponent(query.trim())}`);
+        const ct = response.headers.get('content-type') || '';
+        if (!ct.includes('application/json')) throw new Error('Server error');
+        const data = await response.json();
+        if (data.success) {
+          setFindFriendsResults(data.data.users || []);
+        }
+      } catch (err) {
+        console.error('Search users failed:', err);
+      } finally {
+        setSearchingUsers(false);
+      }
+    }, 300);
+  };
+
+  // Send friend request from Find Friends
+  const handleSendFriendRequest = async (targetUserId: string) => {
+    if (sendingRequest) return;
+    setSendingRequest(targetUserId);
+    try {
+      const response = await authFetch(`${API_BASE_URL}/api/auth/friend-request/${targetUserId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const ct = response.headers.get('content-type') || '';
+      if (!ct.includes('application/json')) throw new Error('Server error');
+      const data = await response.json();
+      if (data.success) {
+        setFindFriendsResults(prev =>
+          prev.map(u => u._id === targetUserId ? { ...u, friendStatus: 'pending_sent' } : u)
+        );
+        setSuccessMessage('Friend request sent!');
+        setTimeout(() => setSuccessMessage(''), 3000);
+      } else {
+        setError(data.message || 'Failed to send request');
+        setTimeout(() => setError(''), 3000);
+      }
+    } catch (err) {
+      console.error('Send friend request failed:', err);
+      setError('Failed to send friend request');
+      setTimeout(() => setError(''), 3000);
+    } finally {
+      setSendingRequest(null);
+    }
+  };
+
+  // Accept friend request from Find Friends
+  const handleAcceptFromSearch = async (fromUserId: string) => {
+    if (sendingRequest) return;
+    setSendingRequest(fromUserId);
+    try {
+      const response = await authFetch(`${API_BASE_URL}/api/auth/friend-request/${fromUserId}/accept`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const ct = response.headers.get('content-type') || '';
+      if (!ct.includes('application/json')) throw new Error('Server error');
+      const data = await response.json();
+      if (data.success) {
+        setFindFriendsResults(prev =>
+          prev.map(u => u._id === fromUserId ? { ...u, friendStatus: 'friend' } : u)
+        );
+        setSuccessMessage('Friend request accepted!');
+        setTimeout(() => setSuccessMessage(''), 3000);
+        fetchNewChatFriends();
+      } else {
+        setError(data.message || 'Failed to accept request');
+        setTimeout(() => setError(''), 3000);
+      }
+    } catch (err) {
+      console.error('Accept friend request failed:', err);
+      setError('Failed to accept friend request');
+      setTimeout(() => setError(''), 3000);
+    } finally {
+      setSendingRequest(null);
+    }
+  };
+
   // Toggle group member selection
   const toggleGroupMember = (friendId: string) => {
     setSelectedGroupMembers(prev => {
@@ -1084,10 +1181,11 @@ const ChatView: React.FC<ChatViewProps> = ({ user }) => {
         <div className="flex justify-between items-center mb-4">
           <h1 className="text-2xl font-bold text-[#3a5a40]">Messages</h1>
           <button 
-            onClick={() => { setShowNewChatModal(true); fetchNewChatFriends(); }}
-            className="p-2 bg-[#3a5a40] text-white rounded-full hover:bg-[#588157] transition-colors active:scale-95"
+            onClick={() => { setShowNewChatModal(true); fetchNewChatFriends(); setFindFriendsQuery(''); setFindFriendsResults([]); }}
+            className="flex items-center gap-1.5 px-3 py-2 bg-[#3a5a40] text-white rounded-full hover:bg-[#588157] transition-colors active:scale-95 text-sm font-medium"
           >
-            <Plus size={20} />
+            <UserPlus size={16} />
+            <span>Find Friends</span>
           </button>
         </div>
         <div className="relative">
@@ -1244,34 +1342,67 @@ const ChatView: React.FC<ChatViewProps> = ({ user }) => {
         )}
       </div>
 
-      {/* New Chat Modal */}
-      {showNewChatModal && (
+      {/* Find Friends / New Chat Modal */}
+      {showNewChatModal && (() => {
+        const q = findFriendsQuery.trim().toLowerCase();
+        const matchingFriends = q.length > 0
+          ? newChatFriends.filter(f =>
+              f.name?.toLowerCase().includes(q) || f.email?.toLowerCase().includes(q)
+            )
+          : newChatFriends;
+
+        const friendIds = new Set(newChatFriends.map((f: any) => f._id));
+        const searchOnly = findFriendsResults.filter(u => !friendIds.has(u._id));
+
+        return (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4">
           <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl max-h-[90vh] overflow-hidden animate-slide-up flex flex-col">
             <div className="flex items-center justify-between p-4 border-b border-stone-100">
-              <h2 className="text-lg font-bold text-stone-800">New Message</h2>
-              <button 
-                onClick={() => { setShowNewChatModal(false); setSearchQuery(''); }}
+              <h2 className="text-lg font-bold text-stone-800">Find Friends</h2>
+              <button
+                onClick={() => { setShowNewChatModal(false); setFindFriendsQuery(''); setFindFriendsResults([]); }}
                 className="p-2 hover:bg-stone-100 rounded-full transition-colors"
               >
                 <X size={20} className="text-stone-500" />
               </button>
             </div>
-            
+
             <div className="p-4 flex flex-col flex-1 min-h-0">
-              <div className="relative mb-4">
+              {/* Inline success/error */}
+              {successMessage && (
+                <div className="mb-2 p-2 bg-emerald-50 border border-emerald-200 rounded-xl text-center">
+                  <p className="text-xs font-medium text-emerald-700">{successMessage}</p>
+                </div>
+              )}
+              {error && (
+                <div className="mb-2 p-2 bg-red-50 border border-red-200 rounded-xl text-center">
+                  <p className="text-xs font-medium text-red-700">{error}</p>
+                </div>
+              )}
+
+              <div className="relative mb-3">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" size={16} />
-                <input 
+                <input
                   type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search friends..."
+                  value={findFriendsQuery}
+                  onChange={(e) => { handleFindFriendsSearch(e.target.value); }}
+                  placeholder="Search by name or email..."
+                  autoFocus
                   className="w-full bg-stone-50 border border-stone-200 rounded-xl pl-10 pr-4 py-3 text-sm focus:ring-2 focus:ring-[#3a5a40] focus:border-[#3a5a40] outline-none"
                 />
+                {searchingUsers && (
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                    <div className="w-4 h-4 border-2 border-stone-300 border-t-[#3a5a40] rounded-full animate-spin"></div>
+                  </div>
+                )}
               </div>
-              
-              <div className="space-y-2 mb-4">
-                <button 
+
+              {!findFriendsQuery.trim() && (
+                <p className="text-xs text-stone-400 text-center mb-3">Type a name or email to search for users</p>
+              )}
+
+              <div className="space-y-2 mb-3">
+                <button
                   onClick={() => {
                     setShowNewChatModal(false);
                     setShowCreateGroupModal(true);
@@ -1281,69 +1412,148 @@ const ChatView: React.FC<ChatViewProps> = ({ user }) => {
                   }}
                   className="w-full flex items-center gap-3 p-3 hover:bg-stone-50 rounded-xl transition-colors"
                 >
-                  <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
-                    <Users size={24} className="text-purple-600" />
+                  <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
+                    <Users size={20} className="text-purple-600" />
                   </div>
                   <div className="text-left">
-                    <p className="font-medium text-stone-800">Create Group Chat</p>
-                    <p className="text-xs text-stone-500">Chat with multiple friends</p>
+                    <p className="font-medium text-stone-800 text-sm">Create Group Chat</p>
+                    <p className="text-[11px] text-stone-500">Chat with multiple friends</p>
                   </div>
                 </button>
               </div>
-              
-              <p className="text-xs text-stone-400 uppercase font-bold mb-3">Friends</p>
-              
-              <div className="space-y-2 max-h-[40vh] overflow-y-auto flex-1">
-                {loadingNewChatFriends ? (
+
+              <div className="max-h-[55vh] overflow-y-auto flex-1 space-y-1">
+                {loadingNewChatFriends && !findFriendsQuery.trim() ? (
                   <div className="flex items-center justify-center py-8">
                     <div className="flex items-center gap-3 text-stone-500">
                       <div className="w-6 h-6 border-2 border-stone-300 border-t-[#3a5a40] rounded-full animate-spin"></div>
                       <span className="text-sm">Loading friends...</span>
                     </div>
                   </div>
-                ) : newChatFriends.filter(f =>
-                    !searchQuery || f.name?.toLowerCase().includes(searchQuery.toLowerCase()) || f.email?.toLowerCase().includes(searchQuery.toLowerCase())
-                  ).length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-8 text-center">
-                    <div className="w-16 h-16 bg-stone-100 rounded-full flex items-center justify-center mb-4">
-                      <Users size={32} className="text-stone-400" />
-                    </div>
-                    <p className="text-stone-600 font-medium mb-1">No friends found</p>
-                    <p className="text-stone-400 text-sm max-w-[200px]">
-                      {searchQuery ? `No results for "${searchQuery}"` : 'Add friends to start chatting!'}
-                    </p>
-                  </div>
                 ) : (
-                  newChatFriends
-                    .filter(f =>
-                      !searchQuery || f.name?.toLowerCase().includes(searchQuery.toLowerCase()) || f.email?.toLowerCase().includes(searchQuery.toLowerCase())
-                    )
-                    .map(friend => (
-                      <button
-                        key={friend._id}
-                        onClick={() => startDirectChat(friend._id, friend.name)}
-                        disabled={creatingDirectChat}
-                        className="w-full flex items-center gap-3 p-3 hover:bg-stone-50 rounded-xl transition-colors disabled:opacity-50"
-                      >
-                        {friend.avatar ? (
-                          <img src={friend.avatar} className="w-12 h-12 rounded-full object-cover" alt={friend.name} />
-                        ) : (
-                          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#588157] to-[#3a5a40] flex items-center justify-center text-white font-semibold text-lg">
-                            {friend.name?.[0]?.toUpperCase() || 'U'}
+                  <>
+                    {/* Already-added friends that match the query */}
+                    {matchingFriends.length > 0 && (
+                      <>
+                        <p className="text-[10px] text-stone-400 uppercase font-bold tracking-wider px-1 pt-1 pb-1">
+                          Your Friends {q.length > 0 && `(${matchingFriends.length})`}
+                        </p>
+                        {matchingFriends.map((friend: any) => (
+                          <button
+                            key={friend._id}
+                            onClick={() => { startDirectChat(friend._id, friend.name); setFindFriendsQuery(''); setFindFriendsResults([]); }}
+                            disabled={creatingDirectChat}
+                            className="w-full flex items-center gap-3 p-3 hover:bg-emerald-50 rounded-xl transition-colors disabled:opacity-50 group"
+                          >
+                            {friend.avatar ? (
+                              <img src={friend.avatar} className="w-11 h-11 rounded-full object-cover" alt={friend.name} />
+                            ) : (
+                              <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#588157] to-[#3a5a40] flex items-center justify-center text-white font-semibold">
+                                {friend.name?.[0]?.toUpperCase() || 'U'}
+                              </div>
+                            )}
+                            <div className="text-left flex-1 min-w-0">
+                              <p className="font-medium text-stone-800 text-sm truncate">{friend.name}</p>
+                              <p className="text-[11px] text-emerald-600 font-medium">Tap to chat</p>
+                            </div>
+                            <MessageCircle size={18} className="text-[#3a5a40] opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+                          </button>
+                        ))}
+                      </>
+                    )}
+
+                    {/* Search results (non-friends) */}
+                    {q.length >= 2 && (
+                      <>
+                        {searchOnly.length > 0 && (
+                          <>
+                            <p className="text-[10px] text-stone-400 uppercase font-bold tracking-wider px-1 pt-3 pb-1">
+                              People you can add ({searchOnly.length})
+                            </p>
+                            {searchOnly.map((u: any) => (
+                              <div
+                                key={u._id}
+                                className="flex items-center gap-3 p-3 rounded-xl bg-stone-50/50"
+                              >
+                                {u.avatar ? (
+                                  <img src={u.avatar} className="w-11 h-11 rounded-full object-cover" alt={u.name} />
+                                ) : (
+                                  <div className="w-11 h-11 rounded-full bg-gradient-to-br from-stone-300 to-stone-400 flex items-center justify-center text-white font-semibold">
+                                    {u.name?.[0]?.toUpperCase() || 'U'}
+                                  </div>
+                                )}
+                                <div className="flex-1 min-w-0 text-left">
+                                  <p className="font-medium text-stone-800 text-sm truncate">{u.name}</p>
+                                  <p className="text-[11px] text-stone-500 truncate">{u.email}</p>
+                                </div>
+                                {u.friendStatus === 'pending_sent' ? (
+                                  <span className="text-[11px] font-semibold text-amber-600 bg-amber-50 px-3 py-1.5 rounded-full flex-shrink-0">
+                                    Pending
+                                  </span>
+                                ) : u.friendStatus === 'pending_received' ? (
+                                  <button
+                                    onClick={() => handleAcceptFromSearch(u._id)}
+                                    disabled={sendingRequest === u._id}
+                                    className="text-[11px] font-semibold text-white bg-[#3a5a40] px-3 py-1.5 rounded-full flex-shrink-0 hover:bg-[#588157] transition-colors disabled:opacity-50"
+                                  >
+                                    {sendingRequest === u._id ? 'Accepting...' : 'Accept'}
+                                  </button>
+                                ) : u.friendStatus === 'friend' ? (
+                                  <button
+                                    onClick={() => { startDirectChat(u._id, u.name); setFindFriendsQuery(''); setFindFriendsResults([]); }}
+                                    className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-full flex-shrink-0 hover:bg-emerald-100 transition-colors"
+                                  >
+                                    Chat
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={() => handleSendFriendRequest(u._id)}
+                                    disabled={sendingRequest === u._id}
+                                    className="flex items-center gap-1 text-[11px] font-semibold text-white bg-[#3a5a40] px-3 py-1.5 rounded-full flex-shrink-0 hover:bg-[#588157] transition-colors disabled:opacity-50"
+                                  >
+                                    {sendingRequest === u._id ? (
+                                      <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                    ) : (
+                                      <UserPlus size={13} />
+                                    )}
+                                    {sendingRequest === u._id ? 'Sending...' : 'Add'}
+                                  </button>
+                                )}
+                              </div>
+                            ))}
+                          </>
+                        )}
+
+                        {!searchingUsers && matchingFriends.length === 0 && searchOnly.length === 0 && (
+                          <div className="flex flex-col items-center justify-center py-8 text-center">
+                            <div className="w-14 h-14 bg-stone-100 rounded-full flex items-center justify-center mb-3">
+                              <Search size={24} className="text-stone-400" />
+                            </div>
+                            <p className="text-stone-600 font-medium text-sm mb-1">No results found</p>
+                            <p className="text-stone-400 text-xs max-w-[220px]">Try a different name or email address</p>
                           </div>
                         )}
-                        <div className="text-left flex-1">
-                          <p className="font-medium text-stone-800 text-sm">{friend.name}</p>
-                          <p className="text-xs text-stone-500">{friend.email}</p>
+                      </>
+                    )}
+
+                    {/* Prompt when no query */}
+                    {!q && matchingFriends.length === 0 && (
+                      <div className="flex flex-col items-center justify-center py-8 text-center">
+                        <div className="w-14 h-14 bg-stone-100 rounded-full flex items-center justify-center mb-3">
+                          <UserPlus size={24} className="text-stone-400" />
                         </div>
-                      </button>
-                    ))
+                        <p className="text-stone-600 font-medium text-sm mb-1">No friends yet</p>
+                        <p className="text-stone-400 text-xs max-w-[220px]">Search for people to add as friends and start chatting!</p>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* Create Group Chat Modal */}
       {showCreateGroupModal && (
