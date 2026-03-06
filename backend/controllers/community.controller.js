@@ -283,16 +283,22 @@ const addLike = async (req, res) => {
     const hasLiked = post.likes.some(like => like.user.toString() === req.user._id.toString());
 
     if (hasLiked) {
-      await post.removeLike(req.user._id);
+      await Post.findByIdAndUpdate(req.params.id, {
+        $pull: { likes: { user: req.user._id } }
+      });
+      const updated = await Post.findById(req.params.id);
       res.status(200).json({
         success: true,
         message: 'Like removed successfully',
-        data: { liked: false, likeCount: post.likes.length }
+        data: { liked: false, likeCount: (updated.likes || []).length }
       });
     } else {
-      await post.addLike(req.user._id);
+      await Post.findByIdAndUpdate(req.params.id, {
+        $push: { likes: { user: req.user._id, createdAt: new Date() } }
+      });
+      const updated = await Post.findById(req.params.id);
+      const newLikeCount = (updated.likes || []).length;
 
-      // Create notification for post owner (skip if liking own post)
       const postOwnerId = post.author._id || post.author;
       if (postOwnerId.toString() !== req.user._id.toString()) {
         try {
@@ -308,14 +314,13 @@ const addLike = async (req, res) => {
         }
       }
       
-      // Emit WebSocket event
       const io = req.app.get('io');
       if (io) {
         io.emit('post:liked', {
           postId: post._id,
           userId: req.user._id,
           userName: req.user.name,
-          likeCount: post.likes.length,
+          likeCount: newLikeCount,
           timestamp: new Date()
         });
 
@@ -335,7 +340,7 @@ const addLike = async (req, res) => {
       res.status(200).json({
         success: true,
         message: 'Post liked successfully',
-        data: { liked: true, likeCount: post.likes.length }
+        data: { liked: true, likeCount: newLikeCount }
       });
     }
   } catch (error) {
@@ -359,7 +364,9 @@ const removeLike = async (req, res) => {
       });
     }
 
-    await post.removeLike(req.user._id);
+    await Post.findByIdAndUpdate(req.params.id, {
+      $pull: { likes: { user: req.user._id } }
+    });
 
     res.status(200).json({
       success: true,
@@ -389,17 +396,25 @@ const addComment = async (req, res) => {
       });
     }
 
-    await post.addComment({
+    const commentId = `comment_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const comment = {
+      id: commentId,
       author: req.user._id,
       content: req.body.content,
-      replyTo: req.body.replyTo
-    });
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+
+    await Post.findByIdAndUpdate(
+      req.params.id,
+      { $push: { comments: comment } },
+      { new: true }
+    );
 
     const updatedPost = await Post.findById(req.params.id)
       .populate('comments.author', 'name avatar')
       .populate('comments.replies.author', 'name avatar');
 
-    // Create notification for post owner (skip if commenting on own post)
     const postOwnerId = post.author._id || post.author;
     if (postOwnerId.toString() !== req.user._id.toString()) {
       try {
@@ -415,7 +430,6 @@ const addComment = async (req, res) => {
       }
     }
 
-    // Emit WebSocket event
     const io = req.app.get('io');
     if (io) {
       io.emit('comment:added', {
@@ -694,19 +708,21 @@ const saveTrip = async (req, res) => {
     const hasSaved = post.saves.some(save => save.user.toString() === req.user._id.toString());
 
     if (hasSaved) {
-      // Unsave
-      post.saves = post.saves.filter(save => save.user.toString() !== req.user._id.toString());
-      await post.save();
+      await Post.findByIdAndUpdate(req.params.id, {
+        $pull: { saves: { user: req.user._id } }
+      });
+      const updated = await Post.findById(req.params.id);
       
       res.status(200).json({
         success: true,
         message: 'Trip unsaved successfully',
-        data: { saved: false, saveCount: post.saves.length }
+        data: { saved: false, saveCount: (updated.saves || []).length }
       });
     } else {
-      // Save
-      post.saves.push({ user: req.user._id, createdAt: new Date() });
-      await post.save();
+      await Post.findByIdAndUpdate(req.params.id, {
+        $push: { saves: { user: req.user._id, createdAt: new Date() } }
+      });
+      const updated = await Post.findById(req.params.id);
 
       // Emit WebSocket event
       const io = req.app.get('io');
@@ -715,7 +731,7 @@ const saveTrip = async (req, res) => {
           postId: post._id,
           userId: req.user._id,
           userName: req.user.name,
-          saveCount: post.saves.length,
+          saveCount: (updated.saves || []).length,
           timestamp: new Date()
         });
         logger.info(`Trip saved event emitted: post ${post._id} by ${req.user.email}`);
@@ -724,7 +740,7 @@ const saveTrip = async (req, res) => {
       res.status(200).json({
         success: true,
         message: 'Trip saved successfully',
-        data: { saved: true, saveCount: post.saves.length }
+        data: { saved: true, saveCount: (updated.saves || []).length }
       });
     }
   } catch (error) {

@@ -166,28 +166,37 @@ const Community: React.FC<CommunityProps> = ({ user, onFriendRequestSent }) => {
   const submitComment = async () => {
     if (!commentText.trim() || !activePostId || commentingPostId) return;
 
-    setCommentingPostId(activePostId);
+    const postIdToComment = activePostId;
+    const text = commentText.trim();
+    setCommentingPostId(postIdToComment);
+
     try {
-      const response = await authFetch(`${API_BASE_URL}/api/community/posts/${activePostId}/comments`, {
+      const response = await authFetch(`${API_BASE_URL}/api/community/posts/${postIdToComment}/comments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: commentText.trim() })
+        body: JSON.stringify({ content: text })
       });
+
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new Error(`Server error (${response.status})`);
+      }
 
       const data = await response.json();
 
       if (data.success) {
         setShowCommentModal(false);
         setCommentText('');
-        fetchPosts(); // Refresh to get updated comments
+        setActivePostId(null);
+        await fetchPosts();
       } else {
-        setError(data.message || 'Failed to add comment');
-        setTimeout(() => setError(''), 3000);
+        setError(data.message || data.error || 'Failed to add comment');
+        setTimeout(() => setError(''), 4000);
       }
     } catch (error) {
       console.error('Error adding comment:', error);
-      setError('Failed to add comment');
-      setTimeout(() => setError(''), 3000);
+      setError(error instanceof Error ? error.message : 'Failed to add comment');
+      setTimeout(() => setError(''), 4000);
     } finally {
       setCommentingPostId(null);
     }
