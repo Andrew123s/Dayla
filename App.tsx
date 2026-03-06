@@ -10,7 +10,7 @@ import Onboarding from './components/Onboarding';
 import VerifyEmail from './components/VerifyEmail';
 import AcceptInvitation from './components/AcceptInvitation';
 import Navigation from './components/Navigation';
-import { Loader, X, Check, UserPlus, Bell } from 'lucide-react';
+import { Loader, X, Check, UserPlus, Bell, Heart, MessageCircle } from 'lucide-react';
 import { initializeSocket, getSocket } from './lib/socket';
 
 import { API_BASE_URL, authFetch, clearAuthToken } from './lib/api';
@@ -28,6 +28,16 @@ interface FriendRequest {
   createdAt: string;
 }
 
+interface AppNotification {
+  _id: string;
+  sender: { _id: string; name: string; avatar?: string };
+  type: 'like' | 'comment' | 'friend_request' | 'friend_accepted';
+  post?: { _id: string; content?: string };
+  message: string;
+  read: boolean;
+  createdAt: string;
+}
+
 const App: React.FC = () => {
   const [view, setView] = useState<ViewType>('auth');
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -38,6 +48,8 @@ const App: React.FC = () => {
 
   // Notification state
   const [pendingFriendRequests, setPendingFriendRequests] = useState<FriendRequest[]>([]);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [unreadNotifCount, setUnreadNotifCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
   const [processingRequestId, setProcessingRequestId] = useState<string | null>(null);
 
@@ -147,6 +159,8 @@ const App: React.FC = () => {
     setCurrentUser(null);
     setShowOnboarding(false);
     setPendingFriendRequests([]);
+    setNotifications([]);
+    setUnreadNotifCount(0);
     setShowNotifications(false);
     localStorage.removeItem('dayla_user');
     clearAuthToken();
@@ -168,14 +182,34 @@ const App: React.FC = () => {
     }
   }, []);
 
-  // Fetch friend requests when user is authenticated
+  // Fetch all notifications (likes, comments, etc.)
+  const fetchNotifications = useCallback(async () => {
+    try {
+      const response = await authFetch(`${API_BASE_URL}/api/auth/notifications`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setNotifications(data.data.notifications || []);
+          setUnreadNotifCount(data.data.unreadCount || 0);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch notifications:', error);
+    }
+  }, []);
+
+  const fetchAllNotifications = useCallback(async () => {
+    await Promise.all([fetchPendingFriendRequests(), fetchNotifications()]);
+  }, [fetchPendingFriendRequests, fetchNotifications]);
+
+  // Fetch notifications when user is authenticated
   useEffect(() => {
     if (currentUser && view !== 'auth') {
-      fetchPendingFriendRequests();
+      fetchAllNotifications();
     }
-  }, [currentUser, view, fetchPendingFriendRequests]);
+  }, [currentUser, view, fetchAllNotifications]);
 
-  // Listen for real-time friend request events
+  // Listen for real-time notification events
   useEffect(() => {
     if (!currentUser) return;
 
@@ -192,14 +226,22 @@ const App: React.FC = () => {
       fetchPendingFriendRequests();
     };
 
+    const handleNewNotification = (data: any) => {
+      if (data.recipientId === currentUser.id) {
+        fetchNotifications();
+      }
+    };
+
     socket.on('friend:request_sent', handleFriendRequestReceived);
     socket.on('friend:request_accepted', handleFriendRequestAccepted);
+    socket.on('notification:new', handleNewNotification);
 
     return () => {
       socket.off('friend:request_sent', handleFriendRequestReceived);
       socket.off('friend:request_accepted', handleFriendRequestAccepted);
+      socket.off('notification:new', handleNewNotification);
     };
-  }, [currentUser, fetchPendingFriendRequests]);
+  }, [currentUser, fetchPendingFriendRequests, fetchNotifications]);
 
   const handleAcceptFriendRequest = async (userId: string) => {
     setProcessingRequestId(userId);
@@ -234,6 +276,22 @@ const App: React.FC = () => {
       console.error('Failed to decline friend request:', error);
     } finally {
       setProcessingRequestId(null);
+    }
+  };
+
+  const handleOpenNotifications = async () => {
+    setShowNotifications(true);
+    if (unreadNotifCount > 0) {
+      try {
+        await authFetch(`${API_BASE_URL}/api/auth/notifications/read`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+        });
+        setUnreadNotifCount(0);
+        setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+      } catch (error) {
+        console.error('Failed to mark notifications as read:', error);
+      }
     }
   };
 
@@ -305,8 +363,8 @@ const App: React.FC = () => {
       <Navigation
         currentView={view}
         setView={setView}
-        notificationCount={pendingFriendRequests.length}
-        onNotificationClick={() => setShowNotifications(true)}
+        notificationCount={pendingFriendRequests.length + unreadNotifCount}
+        onNotificationClick={handleOpenNotifications}
       />
 
       {/* Notification Panel */}
@@ -322,9 +380,9 @@ const App: React.FC = () => {
                 <div>
                   <h2 className="text-lg font-bold text-stone-800">Notifications</h2>
                   <p className="text-xs text-stone-500">
-                    {pendingFriendRequests.length === 0
-                      ? 'No pending requests'
-                      : `${pendingFriendRequests.length} pending request${pendingFriendRequests.length > 1 ? 's' : ''}`
+                    {pendingFriendRequests.length + notifications.length === 0
+                      ? 'All caught up'
+                      : `${pendingFriendRequests.length + notifications.length} notification${(pendingFriendRequests.length + notifications.length) > 1 ? 's' : ''}`
                     }
                   </p>
                 </div>
@@ -337,64 +395,110 @@ const App: React.FC = () => {
               </button>
             </div>
             <div className="flex-1 overflow-y-auto p-4 space-y-3">
-              {pendingFriendRequests.length === 0 ? (
+              {pendingFriendRequests.length === 0 && notifications.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-center">
                   <div className="w-16 h-16 bg-stone-100 rounded-full flex items-center justify-center mb-4">
-                    <UserPlus size={28} className="text-stone-400" />
+                    <Bell size={28} className="text-stone-400" />
                   </div>
-                  <p className="text-stone-500 font-medium">No pending requests</p>
-                  <p className="text-stone-400 text-sm mt-1">Friend requests will appear here</p>
+                  <p className="text-stone-500 font-medium">All caught up</p>
+                  <p className="text-stone-400 text-sm mt-1">New activity will appear here</p>
                 </div>
               ) : (
-                pendingFriendRequests.map((request) => (
-                  <div
-                    key={request._id}
-                    className="bg-stone-50 rounded-2xl p-4 flex items-center gap-3 border border-stone-100"
-                  >
-                    {request.from.avatar ? (
-                      <img
-                        src={request.from.avatar}
-                        alt={request.from.name}
-                        className="w-12 h-12 rounded-full object-cover shrink-0"
-                      />
-                    ) : (
-                      <div className="w-12 h-12 rounded-full bg-[#a3b18a] flex items-center justify-center shrink-0">
-                        <span className="text-lg font-bold text-white">
-                          {request.from.name?.charAt(0)?.toUpperCase() || '?'}
-                        </span>
+                <>
+                  {/* Friend Requests */}
+                  {pendingFriendRequests.map((request) => (
+                    <div
+                      key={`fr-${request._id}`}
+                      className="bg-blue-50 rounded-2xl p-4 flex items-center gap-3 border border-blue-100"
+                    >
+                      {request.from.avatar ? (
+                        <img
+                          src={request.from.avatar}
+                          alt={request.from.name}
+                          className="w-11 h-11 rounded-full object-cover shrink-0"
+                        />
+                      ) : (
+                        <div className="w-11 h-11 rounded-full bg-[#a3b18a] flex items-center justify-center shrink-0">
+                          <span className="text-base font-bold text-white">
+                            {request.from.name?.charAt(0)?.toUpperCase() || '?'}
+                          </span>
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold text-stone-800 text-sm truncate">{request.from.name}</p>
+                        <p className="text-xs text-stone-500">Wants to be your friend</p>
+                        <p className="text-[10px] text-stone-400 mt-0.5">
+                          {new Date(request.createdAt).toLocaleDateString()}
+                        </p>
                       </div>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <p className="font-bold text-stone-800 text-sm truncate">{request.from.name}</p>
-                      <p className="text-xs text-stone-500 truncate">Wants to be your friend</p>
-                      <p className="text-[10px] text-stone-400 mt-0.5">
-                        {new Date(request.createdAt).toLocaleDateString()}
-                      </p>
+                      <div className="flex gap-2 shrink-0">
+                        <button
+                          onClick={() => handleAcceptFriendRequest(request.from._id)}
+                          disabled={processingRequestId === request.from._id}
+                          className="p-2 bg-[#3a5a40] text-white rounded-xl hover:bg-[#588157] transition-colors disabled:opacity-50"
+                          title="Accept"
+                        >
+                          {processingRequestId === request.from._id ? (
+                            <Loader size={16} className="animate-spin" />
+                          ) : (
+                            <Check size={16} />
+                          )}
+                        </button>
+                        <button
+                          onClick={() => handleDeclineFriendRequest(request.from._id)}
+                          disabled={processingRequestId === request.from._id}
+                          className="p-2 bg-stone-200 text-stone-600 rounded-xl hover:bg-red-100 hover:text-red-600 transition-colors disabled:opacity-50"
+                          title="Decline"
+                        >
+                          <X size={16} />
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex gap-2 shrink-0">
-                      <button
-                        onClick={() => handleAcceptFriendRequest(request.from._id)}
-                        disabled={processingRequestId === request.from._id}
-                        className="p-2 bg-[#3a5a40] text-white rounded-xl hover:bg-[#588157] transition-colors disabled:opacity-50"
-                        title="Accept"
+                  ))}
+
+                  {/* Like / Comment Notifications */}
+                  {notifications.map((notif) => {
+                    const IconComponent = notif.type === 'like' ? Heart : notif.type === 'comment' ? MessageCircle : UserPlus;
+                    const iconColor = notif.type === 'like' ? 'text-red-500' : notif.type === 'comment' ? 'text-[#3a5a40]' : 'text-blue-500';
+                    const bgColor = notif.read ? 'bg-stone-50' : 'bg-amber-50';
+                    const borderColor = notif.read ? 'border-stone-100' : 'border-amber-100';
+
+                    return (
+                      <div
+                        key={`n-${notif._id}`}
+                        className={`${bgColor} rounded-2xl p-4 flex items-center gap-3 border ${borderColor}`}
                       >
-                        {processingRequestId === request.from._id ? (
-                          <Loader size={16} className="animate-spin" />
-                        ) : (
-                          <Check size={16} />
-                        )}
-                      </button>
-                      <button
-                        onClick={() => handleDeclineFriendRequest(request.from._id)}
-                        disabled={processingRequestId === request.from._id}
-                        className="p-2 bg-stone-200 text-stone-600 rounded-xl hover:bg-red-100 hover:text-red-600 transition-colors disabled:opacity-50"
-                        title="Decline"
-                      >
-                        <X size={16} />
-                      </button>
-                    </div>
-                  </div>
-                ))
+                        <div className="relative shrink-0">
+                          {notif.sender?.avatar ? (
+                            <img
+                              src={notif.sender.avatar}
+                              alt={notif.sender.name}
+                              className="w-11 h-11 rounded-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-11 h-11 rounded-full bg-[#a3b18a] flex items-center justify-center">
+                              <span className="text-base font-bold text-white">
+                                {notif.sender?.name?.charAt(0)?.toUpperCase() || '?'}
+                              </span>
+                            </div>
+                          )}
+                          <div className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-white flex items-center justify-center shadow-sm`}>
+                            <IconComponent size={12} className={iconColor} fill={notif.type === 'like' ? 'currentColor' : 'none'} />
+                          </div>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-stone-700">
+                            <span className="font-bold text-stone-800">{notif.sender?.name}</span>{' '}
+                            {notif.type === 'like' ? 'liked your post' : notif.type === 'comment' ? 'commented on your post' : notif.message}
+                          </p>
+                          <p className="text-[10px] text-stone-400 mt-0.5">
+                            {new Date(notif.createdAt).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </>
               )}
             </div>
           </div>

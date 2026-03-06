@@ -1,5 +1,6 @@
 const Post = require('../models/post.model');
 const User = require('../models/user.model');
+const Notification = require('../models/notification.model');
 const logger = require('../utils/logger');
 
 // @desc    Create post
@@ -280,6 +281,22 @@ const addLike = async (req, res) => {
       });
     } else {
       await post.addLike(req.user._id);
+
+      // Create notification for post owner (skip if liking own post)
+      const postOwnerId = post.author._id || post.author;
+      if (postOwnerId.toString() !== req.user._id.toString()) {
+        try {
+          await Notification.create({
+            recipient: postOwnerId,
+            sender: req.user._id,
+            type: 'like',
+            post: post._id,
+            message: `${req.user.name} liked your post`
+          });
+        } catch (notifErr) {
+          logger.error('Failed to create like notification:', notifErr);
+        }
+      }
       
       // Emit WebSocket event
       const io = req.app.get('io');
@@ -291,6 +308,17 @@ const addLike = async (req, res) => {
           likeCount: post.likes.length,
           timestamp: new Date()
         });
+
+        if (postOwnerId.toString() !== req.user._id.toString()) {
+          io.emit('notification:new', {
+            recipientId: postOwnerId.toString(),
+            type: 'like',
+            senderName: req.user.name,
+            postId: post._id,
+            timestamp: new Date()
+          });
+        }
+
         logger.info(`Post like event emitted: ${post._id} by ${req.user.email}`);
       }
       
@@ -342,7 +370,7 @@ const removeLike = async (req, res) => {
 // @access  Private
 const addComment = async (req, res) => {
   try {
-    const post = await Post.findById(req.params.id);
+    const post = await Post.findById(req.params.id).populate('author', 'name avatar');
 
     if (!post) {
       return res.status(404).json({
@@ -361,6 +389,22 @@ const addComment = async (req, res) => {
       .populate('comments.author', 'name avatar')
       .populate('comments.replies.author', 'name avatar');
 
+    // Create notification for post owner (skip if commenting on own post)
+    const postOwnerId = post.author._id || post.author;
+    if (postOwnerId.toString() !== req.user._id.toString()) {
+      try {
+        await Notification.create({
+          recipient: postOwnerId,
+          sender: req.user._id,
+          type: 'comment',
+          post: post._id,
+          message: `${req.user.name} commented on your post`
+        });
+      } catch (notifErr) {
+        logger.error('Failed to create comment notification:', notifErr);
+      }
+    }
+
     // Emit WebSocket event
     const io = req.app.get('io');
     if (io) {
@@ -370,6 +414,17 @@ const addComment = async (req, res) => {
         commentCount: updatedPost.comments.length,
         timestamp: new Date()
       });
+
+      if (postOwnerId.toString() !== req.user._id.toString()) {
+        io.emit('notification:new', {
+          recipientId: postOwnerId.toString(),
+          type: 'comment',
+          senderName: req.user.name,
+          postId: post._id,
+          timestamp: new Date()
+        });
+      }
+
       logger.info(`Comment added event emitted: post ${post._id}`);
     }
 

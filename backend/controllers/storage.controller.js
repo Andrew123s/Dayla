@@ -38,13 +38,7 @@ const uploadImage = async (req, res) => {
       });
     }
 
-    // Generate optimized URLs
-    const optimizedUrl = getOptimizedImageUrl(uploadResult.publicId, {
-      width: 800,
-      height: 600,
-      crop: 'fill'
-    });
-
+    // Generate thumbnail URL (original image is preserved as-is)
     const thumbnailUrl = getOptimizedImageUrl(uploadResult.publicId, {
       width: 300,
       height: 300,
@@ -57,7 +51,6 @@ const uploadImage = async (req, res) => {
       filename: file.originalname,
       type: 'image',
       url: uploadResult.url,
-      optimizedUrl,
       thumbnailUrl,
       size: uploadResult.size,
       format: uploadResult.format,

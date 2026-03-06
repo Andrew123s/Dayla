@@ -267,16 +267,16 @@ const Community: React.FC<CommunityProps> = ({ user, onFriendRequestSent }) => {
       // Upload image first if provided
       if (newPost.image) {
         const formData = new FormData();
-        formData.append('files', newPost.image);
+        formData.append('image', newPost.image);
 
-        const uploadResponse = await authFetch(`${API_BASE_URL}/api/upload/documents`, {
+        const uploadResponse = await authFetch(`${API_BASE_URL}/api/upload/images`, {
           method: 'POST',
           body: formData,
         });
 
         const uploadData = await uploadResponse.json();
-        if (uploadData.success && uploadData.data.files.length > 0) {
-          imageUrl = uploadData.data.files[0].url;
+        if (uploadData.success && uploadData.data?.url) {
+          imageUrl = uploadData.data.url;
         }
       }
 
@@ -446,7 +446,7 @@ const Community: React.FC<CommunityProps> = ({ user, onFriendRequestSent }) => {
 
                 {/* Post Image */}
                 {mainImage && (
-                  <img src={mainImage} className="w-full aspect-[4/3] object-cover" alt="Post content" />
+                  <img src={mainImage} className="w-full max-h-[500px] object-contain bg-stone-100" alt="Post content" />
                 )}
 
                 {/* Content */}
@@ -535,14 +535,14 @@ const Community: React.FC<CommunityProps> = ({ user, onFriendRequestSent }) => {
                   <button
                     onClick={() => fileInputRef.current?.click()}
                     disabled={posting}
-                    className="w-full h-32 border-2 border-dashed border-stone-200 rounded-2xl flex flex-col items-center justify-center gap-2 hover:border-[#3a5a40] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className={`w-full border-2 border-dashed border-stone-200 rounded-2xl flex flex-col items-center justify-center gap-2 hover:border-[#3a5a40] transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${newPost.imagePreview ? '' : 'h-32'}`}
                   >
                     {newPost.imagePreview ? (
-                      <div className="relative w-full h-full">
+                      <div className="relative w-full">
                         <img
                           src={newPost.imagePreview}
                           alt="Preview"
-                          className="w-full h-full object-cover rounded-xl"
+                          className="w-full max-h-48 object-contain rounded-xl"
                         />
                         <button
                           onClick={(e) => {

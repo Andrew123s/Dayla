@@ -16,7 +16,9 @@ const {
   sendFriendRequest,
   acceptFriendRequest,
   getPendingFriendRequests,
-  declineFriendRequest
+  declineFriendRequest,
+  getNotifications,
+  markNotificationsRead
 } = require('../controllers/auth.controller');
 const { protect } = require('../middleware/auth.middleware');
 const { validate, userSchemas } = require('../utils/validator');
@@ -66,6 +68,8 @@ router.get('/friend-requests/pending', getPendingFriendRequests);
 router.post('/friend-request/:userId', sendFriendRequest);
 router.post('/friend-request/:userId/accept', acceptFriendRequest);
 router.post('/friend-request/:userId/decline', declineFriendRequest);
+router.get('/notifications', getNotifications);
+router.post('/notifications/read', markNotificationsRead);
 
 router.put('/me', (req, res, next) => {
   const validation = validate(userSchemas.updateProfile, req.body);

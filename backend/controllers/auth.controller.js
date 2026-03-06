@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/user.model');
+const Notification = require('../models/notification.model');
 const config = require('../config/env.config');
 const logger = require('../utils/logger');
 const { sendConfirmationEmail, generateVerificationToken } = require('../services/email.service');
@@ -989,6 +990,63 @@ const declineFriendRequest = async (req, res) => {
   }
 };
 
+// @desc    Get all notifications for current user
+// @route   GET /api/auth/notifications
+// @access  Private
+const getNotifications = async (req, res) => {
+  try {
+    const notifications = await Notification.find({ recipient: req.user._id })
+      .populate('sender', 'name avatar')
+      .populate('post', 'content images')
+      .sort({ createdAt: -1 })
+      .limit(50);
+
+    const unreadCount = await Notification.countDocuments({
+      recipient: req.user._id,
+      read: false
+    });
+
+    res.status(200).json({
+      success: true,
+      data: {
+        notifications,
+        unreadCount
+      }
+    });
+  } catch (error) {
+    logger.error('Get notifications error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get notifications',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Mark notifications as read
+// @route   POST /api/auth/notifications/read
+// @access  Private
+const markNotificationsRead = async (req, res) => {
+  try {
+    await Notification.updateMany(
+      { recipient: req.user._id, read: false },
+      { read: true }
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'Notifications marked as read'
+    });
+  } catch (error) {
+    logger.error('Mark notifications read error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to mark notifications as read',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   register,
   login,
@@ -1006,5 +1064,7 @@ module.exports = {
   sendFriendRequest,
   acceptFriendRequest,
   getPendingFriendRequests,
-  declineFriendRequest
+  declineFriendRequest,
+  getNotifications,
+  markNotificationsRead
 };
