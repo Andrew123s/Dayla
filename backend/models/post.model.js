@@ -170,7 +170,18 @@ const postSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
-  featuredAt: Date
+  featuredAt: Date,
+  repostedFrom: {
+    post: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Post'
+    },
+    author: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    authorName: String
+  }
 }, {
   timestamps: true,
   toJSON: { virtuals: true },

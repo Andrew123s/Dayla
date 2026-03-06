@@ -197,13 +197,18 @@ const communitySchemas = {
     ).max(10).default([]),
     images: Joi.array().items(
       Joi.object({
-        url: Joi.string().uri().required(),
+        url: Joi.string().required(),
         caption: Joi.string().max(200).allow('', null).optional(),
         alt: Joi.string().max(100).allow('', null).optional()
       })
     ).max(10).default([]),
     visibility: Joi.string().valid('public', 'friends', 'private').default('public'),
-    tripId: Joi.string().allow('', null).optional()
+    tripId: Joi.string().allow('', null).optional(),
+    repostedFrom: Joi.object({
+      post: Joi.string().required(),
+      author: Joi.string().required(),
+      authorName: Joi.string().required()
+    }).optional()
   }),
 
   updatePost: Joi.object({

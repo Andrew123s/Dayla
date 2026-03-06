@@ -21,7 +21,6 @@ const createPost = async (req, res) => {
 
     logger.info(`Post created by ${req.user.email}: ${post._id}`);
 
-    // Emit WebSocket event
     const io = req.app.get('io');
     if (io) {
       io.emit('post:created', {
@@ -46,9 +45,19 @@ const createPost = async (req, res) => {
   } catch (error) {
     logger.error('Create post error:', error);
     console.error('Create post error details:', error);
+
+    if (error.name === 'ValidationError') {
+      const messages = Object.values(error.errors).map(e => e.message);
+      return res.status(400).json({
+        success: false,
+        message: messages.join('. '),
+        error: error.message
+      });
+    }
+
     res.status(500).json({
       success: false,
-      message: 'Failed to create post',
+      message: error.message || 'Failed to create post',
       error: error.message
     });
   }
@@ -77,6 +86,7 @@ const getPosts = async (req, res) => {
     .populate('author', 'name avatar bio')
     .populate('comments.author', 'name avatar')
     .populate('likes.user', 'name avatar')
+    .populate('repostedFrom.author', 'name avatar')
     .sort(sortOption)
     .limit(limit * 1)
     .skip((page - 1) * limit)

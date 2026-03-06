@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { User, Post } from '../types';
-import { Heart, MessageCircle, MapPin, Share, Save, Plus, Image as ImageIcon, X, Send, AlertCircle, CheckCircle, Loader, UserPlus } from 'lucide-react';
+import { Heart, MessageCircle, MapPin, Share, Save, Plus, Image as ImageIcon, X, Send, Loader, UserPlus, MoreVertical, Trash2, Pencil, Repeat2 } from 'lucide-react';
 import { initializeSocket, getSocket } from '../lib/socket';
 import { API_BASE_URL, authFetch } from '../lib/api';
 
@@ -28,7 +28,13 @@ const Community: React.FC<CommunityProps> = ({ user, onFriendRequestSent }) => {
     image: null as File | null,
     imagePreview: null as string | null
   });
+  const [openMenuPostId, setOpenMenuPostId] = useState<string | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
+  const [editingPostId, setEditingPostId] = useState<string | null>(null);
+  const [existingImageUrl, setExistingImageUrl] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   // Initialize socket connection
   useEffect(() => {
@@ -262,25 +268,34 @@ const Community: React.FC<CommunityProps> = ({ user, onFriendRequestSent }) => {
     setError('');
 
     try {
-      let imageUrl = null;
+      let imageUrl: string | null = null;
 
-      // Upload image first if provided
       if (newPost.image) {
-        const formData = new FormData();
-        formData.append('image', newPost.image);
+        try {
+          const formData = new FormData();
+          formData.append('image', newPost.image);
 
-        const uploadResponse = await authFetch(`${API_BASE_URL}/api/upload/images`, {
-          method: 'POST',
-          body: formData,
-        });
+          const uploadResponse = await authFetch(`${API_BASE_URL}/api/upload/images`, {
+            method: 'POST',
+            body: formData,
+          });
 
-        const uploadData = await uploadResponse.json();
-        if (uploadData.success && uploadData.data?.url) {
-          imageUrl = uploadData.data.url;
+          const uploadContentType = uploadResponse.headers.get('content-type') || '';
+          if (!uploadContentType.includes('application/json')) {
+            console.error('Image upload returned non-JSON:', uploadResponse.status);
+          } else {
+            const uploadData = await uploadResponse.json();
+            if (uploadData.success && uploadData.data?.url) {
+              imageUrl = uploadData.data.url;
+            } else {
+              console.warn('Image upload failed:', uploadData.message);
+            }
+          }
+        } catch (uploadErr) {
+          console.warn('Image upload error (proceeding without image):', uploadErr);
         }
       }
 
-      // Create post with proper structure
       const postData: any = {
         content: newPost.content.trim(),
         location: {
@@ -288,7 +303,7 @@ const Community: React.FC<CommunityProps> = ({ user, onFriendRequestSent }) => {
         }
       };
 
-      if (newPost.title) {
+      if (newPost.title?.trim()) {
         postData.title = newPost.title.trim();
       }
 
@@ -296,34 +311,156 @@ const Community: React.FC<CommunityProps> = ({ user, onFriendRequestSent }) => {
         postData.images = [{ url: imageUrl }];
       }
 
-      console.log('Creating post with data:', postData);
+      // If editing and no new image was uploaded, keep the existing one
+      if (editingPostId && !imageUrl && existingImageUrl) {
+        postData.images = [{ url: existingImageUrl }];
+      }
+
+      const isEditing = !!editingPostId;
+      const url = isEditing
+        ? `${API_BASE_URL}/api/community/posts/${editingPostId}`
+        : `${API_BASE_URL}/api/community/posts`;
+      const method = isEditing ? 'PUT' : 'POST';
+
+      console.log(`${isEditing ? 'Updating' : 'Creating'} post with data:`, postData);
+
+      const response = await authFetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(postData),
+      });
+
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new Error(`Server error (${response.status}). Please try again.`);
+      }
+
+      const data = await response.json();
+
+      if (data.success) {
+        await fetchPosts();
+        setShowPostModal(false);
+        setEditingPostId(null);
+        setExistingImageUrl(null);
+        setNewPost({ content: '', location: '', title: '', image: null, imagePreview: null });
+        setSuccessMessage(isEditing ? 'Post updated!' : 'Post created successfully!');
+        setTimeout(() => setSuccessMessage(''), 3000);
+      } else {
+        const msg = data.errors && Array.isArray(data.errors)
+          ? data.errors.map((e: any) => e.message).join(', ')
+          : (data.message || data.error || 'Failed to create post');
+        setError(msg);
+        setTimeout(() => setError(''), 5000);
+      }
+    } catch (error) {
+      console.error('Error creating post:', error);
+      setError(error instanceof Error ? error.message : 'Failed to create post. Please try again.');
+      setTimeout(() => setError(''), 5000);
+    } finally {
+      setPosting(false);
+    }
+  };
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    if (!openMenuPostId) return;
+    const handleClick = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setOpenMenuPostId(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [openMenuPostId]);
+
+  const handleDeletePost = (postId: string) => {
+    setOpenMenuPostId(null);
+    setShowDeleteConfirm(postId);
+  };
+
+  const confirmDeletePost = async () => {
+    if (!showDeleteConfirm) return;
+    setDeleting(true);
+    try {
+      const response = await authFetch(`${API_BASE_URL}/api/community/posts/${showDeleteConfirm}`, {
+        method: 'DELETE',
+      });
+      const data = await response.json();
+      if (data.success) {
+        setPosts(prev => prev.filter(p => ((p as any)._id || p.id) !== showDeleteConfirm));
+        setSuccessMessage('Post deleted');
+        setTimeout(() => setSuccessMessage(''), 3000);
+      } else {
+        setError(data.message || 'Failed to delete post');
+        setTimeout(() => setError(''), 3000);
+      }
+    } catch (err) {
+      console.error('Delete post error:', err);
+      setError('Failed to delete post');
+      setTimeout(() => setError(''), 3000);
+    } finally {
+      setDeleting(false);
+      setShowDeleteConfirm(null);
+    }
+  };
+
+  const handleEditPost = (post: any) => {
+    setOpenMenuPostId(null);
+    const postId = post._id || post.id;
+    const images = post.images || [];
+    const firstImageUrl = images.length > 0 ? images[0].url : null;
+
+    setEditingPostId(postId);
+    setExistingImageUrl(firstImageUrl);
+    setNewPost({
+      content: post.content || '',
+      location: post.location?.name || '',
+      title: post.title || '',
+      image: null,
+      imagePreview: firstImageUrl,
+    });
+    setShowPostModal(true);
+    setError('');
+  };
+
+  const handleRepost = async (post: any) => {
+    setOpenMenuPostId(null);
+    const originalPostId = post._id || post.id;
+    const originalAuthor = post.author;
+    const originalAuthorId = originalAuthor?._id || originalAuthor?.id;
+    const originalAuthorName = originalAuthor?.name || 'Unknown';
+
+    setPosting(true);
+    try {
+      const postData: any = {
+        content: post.content,
+        location: post.location || { name: 'Shared' },
+        images: (post.images || []).map((img: any) => ({ url: img.url })),
+        repostedFrom: {
+          post: originalPostId,
+          author: originalAuthorId,
+          authorName: originalAuthorName,
+        },
+      };
+      if (post.title) postData.title = post.title;
 
       const response = await authFetch(`${API_BASE_URL}/api/community/posts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(postData),
       });
-
       const data = await response.json();
-      console.log('Post creation response:', data);
-
       if (data.success) {
-        // Refresh posts to include the new one
         await fetchPosts();
-        setShowPostModal(false);
-        setNewPost({ content: '', location: '', title: '', image: null, imagePreview: null });
-        setSuccessMessage('Post created successfully!');
+        setSuccessMessage('Reposted successfully!');
         setTimeout(() => setSuccessMessage(''), 3000);
       } else {
-        setError(data.message || 'Failed to create post');
-        if (data.errors && Array.isArray(data.errors)) {
-          setError(data.errors.map((e: any) => e.message).join(', '));
-        }
-        setTimeout(() => setError(''), 5000);
+        setError(data.message || 'Failed to repost');
+        setTimeout(() => setError(''), 3000);
       }
-    } catch (error) {
-      console.error('Error creating post:', error);
-      setError('Failed to create post. Please try again.');
+    } catch (err) {
+      console.error('Repost error:', err);
+      setError('Failed to repost');
       setTimeout(() => setError(''), 3000);
     } finally {
       setPosting(false);
@@ -441,8 +578,56 @@ const Community: React.FC<CommunityProps> = ({ user, onFriendRequestSent }) => {
                         <UserPlus size={18} />
                       </button>
                     )}
+
+                    {/* 3-dot menu */}
+                    <div className="relative" ref={openMenuPostId === postId ? menuRef : undefined}>
+                      <button
+                        onClick={() => setOpenMenuPostId(openMenuPostId === postId ? null : postId)}
+                        className="p-2 text-stone-400 hover:text-stone-600 rounded-xl hover:bg-stone-50 transition-colors"
+                      >
+                        <MoreVertical size={18} />
+                      </button>
+                      {openMenuPostId === postId && (
+                        <div className="absolute right-0 top-full mt-1 w-44 bg-white rounded-2xl shadow-xl border border-stone-100 py-1 z-30 overflow-hidden">
+                          {isOwnPost && (
+                            <>
+                              <button
+                                onClick={() => handleEditPost(post)}
+                                className="w-full px-4 py-2.5 text-left text-sm text-stone-700 hover:bg-stone-50 flex items-center gap-3 transition-colors"
+                              >
+                                <Pencil size={15} className="text-stone-500" />
+                                Edit Post
+                              </button>
+                              <button
+                                onClick={() => handleDeletePost(postId)}
+                                className="w-full px-4 py-2.5 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-3 transition-colors"
+                              >
+                                <Trash2 size={15} />
+                                Delete Post
+                              </button>
+                            </>
+                          )}
+                          <button
+                            onClick={() => handleRepost(post)}
+                            disabled={posting}
+                            className="w-full px-4 py-2.5 text-left text-sm text-stone-700 hover:bg-stone-50 flex items-center gap-3 transition-colors disabled:opacity-50"
+                          >
+                            <Repeat2 size={15} className="text-stone-500" />
+                            Repost
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
+
+                {/* Repost attribution */}
+                {(post as any).repostedFrom?.authorName && (
+                  <div className="px-4 py-2 bg-stone-50 border-y border-stone-100 flex items-center gap-2 text-xs text-stone-500">
+                    <Repeat2 size={13} />
+                    <span>Reposted from <span className="font-bold text-stone-700">{(post as any).repostedFrom.authorName}</span></span>
+                  </div>
+                )}
 
                 {/* Post Image */}
                 {mainImage && (
@@ -495,6 +680,42 @@ const Community: React.FC<CommunityProps> = ({ user, onFriendRequestSent }) => {
                       )}
                     </div>
                   )}
+
+                  {/* Inline comment input */}
+                  <div className="mt-3 pt-3 border-t border-stone-100 flex items-center gap-2">
+                    <input
+                      type="text"
+                      placeholder="Add a comment..."
+                      className="flex-1 text-xs bg-stone-50 rounded-full px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#3a5a40]"
+                      value={activePostId === postId ? commentText : ''}
+                      onChange={(e) => {
+                        setActivePostId(postId);
+                        setCommentText(e.target.value);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && commentText.trim() && activePostId === postId) {
+                          submitComment();
+                        }
+                      }}
+                    />
+                    <button
+                      onClick={() => {
+                        if (activePostId === postId && commentText.trim()) {
+                          submitComment();
+                        } else {
+                          handleComment(postId);
+                        }
+                      }}
+                      disabled={activePostId === postId && commentingPostId === postId}
+                      className="p-2 bg-[#3a5a40] text-white rounded-full hover:bg-[#588157] transition-colors disabled:opacity-50 flex-shrink-0"
+                    >
+                      {commentingPostId === postId ? (
+                        <Loader size={14} className="animate-spin" />
+                      ) : (
+                        <Send size={14} />
+                      )}
+                    </button>
+                  </div>
                 </div>
               </div>
             );
@@ -505,6 +726,9 @@ const Community: React.FC<CommunityProps> = ({ user, onFriendRequestSent }) => {
       {/* Floating Post Button */}
       <button
         onClick={() => {
+          setEditingPostId(null);
+          setExistingImageUrl(null);
+          setNewPost({ content: '', location: '', title: '', image: null, imagePreview: null });
           setShowPostModal(true);
           setError('');
         }}
@@ -519,9 +743,14 @@ const Community: React.FC<CommunityProps> = ({ user, onFriendRequestSent }) => {
           <div className="bg-white rounded-3xl w-full max-w-md max-h-[90vh] overflow-y-auto shadow-2xl">
             <div className="p-6">
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-bold text-[#3a5a40]">Create Post</h2>
+                <h2 className="text-xl font-bold text-[#3a5a40]">{editingPostId ? 'Edit Post' : 'Create Post'}</h2>
                 <button
-                  onClick={() => setShowPostModal(false)}
+                  onClick={() => {
+                    setShowPostModal(false);
+                    setEditingPostId(null);
+                    setExistingImageUrl(null);
+                    setNewPost({ content: '', location: '', title: '', image: null, imagePreview: null });
+                  }}
                   disabled={posting}
                   className="p-2 text-stone-400 hover:text-stone-600 transition-colors disabled:opacity-50"
                 >
@@ -613,12 +842,12 @@ const Community: React.FC<CommunityProps> = ({ user, onFriendRequestSent }) => {
                   {posting ? (
                     <>
                       <Loader size={18} className="animate-spin" />
-                      Posting...
+                      {editingPostId ? 'Saving...' : 'Posting...'}
                     </>
                   ) : (
                     <>
                       <Send size={18} />
-                      Post
+                      {editingPostId ? 'Save Changes' : 'Post'}
                     </>
                   )}
                 </button>
@@ -630,10 +859,10 @@ const Community: React.FC<CommunityProps> = ({ user, onFriendRequestSent }) => {
 
       {/* Comment Modal */}
       {showCommentModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-end sm:items-center justify-center">
-          <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl overflow-hidden">
-            <div className="p-4 border-b border-stone-100 flex items-center justify-between">
-              <h3 className="font-bold text-stone-800">Add Comment</h3>
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl flex flex-col max-h-[85vh]">
+            <div className="p-4 border-b border-stone-100 flex items-center justify-between flex-shrink-0">
+              <h3 className="font-bold text-stone-800">Comments</h3>
               <button
                 onClick={() => setShowCommentModal(false)}
                 className="p-2 text-stone-400 hover:text-stone-600 transition-colors"
@@ -641,31 +870,81 @@ const Community: React.FC<CommunityProps> = ({ user, onFriendRequestSent }) => {
                 <X size={20} />
               </button>
             </div>
-            <div className="p-4 space-y-4">
-              <textarea
+
+            {/* Existing comments */}
+            {activePostId && (() => {
+              const activePost = posts.find(p => (p as any)._id === activePostId || p.id === activePostId);
+              const postComments = (activePost as any)?.comments || [];
+              if (postComments.length === 0) return (
+                <div className="px-4 py-6 text-center text-stone-400 text-sm">No comments yet. Be the first!</div>
+              );
+              return (
+                <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+                  {postComments.map((c: any) => (
+                    <div key={c.id || c._id} className="text-xs">
+                      <span className="font-bold mr-2 text-stone-800">{c.author?.name || 'Unknown'}</span>
+                      <span className="text-stone-600">{c.content}</span>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+
+            {/* Input bar — always visible, same row as send button */}
+            <div className="p-3 border-t border-stone-100 flex items-center gap-2 flex-shrink-0">
+              <input
+                type="text"
                 value={commentText}
                 onChange={(e) => setCommentText(e.target.value)}
-                placeholder="Write your comment..."
-                className="w-full p-3 bg-stone-50 border-none rounded-xl text-sm focus:ring-1 focus:ring-[#3a5a40] resize-none"
-                rows={4}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && commentText.trim() && !commentingPostId) {
+                    submitComment();
+                  }
+                }}
+                placeholder="Write a comment..."
+                className="flex-1 px-4 py-2.5 bg-stone-50 rounded-full text-sm focus:outline-none focus:ring-1 focus:ring-[#3a5a40]"
                 autoFocus
               />
               <button
                 onClick={submitComment}
                 disabled={!commentText.trim() || !!commentingPostId}
-                className="w-full py-3 bg-[#3a5a40] text-white rounded-xl font-bold hover:bg-[#588157] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="w-10 h-10 bg-[#3a5a40] text-white rounded-full flex items-center justify-center hover:bg-[#588157] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
               >
                 {commentingPostId ? (
-                  <>
-                    <Loader size={18} className="animate-spin" />
-                    Posting...
-                  </>
+                  <Loader size={16} className="animate-spin" />
                 ) : (
-                  <>
-                    <Send size={18} />
-                    Post Comment
-                  </>
+                  <Send size={16} />
                 )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-[60] flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl w-full max-w-xs shadow-2xl p-6 text-center">
+            <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Trash2 size={22} className="text-red-500" />
+            </div>
+            <h3 className="text-lg font-bold text-stone-800 mb-2">Delete Post?</h3>
+            <p className="text-sm text-stone-500 mb-6">This action cannot be undone. The post will be permanently removed.</p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowDeleteConfirm(null)}
+                disabled={deleting}
+                className="flex-1 py-2.5 bg-stone-100 text-stone-700 rounded-xl font-medium hover:bg-stone-200 transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDeletePost}
+                disabled={deleting}
+                className="flex-1 py-2.5 bg-red-500 text-white rounded-xl font-medium hover:bg-red-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {deleting ? <Loader size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                Delete
               </button>
             </div>
           </div>
