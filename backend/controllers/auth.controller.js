@@ -900,6 +900,95 @@ const acceptFriendRequest = async (req, res) => {
   }
 };
 
+// @desc    Get pending friend requests for current user
+// @route   GET /api/auth/friend-requests/pending
+// @access  Private
+const getPendingFriendRequests = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id)
+      .populate('friendRequests.from', 'name email avatar bio');
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    const pendingRequests = (user.friendRequests || [])
+      .filter(r => r.status === 'pending')
+      .map(r => ({
+        _id: r._id,
+        from: r.from,
+        status: r.status,
+        createdAt: r.createdAt
+      }));
+
+    res.status(200).json({
+      success: true,
+      data: {
+        requests: pendingRequests,
+        count: pendingRequests.length
+      }
+    });
+
+  } catch (error) {
+    logger.error('Get pending friend requests error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get pending friend requests',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Decline friend request
+// @route   POST /api/auth/friend-request/:userId/decline
+// @access  Private
+const declineFriendRequest = async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const currentUser = await User.findById(req.user._id);
+
+    if (!currentUser) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    const friendRequest = currentUser.friendRequests.find(
+      r => r.from.toString() === userId && r.status === 'pending'
+    );
+
+    if (!friendRequest) {
+      return res.status(400).json({
+        success: false,
+        message: 'No pending friend request from this user'
+      });
+    }
+
+    friendRequest.status = 'declined';
+    await currentUser.save();
+
+    logger.info(`Friend request declined: ${userId} → ${req.user.email}`);
+
+    res.status(200).json({
+      success: true,
+      message: 'Friend request declined'
+    });
+
+  } catch (error) {
+    logger.error('Decline friend request error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to decline friend request',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   register,
   login,
@@ -915,5 +1004,7 @@ module.exports = {
   resendVerification,
   getFriends,
   sendFriendRequest,
-  acceptFriendRequest
+  acceptFriendRequest,
+  getPendingFriendRequests,
+  declineFriendRequest
 };

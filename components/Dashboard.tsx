@@ -43,13 +43,18 @@ const CURRENCIES = [
 /**
  * InviteForm Component handles inviting new collaborators
  */
-const InviteForm: React.FC<{ onInvite: (email: string) => void; onClose: () => void }> = ({ onInvite, onClose }) => {
+const InviteForm: React.FC<{
+  onInvite: (email: string) => Promise<void>;
+  onClose: () => void;
+  sending: boolean;
+  error: string;
+}> = ({ onInvite, onClose, sending, error }) => {
   const [email, setEmail] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (email.trim()) {
-      onInvite(email.trim());
+    if (email.trim() && !sending) {
+      await onInvite(email.trim());
       setEmail('');
     }
   };
@@ -63,23 +68,38 @@ const InviteForm: React.FC<{ onInvite: (email: string) => void; onClose: () => v
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder="friend@example.com"
-          className="w-full bg-stone-50 border-stone-200 border rounded-2xl px-4 py-3 text-sm font-bold focus:ring-1 focus:ring-[#3a5a40] focus:border-[#3a5a40]"
+          className="w-full bg-stone-50 border-stone-200 border rounded-2xl px-4 py-3 text-sm font-bold focus:ring-1 focus:ring-[#3a5a40] focus:border-[#3a5a40] disabled:opacity-50"
           required
+          disabled={sending}
         />
       </div>
+      {error && (
+        <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700 font-medium">
+          {error}
+        </div>
+      )}
       <div className="flex gap-3 pt-2">
         <button
           type="button"
           onClick={onClose}
-          className="flex-1 py-4 bg-stone-100 text-stone-500 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-stone-200 transition-colors"
+          disabled={sending}
+          className="flex-1 py-4 bg-stone-100 text-stone-500 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-stone-200 transition-colors disabled:opacity-50"
         >
           Cancel
         </button>
         <button
           type="submit"
-          className="flex-1 py-4 bg-[#3a5a40] text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg hover:bg-[#588157] transition-colors"
+          disabled={sending || !email.trim()}
+          className="flex-1 py-4 bg-[#3a5a40] text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg hover:bg-[#588157] transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
         >
-          Send Invite
+          {sending ? (
+            <>
+              <Loader size={16} className="animate-spin" />
+              Sending...
+            </>
+          ) : (
+            'Send Invite'
+          )}
         </button>
       </div>
     </form>
@@ -209,6 +229,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [showInviteModal, setShowInviteModal] = useState(false);
+  const [inviteSending, setInviteSending] = useState(false);
+  const [inviteError, setInviteError] = useState('');
   const [invitations, setInvitations] = useState<Array<{id: string, email: string, invitedBy: string, timestamp: Date}>>([]);
   const [showAlerts, setShowAlerts] = useState<Array<{id: string, message: string, type: 'info' | 'success' | 'warning', timestamp: Date}>>([]);
 
@@ -884,15 +906,14 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
 
   // Collaboration Functions
   const handleInviteUser = async (email: string) => {
-    // Always close the modal immediately so it doesn't get stuck
-    setShowInviteModal(false);
+    setInviteSending(true);
+    setInviteError('');
 
     try {
       if (!dashboardId) {
         throw new Error('Dashboard is still loading. Please try again in a moment.');
       }
 
-      // Make API call to send invitation email
       const response = await authFetch(`${API_BASE_URL}/api/boards/${dashboardId}/invite`, {
         method: 'POST',
         headers: {
@@ -916,7 +937,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
       };
       setInvitations(prev => [...prev, invitation]);
 
-      // Add success alert notification
+      // Close modal on success
+      setShowInviteModal(false);
+
       const successAlert = {
         id: Math.random().toString(36).substr(2, 9),
         message: `Invitation sent to ${email}! They will receive an email shortly.`,
@@ -924,27 +947,14 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
         timestamp: new Date()
       };
       setShowAlerts(prev => [...prev, successAlert]);
-
-      // Auto-remove alert after 5 seconds
       setTimeout(() => {
         setShowAlerts(prev => prev.filter(a => a.id !== successAlert.id));
       }, 5000);
     } catch (error) {
       console.error('Failed to send invitation:', error);
-      
-      // Show error alert
-      const errorAlert = {
-        id: Math.random().toString(36).substr(2, 9),
-        message: error instanceof Error ? error.message : 'Failed to send invitation',
-        type: 'warning' as const,
-        timestamp: new Date()
-      };
-      setShowAlerts(prev => [...prev, errorAlert]);
-
-      // Auto-remove alert after 5 seconds
-      setTimeout(() => {
-        setShowAlerts(prev => prev.filter(a => a.id !== errorAlert.id));
-      }, 5000);
+      setInviteError(error instanceof Error ? error.message : 'Failed to send invitation');
+    } finally {
+      setInviteSending(false);
     }
   };
 
@@ -1228,7 +1238,12 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
               <UserPlus size={24} />
               Invite Collaborators
             </h3>
-            <InviteForm onInvite={handleInviteUser} onClose={() => setShowInviteModal(false)} />
+            <InviteForm
+              onInvite={handleInviteUser}
+              onClose={() => { setShowInviteModal(false); setInviteError(''); }}
+              sending={inviteSending}
+              error={inviteError}
+            />
           </div>
         </div>
       )}

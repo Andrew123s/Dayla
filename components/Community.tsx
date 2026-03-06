@@ -7,9 +7,10 @@ import { API_BASE_URL, authFetch } from '../lib/api';
 
 interface CommunityProps {
   user: User;
+  onFriendRequestSent?: () => void;
 }
 
-const Community: React.FC<CommunityProps> = ({ user }) => {
+const Community: React.FC<CommunityProps> = ({ user, onFriendRequestSent }) => {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [showPostModal, setShowPostModal] = useState(false);
@@ -221,8 +222,9 @@ const Community: React.FC<CommunityProps> = ({ user }) => {
       if (data.success) {
         setSuccessMessage('Friend request sent!');
         setTimeout(() => setSuccessMessage(''), 3000);
+        onFriendRequestSent?.();
       } else {
-        setError(data.message);
+        setError(data.message || 'Failed to send friend request');
         setTimeout(() => setError(''), 3000);
       }
     } catch (error) {

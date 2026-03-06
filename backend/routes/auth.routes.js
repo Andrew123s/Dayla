@@ -14,7 +14,9 @@ const {
   resendVerification,
   getFriends,
   sendFriendRequest,
-  acceptFriendRequest
+  acceptFriendRequest,
+  getPendingFriendRequests,
+  declineFriendRequest
 } = require('../controllers/auth.controller');
 const { protect } = require('../middleware/auth.middleware');
 const { validate, userSchemas } = require('../utils/validator');
@@ -60,8 +62,10 @@ router.get('/check', checkAuth); // Check auth status and get user
 router.post('/logout', logout); // Logout and clear cookie
 router.get('/me', getMe);
 router.get('/friends', getFriends);
+router.get('/friend-requests/pending', getPendingFriendRequests);
 router.post('/friend-request/:userId', sendFriendRequest);
 router.post('/friend-request/:userId/accept', acceptFriendRequest);
+router.post('/friend-request/:userId/decline', declineFriendRequest);
 
 router.put('/me', (req, res, next) => {
   const validation = validate(userSchemas.updateProfile, req.body);
