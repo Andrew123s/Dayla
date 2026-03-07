@@ -14,12 +14,16 @@ const notificationSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: ['like', 'comment', 'friend_request', 'friend_accepted'],
+    enum: ['like', 'comment', 'friend_request', 'friend_accepted', 'board_join', 'board_invite'],
     required: true
   },
   post: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Post'
+  },
+  dashboard: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Dashboard'
   },
   message: {
     type: String,

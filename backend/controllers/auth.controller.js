@@ -782,7 +782,17 @@ const sendFriendRequest = async (req, res) => {
       }
     });
 
-    // Emit WebSocket event
+    try {
+      await Notification.create({
+        recipient: userId,
+        sender: req.user._id,
+        type: 'friend_request',
+        message: `${req.user.name} sent you a friend request`
+      });
+    } catch (notifErr) {
+      logger.error('Failed to create friend request notification:', notifErr);
+    }
+
     const io = req.app.get('io');
     if (io) {
       io.emit('friend:request_sent', {
@@ -793,6 +803,12 @@ const sendFriendRequest = async (req, res) => {
           email: req.user.email
         },
         toUserId: userId,
+        timestamp: new Date()
+      });
+      io.emit('notification:new', {
+        recipientId: userId,
+        type: 'friend_request',
+        senderName: req.user.name,
         timestamp: new Date()
       });
       logger.info(`Friend request sent: ${req.user.email} → ${targetUser.email}`);
@@ -855,7 +871,17 @@ const acceptFriendRequest = async (req, res) => {
       $addToSet: { friends: req.user._id }
     });
 
-    // Emit WebSocket events
+    try {
+      await Notification.create({
+        recipient: userId,
+        sender: req.user._id,
+        type: 'friend_accepted',
+        message: `${req.user.name} accepted your friend request`
+      });
+    } catch (notifErr) {
+      logger.error('Failed to create friend accepted notification:', notifErr);
+    }
+
     const io = req.app.get('io');
     if (io) {
       io.emit('friend:request_accepted', {
@@ -875,6 +901,13 @@ const acceptFriendRequest = async (req, res) => {
       io.emit('chat:enabled', {
         user1: req.user._id,
         user2: userId,
+        timestamp: new Date()
+      });
+
+      io.emit('notification:new', {
+        recipientId: userId,
+        type: 'friend_accepted',
+        senderName: req.user.name,
         timestamp: new Date()
       });
       

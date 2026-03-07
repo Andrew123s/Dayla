@@ -10,7 +10,7 @@ import Onboarding from './components/Onboarding';
 import VerifyEmail from './components/VerifyEmail';
 import AcceptInvitation from './components/AcceptInvitation';
 import Navigation from './components/Navigation';
-import { Loader, X, Check, UserPlus, Bell, Heart, MessageCircle } from 'lucide-react';
+import { Loader, X, Check, UserPlus, Bell, Heart, MessageCircle, Layout, UserCheck } from 'lucide-react';
 import { initializeSocket, getSocket } from './lib/socket';
 
 import { API_BASE_URL, authFetch, clearAuthToken } from './lib/api';
@@ -31,8 +31,9 @@ interface FriendRequest {
 interface AppNotification {
   _id: string;
   sender: { _id: string; name: string; avatar?: string };
-  type: 'like' | 'comment' | 'friend_request' | 'friend_accepted';
+  type: 'like' | 'comment' | 'friend_request' | 'friend_accepted' | 'board_join' | 'board_invite';
   post?: { _id: string; content?: string };
+  dashboard?: { _id: string; name?: string };
   message: string;
   read: boolean;
   createdAt: string;
@@ -219,11 +220,13 @@ const App: React.FC = () => {
     const handleFriendRequestReceived = (data: any) => {
       if (data.toUserId === currentUser.id) {
         fetchPendingFriendRequests();
+        fetchNotifications();
       }
     };
 
     const handleFriendRequestAccepted = () => {
       fetchPendingFriendRequests();
+      fetchNotifications();
     };
 
     const handleNewNotification = (data: any) => {
@@ -456,17 +459,55 @@ const App: React.FC = () => {
                     </div>
                   ))}
 
-                  {/* Like / Comment Notifications */}
+                  {/* All Notifications */}
                   {notifications.map((notif) => {
-                    const IconComponent = notif.type === 'like' ? Heart : notif.type === 'comment' ? MessageCircle : UserPlus;
-                    const iconColor = notif.type === 'like' ? 'text-red-500' : notif.type === 'comment' ? 'text-[#3a5a40]' : 'text-blue-500';
+                    let IconComponent = Heart;
+                    let iconColor = 'text-red-500';
+                    let fillIcon = true;
+
+                    if (notif.type === 'like') {
+                      IconComponent = Heart; iconColor = 'text-red-500'; fillIcon = true;
+                    } else if (notif.type === 'comment') {
+                      IconComponent = MessageCircle; iconColor = 'text-[#3a5a40]'; fillIcon = false;
+                    } else if (notif.type === 'friend_request') {
+                      IconComponent = UserPlus; iconColor = 'text-blue-500'; fillIcon = false;
+                    } else if (notif.type === 'friend_accepted') {
+                      IconComponent = UserCheck; iconColor = 'text-green-500'; fillIcon = false;
+                    } else if (notif.type === 'board_join' || notif.type === 'board_invite') {
+                      IconComponent = Layout; iconColor = 'text-purple-500'; fillIcon = false;
+                    }
+
                     const bgColor = notif.read ? 'bg-stone-50' : 'bg-amber-50';
                     const borderColor = notif.read ? 'border-stone-100' : 'border-amber-100';
 
+                    const timeAgo = (() => {
+                      const diff = Date.now() - new Date(notif.createdAt).getTime();
+                      const mins = Math.floor(diff / 60000);
+                      if (mins < 1) return 'Just now';
+                      if (mins < 60) return `${mins}m ago`;
+                      const hrs = Math.floor(mins / 60);
+                      if (hrs < 24) return `${hrs}h ago`;
+                      const days = Math.floor(hrs / 24);
+                      if (days < 7) return `${days}d ago`;
+                      return new Date(notif.createdAt).toLocaleDateString();
+                    })();
+
+                    const handleNotifClick = () => {
+                      setShowNotifications(false);
+                      if (notif.type === 'like' || notif.type === 'comment') {
+                        setView('community');
+                      } else if (notif.type === 'friend_request' || notif.type === 'friend_accepted') {
+                        setView('chat');
+                      } else if (notif.type === 'board_join' || notif.type === 'board_invite') {
+                        setView('dashboard');
+                      }
+                    };
+
                     return (
-                      <div
+                      <button
                         key={`n-${notif._id}`}
-                        className={`${bgColor} rounded-2xl p-4 flex items-center gap-3 border ${borderColor}`}
+                        onClick={handleNotifClick}
+                        className={`${bgColor} rounded-2xl p-4 flex items-center gap-3 border ${borderColor} w-full text-left hover:brightness-95 transition-all active:scale-[0.98]`}
                       >
                         <div className="relative shrink-0">
                           {notif.sender?.avatar ? (
@@ -482,20 +523,18 @@ const App: React.FC = () => {
                               </span>
                             </div>
                           )}
-                          <div className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-white flex items-center justify-center shadow-sm`}>
-                            <IconComponent size={12} className={iconColor} fill={notif.type === 'like' ? 'currentColor' : 'none'} />
+                          <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-white flex items-center justify-center shadow-sm">
+                            <IconComponent size={12} className={iconColor} fill={fillIcon ? 'currentColor' : 'none'} />
                           </div>
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm text-stone-700">
-                            <span className="font-bold text-stone-800">{notif.sender?.name}</span>{' '}
-                            {notif.type === 'like' ? 'liked your post' : notif.type === 'comment' ? 'commented on your post' : notif.message}
-                          </p>
-                          <p className="text-[10px] text-stone-400 mt-0.5">
-                            {new Date(notif.createdAt).toLocaleDateString()}
-                          </p>
+                          <p className="text-sm text-stone-700">{notif.message}</p>
+                          <p className="text-[10px] text-stone-400 mt-0.5">{timeAgo}</p>
                         </div>
-                      </div>
+                        {!notif.read && (
+                          <div className="w-2 h-2 rounded-full bg-[#3a5a40] shrink-0"></div>
+                        )}
+                      </button>
                     );
                   })}
                 </>

@@ -1,5 +1,6 @@
 const Dashboard = require('../models/dashboard.model');
 const User = require('../models/user.model');
+const Notification = require('../models/notification.model');
 const { sendInvitationEmail } = require('../services/email.service');
 const logger = require('../utils/logger');
 
@@ -345,6 +346,32 @@ const acceptInvitation = async (req, res) => {
     await dashboard.save();
 
     logger.info(`User ${req.user.email} accepted invitation to dashboard ${dashboard._id}`);
+
+    const ownerId = dashboard.owner.toString();
+    if (ownerId !== req.user._id.toString()) {
+      try {
+        await Notification.create({
+          recipient: ownerId,
+          sender: req.user._id,
+          type: 'board_join',
+          dashboard: dashboard._id,
+          message: `${req.user.name} joined your plan "${dashboard.name || 'Untitled'}"`
+        });
+      } catch (notifErr) {
+        logger.error('Failed to create board join notification:', notifErr);
+      }
+
+      const io = req.app.get('io');
+      if (io) {
+        io.emit('notification:new', {
+          recipientId: ownerId,
+          type: 'board_join',
+          senderName: req.user.name,
+          dashboardId: dashboard._id.toString(),
+          timestamp: new Date()
+        });
+      }
+    }
 
     res.status(200).json({
       success: true,
