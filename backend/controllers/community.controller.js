@@ -325,11 +325,12 @@ const addLike = async (req, res) => {
         });
 
         if (postOwnerId.toString() !== req.user._id.toString()) {
-          io.emit('notification:new', {
+          io.to(`user:${postOwnerId.toString()}`).emit('notification:new', {
             recipientId: postOwnerId.toString(),
             type: 'like',
             senderName: req.user.name,
-            postId: post._id,
+            senderAvatar: req.user.avatar,
+            postId: post._id.toString(),
             timestamp: new Date()
           });
         }
@@ -440,11 +441,12 @@ const addComment = async (req, res) => {
       });
 
       if (postOwnerId.toString() !== req.user._id.toString()) {
-        io.emit('notification:new', {
+        io.to(`user:${postOwnerId.toString()}`).emit('notification:new', {
           recipientId: postOwnerId.toString(),
           type: 'comment',
           senderName: req.user.name,
-          postId: post._id,
+          senderAvatar: req.user.avatar,
+          postId: post._id.toString(),
           timestamp: new Date()
         });
       }

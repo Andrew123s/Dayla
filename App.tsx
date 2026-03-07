@@ -10,10 +10,10 @@ import Onboarding from './components/Onboarding';
 import VerifyEmail from './components/VerifyEmail';
 import AcceptInvitation from './components/AcceptInvitation';
 import Navigation from './components/Navigation';
-import { Loader, X, Check, UserPlus, Bell, Heart, MessageCircle, Layout, UserCheck } from 'lucide-react';
-import { initializeSocket, getSocket } from './lib/socket';
+import { Loader, X, Check, UserPlus, Bell, Heart, MessageCircle, Layout, UserCheck, MessageSquare } from 'lucide-react';
+import { initializeSocket, getSocket, disconnectSocket } from './lib/socket';
 
-import { API_BASE_URL, authFetch, clearAuthToken } from './lib/api';
+import { API_BASE_URL, authFetch, clearAuthToken, getAuthToken } from './lib/api';
 
 interface FriendRequest {
   _id: string;
@@ -31,7 +31,7 @@ interface FriendRequest {
 interface AppNotification {
   _id: string;
   sender: { _id: string; name: string; avatar?: string };
-  type: 'like' | 'comment' | 'friend_request' | 'friend_accepted' | 'board_join' | 'board_invite';
+  type: 'like' | 'comment' | 'friend_request' | 'friend_accepted' | 'board_join' | 'board_invite' | 'follow' | 'message';
   post?: { _id: string; content?: string };
   dashboard?: { _id: string; name?: string };
   message: string;
@@ -93,6 +93,10 @@ const App: React.FC = () => {
             setCurrentUser(normalizedUser);
             localStorage.setItem('dayla_user', JSON.stringify(normalizedUser));
 
+            // Initialize socket for real-time events
+            const storedToken = getAuthToken();
+            if (storedToken) initializeSocket(storedToken);
+
             // Check onboarding status
             const onboardingComplete = user.onboardingCompleted || localStorage.getItem('dayla_onboarding_complete');
             if (!onboardingComplete) {
@@ -120,9 +124,13 @@ const App: React.FC = () => {
       bio: user.bio || '',
       interests: user.interests || [],
     };
-    
+
     setCurrentUser(normalizedUser);
     localStorage.setItem('dayla_user', JSON.stringify(normalizedUser));
+
+    // Initialize socket immediately after login
+    const token = getAuthToken();
+    if (token) initializeSocket(token);
 
     // Check for pending invitation after login
     const pendingInvitationId = sessionStorage.getItem('pendingInvitationId');
@@ -157,6 +165,7 @@ const App: React.FC = () => {
       console.error('Logout error:', error);
     }
     
+    disconnectSocket();
     setCurrentUser(null);
     setShowOnboarding(false);
     setPendingFriendRequests([]);
@@ -214,37 +223,56 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!currentUser) return;
 
-    const socket = getSocket();
-    if (!socket) return;
+    // Retry getting socket — it may not be ready yet on first render
+    const attachListeners = () => {
+      const socket = getSocket();
+      if (!socket) return false;
 
-    const handleFriendRequestReceived = (data: any) => {
-      if (data.toUserId === currentUser.id) {
+      const handleFriendRequestReceived = (data: any) => {
+        // Server now emits only to the target user's room, but keep check as safety
+        if (!data.toUserId || data.toUserId === currentUser.id) {
+          fetchPendingFriendRequests();
+          fetchNotifications();
+        }
+      };
+
+      const handleFriendRequestAccepted = () => {
         fetchPendingFriendRequests();
         fetchNotifications();
-      }
+      };
+
+      const handleNewNotification = (data: any) => {
+        // Server emits to user room so we always own this event, but guard just in case
+        if (!data.recipientId || data.recipientId === currentUser.id) {
+          fetchNotifications();
+        }
+      };
+
+      socket.on('friend:request_sent', handleFriendRequestReceived);
+      socket.on('friend:request_accepted', handleFriendRequestAccepted);
+      socket.on('notification:new', handleNewNotification);
+
+      return () => {
+        socket.off('friend:request_sent', handleFriendRequestReceived);
+        socket.off('friend:request_accepted', handleFriendRequestAccepted);
+        socket.off('notification:new', handleNewNotification);
+      };
     };
 
-    const handleFriendRequestAccepted = () => {
-      fetchPendingFriendRequests();
-      fetchNotifications();
-    };
+    // Try immediately, then retry once after a short delay if socket wasn't ready
+    const cleanup = attachListeners();
+    if (cleanup) return cleanup;
 
-    const handleNewNotification = (data: any) => {
-      if (data.recipientId === currentUser.id) {
-        fetchNotifications();
-      }
-    };
-
-    socket.on('friend:request_sent', handleFriendRequestReceived);
-    socket.on('friend:request_accepted', handleFriendRequestAccepted);
-    socket.on('notification:new', handleNewNotification);
-
-    return () => {
-      socket.off('friend:request_sent', handleFriendRequestReceived);
-      socket.off('friend:request_accepted', handleFriendRequestAccepted);
-      socket.off('notification:new', handleNewNotification);
-    };
+    const timer = setTimeout(() => attachListeners(), 1500);
+    return () => clearTimeout(timer);
   }, [currentUser, fetchPendingFriendRequests, fetchNotifications]);
+
+  // Polling fallback — refresh notifications every 30 s while logged in
+  useEffect(() => {
+    if (!currentUser) return;
+    const interval = setInterval(fetchAllNotifications, 30000);
+    return () => clearInterval(interval);
+  }, [currentUser, fetchAllNotifications]);
 
   const handleAcceptFriendRequest = async (userId: string) => {
     setProcessingRequestId(userId);
@@ -469,12 +497,14 @@ const App: React.FC = () => {
                       IconComponent = Heart; iconColor = 'text-red-500'; fillIcon = true;
                     } else if (notif.type === 'comment') {
                       IconComponent = MessageCircle; iconColor = 'text-[#3a5a40]'; fillIcon = false;
-                    } else if (notif.type === 'friend_request') {
+                    } else if (notif.type === 'friend_request' || notif.type === 'follow') {
                       IconComponent = UserPlus; iconColor = 'text-blue-500'; fillIcon = false;
                     } else if (notif.type === 'friend_accepted') {
                       IconComponent = UserCheck; iconColor = 'text-green-500'; fillIcon = false;
                     } else if (notif.type === 'board_join' || notif.type === 'board_invite') {
                       IconComponent = Layout; iconColor = 'text-purple-500'; fillIcon = false;
+                    } else if (notif.type === 'message') {
+                      IconComponent = MessageSquare; iconColor = 'text-blue-400'; fillIcon = false;
                     }
 
                     const bgColor = notif.read ? 'bg-stone-50' : 'bg-amber-50';
@@ -496,7 +526,9 @@ const App: React.FC = () => {
                       setShowNotifications(false);
                       if (notif.type === 'like' || notif.type === 'comment') {
                         setView('community');
-                      } else if (notif.type === 'friend_request' || notif.type === 'friend_accepted') {
+                      } else if (notif.type === 'friend_request' || notif.type === 'friend_accepted' || notif.type === 'follow') {
+                        setView('community');
+                      } else if (notif.type === 'message') {
                         setView('chat');
                       } else if (notif.type === 'board_join' || notif.type === 'board_invite') {
                         setView('dashboard');

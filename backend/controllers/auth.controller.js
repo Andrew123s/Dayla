@@ -795,7 +795,7 @@ const sendFriendRequest = async (req, res) => {
 
     const io = req.app.get('io');
     if (io) {
-      io.emit('friend:request_sent', {
+      io.to(`user:${userId}`).emit('friend:request_sent', {
         fromUser: {
           _id: req.user._id,
           name: req.user.name,
@@ -805,10 +805,11 @@ const sendFriendRequest = async (req, res) => {
         toUserId: userId,
         timestamp: new Date()
       });
-      io.emit('notification:new', {
+      io.to(`user:${userId}`).emit('notification:new', {
         recipientId: userId,
         type: 'friend_request',
         senderName: req.user.name,
+        senderAvatar: req.user.avatar,
         timestamp: new Date()
       });
       logger.info(`Friend request sent: ${req.user.email} → ${targetUser.email}`);
@@ -884,7 +885,7 @@ const acceptFriendRequest = async (req, res) => {
 
     const io = req.app.get('io');
     if (io) {
-      io.emit('friend:request_accepted', {
+      io.to(`user:${userId}`).emit('friend:request_accepted', {
         acceptedBy: {
           _id: req.user._id,
           name: req.user.name,
@@ -897,17 +898,32 @@ const acceptFriendRequest = async (req, res) => {
         },
         timestamp: new Date()
       });
-      
-      io.emit('chat:enabled', {
+
+      io.to(`user:${req.user._id.toString()}`).emit('friend:request_accepted', {
+        acceptedBy: {
+          _id: req.user._id,
+          name: req.user.name,
+          avatar: req.user.avatar
+        },
+        requestFrom: {
+          _id: requestUser._id,
+          name: requestUser.name,
+          avatar: requestUser.avatar
+        },
+        timestamp: new Date()
+      });
+
+      io.to(`user:${userId}`).emit('chat:enabled', {
         user1: req.user._id,
         user2: userId,
         timestamp: new Date()
       });
 
-      io.emit('notification:new', {
+      io.to(`user:${userId}`).emit('notification:new', {
         recipientId: userId,
         type: 'friend_accepted',
         senderName: req.user.name,
+        senderAvatar: req.user.avatar,
         timestamp: new Date()
       });
       

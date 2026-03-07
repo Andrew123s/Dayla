@@ -363,10 +363,11 @@ const acceptInvitation = async (req, res) => {
 
       const io = req.app.get('io');
       if (io) {
-        io.emit('notification:new', {
+        io.to(`user:${ownerId}`).emit('notification:new', {
           recipientId: ownerId,
           type: 'board_join',
           senderName: req.user.name,
+          senderAvatar: req.user.avatar,
           dashboardId: dashboard._id.toString(),
           timestamp: new Date()
         });
