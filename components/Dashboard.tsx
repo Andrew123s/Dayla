@@ -1282,27 +1282,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
 
       {/* Ntelipak Glowing Blue Button — bottom-left, above toolbar */}
       <button
-        onClick={() => {
-          if (!tripId) {
-            if (isInitializing) {
-              setShowAlerts(prev => {
-                if (prev.some(a => a.id.startsWith('ntelipak-loading'))) return prev;
-                const alert = { id: `ntelipak-loading-${Date.now()}`, message: 'Please wait, your plan is still loading.', type: 'info' as const, timestamp: new Date() };
-                setTimeout(() => setShowAlerts(p => p.filter(a => !a.id.startsWith('ntelipak-loading'))), 3000);
-                return [...prev, alert];
-              });
-            } else {
-              setShowAlerts(prev => {
-                if (prev.some(a => a.id.startsWith('ntelipak-error'))) return prev;
-                const alert = { id: `ntelipak-error-${Date.now()}`, message: 'Could not load packing plan. Please refresh the page.', type: 'error' as const, timestamp: new Date() };
-                setTimeout(() => setShowAlerts(p => p.filter(a => !a.id.startsWith('ntelipak-error'))), 4000);
-                return [...prev, alert];
-              });
-            }
-            return;
-          }
-          setShowSmartPacking(true);
-        }}
+        onClick={() => setShowSmartPacking(true)}
         className="ntelipak-btn absolute bottom-[72px] left-3 w-12 h-12 rounded-full flex items-center justify-center z-40 border-2 border-blue-300/50"
         style={{ marginBottom: 'env(safe-area-inset-bottom, 0px)' }}
       >
@@ -2244,7 +2224,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
       )}
 
       {/* Smart Packing Modal */}
-      {showSmartPacking && tripId && (
+      {showSmartPacking && (
         <SmartPacking
           user={user}
           tripId={tripId}

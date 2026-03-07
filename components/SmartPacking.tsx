@@ -108,7 +108,7 @@ const SmartPacking: React.FC<SmartPackingProps> = ({ user, tripId, dashboardId, 
 
   // ─── Fetch packing list ────────────────────────────────────────────
   const fetchList = useCallback(async () => {
-    if (!tripId) return;
+    if (!tripId) { setLoading(false); return; }
     try {
       setLoading(true);
       const res = await authFetch(`${API_BASE_URL}/api/packing/${tripId}`, { headers: jsonHeaders });
@@ -493,11 +493,17 @@ const SmartPacking: React.FC<SmartPackingProps> = ({ user, tripId, dashboardId, 
   // ═══════════════════════════════════════════════════════════════════
   // RENDER
   // ═══════════════════════════════════════════════════════════════════
-  if (loading) {
+  if (loading || !tripId) {
     return (
       <div className="fixed inset-0 z-[9999] bg-[#f7f3ee] flex items-end justify-center">
-        <div className="bg-white w-full max-w-[480px] h-[85vh] rounded-t-[2rem] flex items-center justify-center">
+        <div className="bg-white w-full max-w-[480px] h-[85vh] rounded-t-[2rem] flex flex-col items-center justify-center gap-3">
+          <button onClick={onClose} className="absolute top-4 right-4 p-1.5 rounded-full hover:bg-stone-100">
+            <X size={18} className="text-stone-500" />
+          </button>
           <Loader className="animate-spin text-blue-500" size={32} />
+          <p className="text-xs text-stone-500 font-bold">
+            {!tripId ? 'Preparing your plan…' : 'Loading packing list…'}
+          </p>
         </div>
       </div>
     );
