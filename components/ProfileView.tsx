@@ -376,8 +376,8 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onLogout }) => {
 
       {/* Edit Profile Modal */}
       {showEditModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center">
-          <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl flex flex-col animate-slide-up" style={{ maxHeight: 'calc(100dvh - 2rem)' }}>
+        <div className="fixed inset-0 bg-black/50 z-[200] flex items-end sm:items-center justify-center">
+          <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl flex flex-col animate-slide-up" style={{ maxHeight: 'min(calc(100dvh - 2rem), calc(100svh - 1rem))' }}>
             <div className="flex items-center justify-between p-4 border-b border-stone-100 flex-shrink-0">
               <h2 className="text-lg font-bold text-stone-800">Edit Profile</h2>
               <button 
