@@ -108,6 +108,7 @@ const SmartPacking: React.FC<SmartPackingProps> = ({ user, tripId, dashboardId, 
 
   // ─── Fetch packing list ────────────────────────────────────────────
   const fetchList = useCallback(async () => {
+    if (!tripId) return;
     try {
       setLoading(true);
       const res = await authFetch(`${API_BASE_URL}/api/packing/${tripId}`, { headers: jsonHeaders });
@@ -129,6 +130,7 @@ const SmartPacking: React.FC<SmartPackingProps> = ({ user, tripId, dashboardId, 
 
   // ─── Fetch suggestions ─────────────────────────────────────────────
   const fetchSuggestions = useCallback(async () => {
+    if (!tripId) return;
     try {
       const res = await authFetch(`${API_BASE_URL}/api/packing/${tripId}/suggestions`, { headers: jsonHeaders });
       const ct = res.headers.get('content-type') || '';
@@ -166,7 +168,7 @@ const SmartPacking: React.FC<SmartPackingProps> = ({ user, tripId, dashboardId, 
     fetchList();
     fetchTemplates();
 
-    const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
+    const token = localStorage.getItem('dayla_auth_token') || '';
     const socket = io(window.location.origin, {
       withCredentials: true,
       transports: ['websocket', 'polling'],
@@ -672,7 +674,7 @@ const SmartPacking: React.FC<SmartPackingProps> = ({ user, tripId, dashboardId, 
               )}
 
               {/* Items grouped by category */}
-              {totalCount === 0 ? (
+              {items.length === 0 ? (
                 <div className="flex flex-col items-center justify-center flex-1 min-h-[40vh] text-stone-400">
                   <Package size={44} className="mb-3 opacity-30" />
                   <p className="text-sm font-bold">No items yet</p>

@@ -536,13 +536,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
     refreshCollaborators();
 
     // Connect to socket for real-time updates
-    const token = document.cookie
-      .split('; ')
-      .find(row => row.startsWith('auth_token='))
-      ?.split('=')[1]
-      || localStorage.getItem('auth_token')
-      || localStorage.getItem('dayla_token')
-      || '';
+    const token = localStorage.getItem('dayla_auth_token') || '';
     const socket = io(window.location.origin, {
       auth: { token },
       withCredentials: true,
@@ -1243,7 +1237,12 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
       <button
         onClick={() => {
           if (!tripId) {
-            setShowAlerts(prev => [...prev, { id: `ntelipak-${Date.now()}`, message: 'Please wait, your plan is still loading.', type: 'info' as const, timestamp: new Date() }]);
+            setShowAlerts(prev => {
+              if (prev.some(a => a.id.startsWith('ntelipak-loading'))) return prev;
+              const alert = { id: `ntelipak-loading-${Date.now()}`, message: 'Please wait, your plan is still loading.', type: 'info' as const, timestamp: new Date() };
+              setTimeout(() => setShowAlerts(p => p.filter(a => !a.id.startsWith('ntelipak-loading'))), 3000);
+              return [...prev, alert];
+            });
             return;
           }
           setShowSmartPacking(true);
