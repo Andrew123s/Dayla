@@ -4,6 +4,7 @@ import { User, Post } from '../types';
 import { Heart, MessageCircle, MapPin, Share, Save, Plus, Image as ImageIcon, X, Send, Loader, UserPlus, MoreVertical, Trash2, Pencil, Repeat2 } from 'lucide-react';
 import { initializeSocket, getSocket } from '../lib/socket';
 import { API_BASE_URL, authFetch } from '../lib/api';
+import CommentModal from './CommentModal';
 
 interface CommunityProps {
   user: User;
@@ -19,8 +20,6 @@ const Community: React.FC<CommunityProps> = ({ user, onFriendRequestSent }) => {
   const [successMessage, setSuccessMessage] = useState('');
   const [showCommentModal, setShowCommentModal] = useState(false);
   const [activePostId, setActivePostId] = useState<string | null>(null);
-  const [commentText, setCommentText] = useState('');
-  const [commentingPostId, setCommentingPostId] = useState<string | null>(null);
   const [newPost, setNewPost] = useState({
     content: '',
     location: '',
@@ -33,9 +32,6 @@ const Community: React.FC<CommunityProps> = ({ user, onFriendRequestSent }) => {
   const [editingPostId, setEditingPostId] = useState<string | null>(null);
   const [existingImageUrl, setExistingImageUrl] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
-  const [deletingCommentId, setDeletingCommentId] = useState<string | null>(null);
-  const [showDeleteCommentConfirm, setShowDeleteCommentConfirm] = useState<string | null>(null);
-  const [longPressTimer, setLongPressTimer] = useState<NodeJS.Timeout | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -177,125 +173,14 @@ const Community: React.FC<CommunityProps> = ({ user, onFriendRequestSent }) => {
   const handleComment = (postId: string) => {
     setActivePostId(postId);
     setShowCommentModal(true);
-    setCommentText('');
   };
 
-  const submitComment = async () => {
-    if (!commentText.trim() || !activePostId || commentingPostId) return;
-
-    const postIdToComment = activePostId;
-    const text = commentText.trim();
-    setCommentingPostId(postIdToComment);
-    setCommentText('');
-
-    const optimisticComment = {
-      id: `temp_${Date.now()}`,
-      _id: `temp_${Date.now()}`,
-      author: { _id: user.id, name: user.name, avatar: user.avatar },
-      content: text,
-      createdAt: new Date().toISOString(),
-    };
-
+  const handleCommentModalPostUpdate = (postId: string, comments: any[]) => {
     setPosts(prev => prev.map(p => {
       const pid = (p as any)._id || p.id;
-      if (pid !== postIdToComment) return p;
-      return { ...p, comments: [...((p as any).comments || []), optimisticComment] } as any;
+      if (pid !== postId) return p;
+      return { ...p, comments } as any;
     }));
-
-    try {
-      const response = await authFetch(`${API_BASE_URL}/api/community/posts/${postIdToComment}/comments`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: text })
-      });
-
-      const contentType = response.headers.get('content-type') || '';
-      if (!contentType.includes('application/json')) {
-        throw new Error(`Server error (${response.status})`);
-      }
-
-      const data = await response.json();
-
-      if (data.success) {
-        const realComment = data.data?.comment;
-        if (realComment) {
-          setPosts(prev => prev.map(p => {
-            const pid = (p as any)._id || p.id;
-            if (pid !== postIdToComment) return p;
-            const comments = ((p as any).comments || []).map((c: any) =>
-              (c.id || c._id) === optimisticComment.id ? realComment : c
-            );
-            return { ...p, comments } as any;
-          }));
-        }
-      } else {
-        setPosts(prev => prev.map(p => {
-          const pid = (p as any)._id || p.id;
-          if (pid !== postIdToComment) return p;
-          const comments = ((p as any).comments || []).filter((c: any) => (c.id || c._id) !== optimisticComment.id);
-          return { ...p, comments } as any;
-        }));
-        setError(data.message || 'Failed to add comment');
-        setTimeout(() => setError(''), 4000);
-      }
-    } catch (err) {
-      setPosts(prev => prev.map(p => {
-        const pid = (p as any)._id || p.id;
-        if (pid !== postIdToComment) return p;
-        const comments = ((p as any).comments || []).filter((c: any) => (c.id || c._id) !== optimisticComment.id);
-        return { ...p, comments } as any;
-      }));
-      console.error('Error adding comment:', err);
-      setError(err instanceof Error ? err.message : 'Failed to add comment');
-      setTimeout(() => setError(''), 4000);
-    } finally {
-      setCommentingPostId(null);
-    }
-  };
-
-  const handleDeleteComment = async (postId: string, commentId: string) => {
-    setShowDeleteCommentConfirm(null);
-    setDeletingCommentId(commentId);
-    try {
-      const response = await authFetch(`${API_BASE_URL}/api/community/posts/${postId}/comments/${commentId}`, {
-        method: 'DELETE',
-      });
-      const contentType = response.headers.get('content-type') || '';
-      if (!contentType.includes('application/json')) throw new Error('Server error');
-      const data = await response.json();
-      if (data.success) {
-        setPosts(prev => prev.map(p => {
-          const pid = (p as any)._id || p.id;
-          if (pid !== postId) return p;
-          const comments = ((p as any).comments || []).filter((c: any) => (c.id || c._id) !== commentId);
-          return { ...p, comments } as any;
-        }));
-      } else {
-        setError(data.message || 'Failed to delete comment');
-        setTimeout(() => setError(''), 3000);
-      }
-    } catch (err) {
-      console.error('Delete comment error:', err);
-      setError('Failed to delete comment');
-      setTimeout(() => setError(''), 3000);
-    } finally {
-      setDeletingCommentId(null);
-    }
-  };
-
-  const handleCommentLongPressStart = (commentId: string, commentAuthorId: string) => {
-    if (commentAuthorId !== user.id) return;
-    const timer = setTimeout(() => {
-      setShowDeleteCommentConfirm(commentId);
-    }, 600);
-    setLongPressTimer(timer);
-  };
-
-  const handleCommentLongPressEnd = () => {
-    if (longPressTimer) {
-      clearTimeout(longPressTimer);
-      setLongPressTimer(null);
-    }
   };
 
   const handleSaveTrip = async (postId: string) => {
@@ -908,144 +793,15 @@ const Community: React.FC<CommunityProps> = ({ user, onFriendRequestSent }) => {
       {/* Comment Modal */}
       {showCommentModal && activePostId && (() => {
         const activePost = posts.find(p => (p as any)._id === activePostId || p.id === activePostId);
-        const postComments: any[] = (activePost as any)?.comments || [];
-
+        if (!activePost) return null;
         return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl flex flex-col" style={{ maxHeight: 'calc(100dvh - 2rem)' }}>
-            <div className="p-4 border-b border-stone-100 flex items-center justify-between flex-shrink-0">
-              <h3 className="font-bold text-stone-800">Comments ({postComments.length})</h3>
-              <button
-                onClick={() => { setShowCommentModal(false); setActivePostId(null); setCommentText(''); setShowDeleteCommentConfirm(null); }}
-                className="p-2 text-stone-400 hover:text-stone-600 transition-colors"
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto min-h-0 overscroll-contain">
-              {postComments.length === 0 ? (
-                <div className="px-4 py-12 text-center">
-                  <MessageCircle size={36} className="text-stone-300 mx-auto mb-3" />
-                  <p className="text-stone-500 text-sm font-medium">No comments yet</p>
-                  <p className="text-stone-400 text-xs mt-1">Be the first to comment!</p>
-                </div>
-              ) : (
-                <div className="px-4 py-3 space-y-1">
-                  {postComments.map((c: any) => {
-                    const cid = c.id || c._id;
-                    const authorId = c.author?._id || c.author?.id || c.author;
-                    const isOwn = authorId === user.id || (typeof authorId === 'object' && authorId?.toString() === user.id);
-                    const timeAgo = c.createdAt ? (() => {
-                      const diff = Date.now() - new Date(c.createdAt).getTime();
-                      const mins = Math.floor(diff / 60000);
-                      if (mins < 1) return 'now';
-                      if (mins < 60) return `${mins}m`;
-                      const hrs = Math.floor(mins / 60);
-                      if (hrs < 24) return `${hrs}h`;
-                      return `${Math.floor(hrs / 24)}d`;
-                    })() : '';
-
-                    return (
-                      <div
-                        key={cid}
-                        className={`flex items-start gap-3 p-2.5 rounded-xl transition-colors select-none ${
-                          showDeleteCommentConfirm === cid ? 'bg-red-50' : 'hover:bg-stone-50'
-                        } ${deletingCommentId === cid ? 'opacity-40' : ''}`}
-                        onTouchStart={() => handleCommentLongPressStart(cid, typeof authorId === 'object' ? authorId?.toString() : authorId)}
-                        onTouchEnd={handleCommentLongPressEnd}
-                        onTouchCancel={handleCommentLongPressEnd}
-                        onMouseDown={() => handleCommentLongPressStart(cid, typeof authorId === 'object' ? authorId?.toString() : authorId)}
-                        onMouseUp={handleCommentLongPressEnd}
-                        onMouseLeave={handleCommentLongPressEnd}
-                      >
-                        {c.author?.avatar ? (
-                          <img src={c.author.avatar} className="w-8 h-8 rounded-full object-cover flex-shrink-0" alt="" />
-                        ) : (
-                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#588157] to-[#3a5a40] flex items-center justify-center text-white text-[11px] font-bold flex-shrink-0">
-                            {(c.author?.name || '?')[0]?.toUpperCase()}
-                          </div>
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-baseline gap-2">
-                            <span className="text-xs font-bold text-stone-800">{c.author?.name || 'Unknown'}</span>
-                            {timeAgo && <span className="text-[10px] text-stone-400">{timeAgo}</span>}
-                          </div>
-                          <p className="text-xs text-stone-600 mt-0.5 break-words">{c.content}</p>
-
-                          {showDeleteCommentConfirm === cid && isOwn && (
-                            <div className="flex items-center gap-2 mt-2">
-                              <button
-                                onClick={() => handleDeleteComment(activePostId, cid)}
-                                disabled={deletingCommentId === cid}
-                                className="flex items-center gap-1 px-3 py-1 bg-red-500 text-white text-[11px] font-semibold rounded-full hover:bg-red-600 transition-colors disabled:opacity-50"
-                              >
-                                <Trash2 size={12} />
-                                Delete
-                              </button>
-                              <button
-                                onClick={() => setShowDeleteCommentConfirm(null)}
-                                className="px-3 py-1 bg-stone-200 text-stone-600 text-[11px] font-semibold rounded-full hover:bg-stone-300 transition-colors"
-                              >
-                                Cancel
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                        {isOwn && showDeleteCommentConfirm !== cid && (
-                          <button
-                            onClick={() => setShowDeleteCommentConfirm(cid)}
-                            className="p-1 text-stone-300 hover:text-red-400 transition-colors flex-shrink-0 opacity-0 group-hover:opacity-100"
-                            title="Delete comment"
-                          >
-                            <MoreVertical size={14} />
-                          </button>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            {/* Hint text */}
-            {postComments.some((c: any) => {
-              const aid = c.author?._id || c.author?.id || c.author;
-              return aid === user.id || (typeof aid === 'object' && aid?.toString() === user.id);
-            }) && !showDeleteCommentConfirm && (
-              <div className="px-4 pb-1">
-                <p className="text-[10px] text-stone-400 text-center">Long-press your comment to delete it</p>
-              </div>
-            )}
-
-            <div className="p-3 border-t border-stone-100 flex items-center gap-2 flex-shrink-0" style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
-              <input
-                type="text"
-                value={commentText}
-                onChange={(e) => setCommentText(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && commentText.trim() && !commentingPostId) {
-                    submitComment();
-                  }
-                }}
-                placeholder="Write a comment..."
-                className="flex-1 px-4 py-2.5 bg-stone-50 rounded-full text-sm focus:outline-none focus:ring-1 focus:ring-[#3a5a40]"
-                autoFocus
-              />
-              <button
-                onClick={submitComment}
-                disabled={!commentText.trim() || !!commentingPostId}
-                className="w-10 h-10 bg-[#3a5a40] text-white rounded-full flex items-center justify-center hover:bg-[#588157] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
-              >
-                {commentingPostId ? (
-                  <Loader size={16} className="animate-spin" />
-                ) : (
-                  <Send size={16} />
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
+          <CommentModal
+            key={activePostId}
+            user={user}
+            post={activePost}
+            onClose={() => { setShowCommentModal(false); setActivePostId(null); }}
+            onPostUpdate={handleCommentModalPostUpdate}
+          />
         );
       })()}
 
