@@ -1107,7 +1107,7 @@ const searchUsers = async (req, res) => {
     });
 
     users.sort((a, b) => {
-      const order: Record<string, number> = { friend: 0, pending_received: 1, pending_sent: 2, none: 3 };
+      const order = { friend: 0, pending_received: 1, pending_sent: 2, none: 3 };
       return (order[a.friendStatus] ?? 3) - (order[b.friendStatus] ?? 3);
     });
 
