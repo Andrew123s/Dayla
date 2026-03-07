@@ -371,6 +371,12 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
         if (dashboard?.notes && Array.isArray(dashboard.notes)) {
           setNotes(dashboard.notes);
         }
+        const tid = dashboard?.tripId?._id || dashboard?.tripId;
+        if (tid) {
+          const tidStr = typeof tid === 'string' ? tid : tid.toString();
+          setTripId(tidStr);
+          localStorage.setItem('currentTripId', tidStr);
+        }
         // Extract collaborator count: owner (1) + collaborators array
         const collabs = dashboard?.collaborators || [];
         setCollaboratorCount(1 + collabs.length);
@@ -1235,7 +1241,13 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
 
       {/* Ntelipak Glowing Blue Button — bottom-left, above toolbar */}
       <button
-        onClick={() => setShowSmartPacking(true)}
+        onClick={() => {
+          if (!tripId) {
+            setShowAlerts(prev => [...prev, { id: `ntelipak-${Date.now()}`, message: 'Please wait, your plan is still loading.', type: 'info' as const, timestamp: new Date() }]);
+            return;
+          }
+          setShowSmartPacking(true);
+        }}
         className="ntelipak-btn absolute bottom-[72px] left-3 w-12 h-12 rounded-full flex items-center justify-center z-40 border-2 border-blue-300/50"
         style={{ marginBottom: 'env(safe-area-inset-bottom, 0px)' }}
       >
@@ -2177,10 +2189,10 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
       )}
 
       {/* Smart Packing Modal */}
-      {showSmartPacking && (
+      {showSmartPacking && tripId && (
         <SmartPacking
           user={user}
-          tripId={dashboardId}
+          tripId={tripId}
           dashboardId={dashboardId}
           onClose={() => setShowSmartPacking(false)}
         />
