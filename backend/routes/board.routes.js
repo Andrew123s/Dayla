@@ -1,6 +1,7 @@
 const express = require('express');
 const {
   getDashboard,
+  getDashboardByTrip,
   getActiveUsers,
   joinDashboard,
   leaveDashboard,
@@ -17,6 +18,7 @@ const router = express.Router();
 router.use(protect);
 
 // Dashboard routes
+router.get('/by-trip/:tripId', getDashboardByTrip);
 router.get('/:boardId', getDashboard);
 router.get('/:boardId/active-users', getActiveUsers);
 router.post('/:boardId/join', joinDashboard);

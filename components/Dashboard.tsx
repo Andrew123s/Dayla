@@ -192,6 +192,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   // Dashboard ID and Trip ID
   const [dashboardId, setDashboardId] = useState<string>('');
   const [tripId, setTripId] = useState<string>('');
+  const [isInitializing, setIsInitializing] = useState(true);
   
   const [notes, setNotes] = useState<StickyNote[]>([]);
   const [isRecording, setIsRecording] = useState(false);
@@ -418,7 +419,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
         // Try to get existing IDs from localStorage
         const storedDashboardId = localStorage.getItem('currentDashboardId');
         const storedTripId = localStorage.getItem('currentTripId');
-        
+
         if (storedDashboardId && storedTripId) {
           setDashboardId(storedDashboardId);
           setTripId(storedTripId);
@@ -435,12 +436,42 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
           localStorage.removeItem('currentDashboardId');
         }
 
+        // Fallback: try to find an existing trip before creating a new one
+        try {
+          const tripsRes = await authFetch(`${API_BASE_URL}/api/trips`);
+          if (tripsRes.ok) {
+            const tripsData = await tripsRes.json();
+            const trips: any[] = tripsData.data?.trips || [];
+            if (trips.length > 0) {
+              const latestTripId = trips[0]._id as string;
+              // Try to find the dashboard for this trip
+              const boardRes = await authFetch(`${API_BASE_URL}/api/boards/by-trip/${latestTripId}`);
+              if (boardRes.ok) {
+                const boardData = await boardRes.json();
+                const dbId = boardData.data?.dashboard?._id as string;
+                if (dbId) {
+                  setDashboardId(dbId);
+                  setTripId(latestTripId);
+                  localStorage.setItem('currentDashboardId', dbId);
+                  localStorage.setItem('currentTripId', latestTripId);
+                  fetchNotes(dbId);
+                  return;
+                }
+              }
+              // No dashboard found but we have a tripId — set it so Ntelipak can open
+              setTripId(latestTripId);
+              localStorage.setItem('currentTripId', latestTripId);
+              return;
+            }
+          }
+        } catch (_) {
+          // ignore — fall through to create a new trip
+        }
+
         // Create a new trip (which automatically creates a dashboard)
         const response = await authFetch(`${API_BASE_URL}/api/trips`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             name: 'My Adventure',
             description: 'Planning our next adventure',
@@ -465,6 +496,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
         }
       } catch (error) {
         console.error('Error initializing dashboard:', error);
+      } finally {
+        setIsInitializing(false);
       }
     };
 
@@ -1251,12 +1284,21 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
       <button
         onClick={() => {
           if (!tripId) {
-            setShowAlerts(prev => {
-              if (prev.some(a => a.id.startsWith('ntelipak-loading'))) return prev;
-              const alert = { id: `ntelipak-loading-${Date.now()}`, message: 'Please wait, your plan is still loading.', type: 'info' as const, timestamp: new Date() };
-              setTimeout(() => setShowAlerts(p => p.filter(a => !a.id.startsWith('ntelipak-loading'))), 3000);
-              return [...prev, alert];
-            });
+            if (isInitializing) {
+              setShowAlerts(prev => {
+                if (prev.some(a => a.id.startsWith('ntelipak-loading'))) return prev;
+                const alert = { id: `ntelipak-loading-${Date.now()}`, message: 'Please wait, your plan is still loading.', type: 'info' as const, timestamp: new Date() };
+                setTimeout(() => setShowAlerts(p => p.filter(a => !a.id.startsWith('ntelipak-loading'))), 3000);
+                return [...prev, alert];
+              });
+            } else {
+              setShowAlerts(prev => {
+                if (prev.some(a => a.id.startsWith('ntelipak-error'))) return prev;
+                const alert = { id: `ntelipak-error-${Date.now()}`, message: 'Could not load packing plan. Please refresh the page.', type: 'error' as const, timestamp: new Date() };
+                setTimeout(() => setShowAlerts(p => p.filter(a => !a.id.startsWith('ntelipak-error'))), 4000);
+                return [...prev, alert];
+              });
+            }
             return;
           }
           setShowSmartPacking(true);

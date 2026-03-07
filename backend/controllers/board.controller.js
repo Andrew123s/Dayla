@@ -537,8 +537,41 @@ const getDashboard = async (req, res) => {
   }
 };
 
+// @desc    Get dashboard by tripId
+// @route   GET /api/boards/by-trip/:tripId
+// @access  Private
+const getDashboardByTrip = async (req, res) => {
+  try {
+    const { tripId } = req.params;
+    const dashboard = await Dashboard.findOne({ tripId })
+      .populate('owner', 'name avatar')
+      .populate('collaborators.user', 'name avatar')
+      .populate('activeUsers.userId', 'name avatar');
+
+    if (!dashboard) {
+      return res.status(404).json({ success: false, message: 'Dashboard not found for this trip' });
+    }
+
+    const isOwner = dashboard.owner._id.toString() === req.user._id.toString();
+    const isCollaborator = dashboard.collaborators.some(c =>
+      c.user && c.user._id ? c.user._id.toString() === req.user._id.toString()
+        : c.user.toString() === req.user._id.toString()
+    );
+
+    if (!isOwner && !isCollaborator) {
+      return res.status(403).json({ success: false, message: 'Not authorized to view this dashboard' });
+    }
+
+    res.status(200).json({ success: true, data: { dashboard } });
+  } catch (error) {
+    logger.error('Get dashboard by trip error:', error);
+    res.status(500).json({ success: false, message: 'Failed to get dashboard', error: error.message });
+  }
+};
+
 module.exports = {
   getDashboard,
+  getDashboardByTrip,
   getActiveUsers,
   joinDashboard,
   leaveDashboard,
