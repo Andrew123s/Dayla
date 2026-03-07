@@ -2,10 +2,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { User } from '../types';
 import { API_BASE_URL, authFetch } from '../lib/api';
-import { 
-  Settings, LogOut, Edit3, Camera, Map, Award, Users, X, Save, 
+import {
+  Settings, LogOut, Edit3, Camera, Map, Award, Users, X, Save,
   Bell, Shield, Moon, Globe, ChevronRight, Loader, Check, AlertCircle,
-  MapPin, Calendar, Heart, Image as ImageIcon
+  MapPin, Calendar, Heart, Image as ImageIcon, Search, UserPlus, MessageCircle
 } from 'lucide-react';
 
 interface ProfileViewProps {
@@ -39,7 +39,15 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onLogout }) => {
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
+  const friendsSearchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Find Friends search state
+  const [friendsQuery, setFriendsQuery] = useState('');
+  const [friendsResults, setFriendsResults] = useState<any[]>([]);
+  const [searchingFriends, setSearchingFriends] = useState(false);
+  const [sendingFriendReq, setSendingFriendReq] = useState<string | null>(null);
+  const [friendsMsg, setFriendsMsg] = useState('');
+
   // Edit form state
   const [editForm, setEditForm] = useState({
     name: user.name || '',
@@ -197,6 +205,69 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onLogout }) => {
   const openPlacesModal = () => {
     setShowPlacesModal(true);
     fetchVisitedPlaces();
+  };
+
+  // ─── Find Friends ────────────────────────────────────────────────
+  const handleFriendsSearch = (query: string) => {
+    setFriendsQuery(query);
+    if (friendsSearchTimerRef.current) clearTimeout(friendsSearchTimerRef.current);
+    if (!query.trim() || query.trim().length < 2) {
+      setFriendsResults([]);
+      setSearchingFriends(false);
+      return;
+    }
+    setSearchingFriends(true);
+    friendsSearchTimerRef.current = setTimeout(async () => {
+      try {
+        const res = await authFetch(`${API_BASE_URL}/api/auth/search?q=${encodeURIComponent(query.trim())}`);
+        const data = await res.json();
+        if (data.success) setFriendsResults(data.data.users || []);
+      } catch {
+        // ignore
+      } finally {
+        setSearchingFriends(false);
+      }
+    }, 300);
+  };
+
+  const handleSendFriendReq = async (targetId: string) => {
+    if (sendingFriendReq) return;
+    setSendingFriendReq(targetId);
+    try {
+      const res = await authFetch(`${API_BASE_URL}/api/auth/friend-request/${targetId}`, { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        setFriendsResults(prev => prev.map(u => u._id === targetId ? { ...u, friendStatus: 'pending_sent' } : u));
+        setFriendsMsg('Friend request sent!');
+        setTimeout(() => setFriendsMsg(''), 3000);
+      } else {
+        setFriendsMsg(data.message || 'Failed to send request');
+        setTimeout(() => setFriendsMsg(''), 3000);
+      }
+    } catch {
+      setFriendsMsg('Network error. Please try again.');
+      setTimeout(() => setFriendsMsg(''), 3000);
+    } finally {
+      setSendingFriendReq(null);
+    }
+  };
+
+  const handleAcceptFriendReq = async (fromId: string) => {
+    if (sendingFriendReq) return;
+    setSendingFriendReq(fromId);
+    try {
+      const res = await authFetch(`${API_BASE_URL}/api/auth/friend-request/${fromId}/accept`, { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        setFriendsResults(prev => prev.map(u => u._id === fromId ? { ...u, friendStatus: 'friend' } : u));
+        setFriendsMsg('Friend added!');
+        setTimeout(() => setFriendsMsg(''), 3000);
+      }
+    } catch {
+      // ignore
+    } finally {
+      setSendingFriendReq(null);
+    }
   };
 
   // No sample data — only show real visited places from the API
@@ -548,31 +619,130 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onLogout }) => {
 
       {/* Find Friends Modal */}
       {showFriendsModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4">
-          <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl max-h-[90vh] overflow-hidden animate-slide-up">
-            <div className="flex items-center justify-between p-4 border-b border-stone-100">
+        <div className="fixed inset-0 bg-black/50 z-[200] flex items-end sm:items-center justify-center p-4">
+          <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl max-h-[90vh] overflow-hidden animate-slide-up flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b border-stone-100 flex-shrink-0">
               <h2 className="text-lg font-bold text-stone-800">Find Friends</h2>
-              <button 
-                onClick={() => setShowFriendsModal(false)}
+              <button
+                onClick={() => { setShowFriendsModal(false); setFriendsQuery(''); setFriendsResults([]); setFriendsMsg(''); }}
                 className="p-2 hover:bg-stone-100 rounded-full transition-colors"
               >
                 <X size={20} className="text-stone-500" />
               </button>
             </div>
-            
-            <div className="p-4">
-              <input
-                type="text"
-                placeholder="Search by name or email..."
-                className="w-full px-4 py-3 bg-stone-50 border border-stone-200 rounded-xl focus:ring-2 focus:ring-[#3a5a40] focus:border-[#3a5a40] outline-none transition-all"
-              />
-            </div>
-            
-            <div className="px-4 pb-4 space-y-3 overflow-y-auto max-h-[50vh]">
-              <div className="text-center py-8">
-                <Users size={48} className="mx-auto text-stone-300 mb-3" />
-                <p className="text-stone-500 text-sm">Search for friends by name or email</p>
-                <p className="text-stone-400 text-xs mt-1">Connect with other adventurers on Dayla</p>
+
+            <div className="p-4 flex flex-col flex-1 min-h-0">
+              {/* Feedback message */}
+              {friendsMsg && (
+                <div className={`mb-3 p-2 rounded-xl text-center text-xs font-medium ${friendsMsg.includes('sent') || friendsMsg.includes('added') ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+                  {friendsMsg}
+                </div>
+              )}
+
+              {/* Search input */}
+              <div className="relative mb-3">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none" size={16} />
+                <input
+                  type="text"
+                  value={friendsQuery}
+                  onChange={(e) => handleFriendsSearch(e.target.value)}
+                  placeholder="Search by name or email..."
+                  autoFocus
+                  className="w-full bg-stone-50 border border-stone-200 rounded-xl pl-10 pr-10 py-3 text-sm focus:ring-2 focus:ring-[#3a5a40] focus:border-[#3a5a40] outline-none"
+                />
+                {searchingFriends ? (
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                    <div className="w-4 h-4 border-2 border-stone-300 border-t-[#3a5a40] rounded-full animate-spin" />
+                  </div>
+                ) : friendsQuery.trim() ? (
+                  <button
+                    onClick={() => handleFriendsSearch(friendsQuery)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 text-[#3a5a40] hover:text-[#588157]"
+                  >
+                    <Search size={15} />
+                  </button>
+                ) : null}
+              </div>
+
+              {/* Results list */}
+              <div className="flex-1 overflow-y-auto space-y-1 min-h-0">
+                {friendsQuery.trim().length >= 2 ? (
+                  friendsResults.length > 0 ? (
+                    <>
+                      <p className="text-[10px] text-stone-400 uppercase font-bold tracking-wider px-1 pb-1">
+                        Results ({friendsResults.length})
+                      </p>
+                      {friendsResults.map((u: any) => (
+                        <div key={u._id} className="flex items-center gap-3 p-3 rounded-xl bg-stone-50/60 hover:bg-stone-100/60 transition-colors">
+                          {u.avatar ? (
+                            <img src={u.avatar} className="w-11 h-11 rounded-full object-cover flex-shrink-0" alt={u.name} />
+                          ) : (
+                            <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#588157] to-[#3a5a40] flex items-center justify-center text-white font-semibold flex-shrink-0 text-base">
+                              {u.name?.[0]?.toUpperCase() || 'U'}
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold text-stone-800 text-sm truncate">{u.name}</p>
+                            <p className="text-[11px] text-stone-500 truncate">
+                              {u.friendStatus === 'friend' ? '✓ Already your friend' :
+                               u.friendStatus === 'pending_sent' ? '⏳ Request pending' :
+                               u.friendStatus === 'pending_received' ? '👋 Wants to be friends' :
+                               u.email}
+                            </p>
+                          </div>
+                          {u.friendStatus === 'friend' ? (
+                            <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1.5 rounded-full flex-shrink-0">
+                              Friends
+                            </span>
+                          ) : u.friendStatus === 'pending_sent' ? (
+                            <span className="text-[11px] font-semibold text-amber-600 bg-amber-50 border border-amber-200 px-2.5 py-1.5 rounded-full flex-shrink-0">
+                              Pending
+                            </span>
+                          ) : u.friendStatus === 'pending_received' ? (
+                            <button
+                              onClick={() => handleAcceptFriendReq(u._id)}
+                              disabled={sendingFriendReq === u._id}
+                              className="flex items-center gap-1 text-[11px] font-semibold text-white bg-[#3a5a40] px-3 py-1.5 rounded-full flex-shrink-0 hover:bg-[#588157] transition-colors disabled:opacity-60 active:scale-95"
+                            >
+                              {sendingFriendReq === u._id
+                                ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                : <Check size={12} />}
+                              {sendingFriendReq === u._id ? '' : 'Accept'}
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleSendFriendReq(u._id)}
+                              disabled={sendingFriendReq === u._id}
+                              className="flex items-center gap-1 text-[11px] font-semibold text-white bg-[#3a5a40] px-3 py-1.5 rounded-full flex-shrink-0 hover:bg-[#588157] transition-colors disabled:opacity-60 active:scale-95"
+                            >
+                              {sendingFriendReq === u._id
+                                ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                : <UserPlus size={13} />}
+                              {sendingFriendReq === u._id ? 'Sending…' : 'Add Friend'}
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </>
+                  ) : !searchingFriends ? (
+                    <div className="flex flex-col items-center justify-center py-10 text-center">
+                      <div className="w-14 h-14 bg-stone-100 rounded-full flex items-center justify-center mb-3">
+                        <Search size={24} className="text-stone-400" />
+                      </div>
+                      <p className="text-stone-600 font-medium text-sm mb-1">No users found</p>
+                      <p className="text-stone-400 text-xs">Try a different name or email</p>
+                    </div>
+                  ) : null
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-10 text-center">
+                    <div className="w-14 h-14 bg-purple-50 rounded-full flex items-center justify-center mb-3">
+                      <UserPlus size={26} className="text-purple-400" />
+                    </div>
+                    <p className="text-stone-600 font-semibold text-sm mb-1">Search for friends</p>
+                    <p className="text-stone-400 text-xs max-w-[220px]">Type a name or email above — results update as you type</p>
+                  </div>
+                )}
               </div>
             </div>
           </div>
