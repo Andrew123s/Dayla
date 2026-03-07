@@ -362,7 +362,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   });
 
   // Fetch notes and collaborator data from the backend dashboard
-  const fetchNotes = async (dbId: string) => {
+  // Returns the recovered tripId (or null if not found)
+  const fetchNotes = async (dbId: string): Promise<string | null> => {
     try {
       const response = await authFetch(`${API_BASE_URL}/api/boards/${dbId}`);
       if (response.ok) {
@@ -376,34 +377,38 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
           const tidStr = typeof tid === 'string' ? tid : tid.toString();
           setTripId(tidStr);
           localStorage.setItem('currentTripId', tidStr);
+          // Extract collaborator count: owner (1) + collaborators array
+          const collabs = dashboard?.collaborators || [];
+          setCollaboratorCount(1 + collabs.length);
+          const parts: Participant[] = [
+            { id: user.id, name: 'You', avatar: user.avatar || '' },
+          ];
+          collabs.forEach((c: any) => {
+            const cUser = c.user;
+            if (cUser) {
+              const cId = cUser._id || cUser;
+              if (cId.toString() !== user.id) {
+                parts.push({
+                  id: cId.toString(),
+                  name: cUser.name || 'Collaborator',
+                  avatar: cUser.avatar || '',
+                });
+              }
+            }
+          });
+          if (parts.length > 0) setParticipants(parts);
+          return tidStr;
         }
-        // Extract collaborator count: owner (1) + collaborators array
+        // Extract collaborators even if tripId wasn't found
         const collabs = dashboard?.collaborators || [];
         setCollaboratorCount(1 + collabs.length);
-        // Update participants from collaborator data
-        const parts: Participant[] = [
-          { id: user.id, name: 'You', avatar: user.avatar || '' },
-        ];
-        collabs.forEach((c: any) => {
-          const cUser = c.user;
-          if (cUser) {
-            const cId = cUser._id || cUser;
-            if (cId.toString() !== user.id) {
-              parts.push({
-                id: cId.toString(),
-                name: cUser.name || 'Collaborator',
-                avatar: cUser.avatar || '',
-              });
-            }
-          }
-        });
-        if (parts.length > 0) setParticipants(parts);
       } else {
         console.warn('Failed to fetch dashboard notes:', response.status);
       }
     } catch (err) {
       console.error('Failed to fetch notes:', err);
     }
+    return null;
   };
 
   // Initialize or fetch dashboard on mount
@@ -419,6 +424,15 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
           setTripId(storedTripId);
           fetchNotes(storedDashboardId);
           return;
+        }
+
+        // If we have a dashboard but tripId was lost, recover it from the dashboard
+        if (storedDashboardId) {
+          setDashboardId(storedDashboardId);
+          const recovered = await fetchNotes(storedDashboardId);
+          if (recovered) return; // tripId restored — no need to create a new trip
+          // Dashboard fetch failed or had no tripId — clear stale id and fall through
+          localStorage.removeItem('currentDashboardId');
         }
 
         // Create a new trip (which automatically creates a dashboard)
