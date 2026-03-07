@@ -376,9 +376,9 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onLogout }) => {
 
       {/* Edit Profile Modal */}
       {showEditModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4">
-          <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl max-h-[90vh] overflow-hidden animate-slide-up">
-            <div className="flex items-center justify-between p-4 border-b border-stone-100">
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center">
+          <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl flex flex-col animate-slide-up" style={{ maxHeight: 'calc(100dvh - 2rem)' }}>
+            <div className="flex items-center justify-between p-4 border-b border-stone-100 flex-shrink-0">
               <h2 className="text-lg font-bold text-stone-800">Edit Profile</h2>
               <button 
                 onClick={() => setShowEditModal(false)}
@@ -388,7 +388,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onLogout }) => {
               </button>
             </div>
             
-            <div className="p-4 space-y-4 overflow-y-auto max-h-[60vh]">
+            <div className="p-4 space-y-4 overflow-y-auto flex-1 min-h-0 overscroll-contain">
               <div>
                 <label className="block text-sm font-medium text-stone-600 mb-1">Name</label>
                 <input
@@ -422,9 +422,11 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onLogout }) => {
                 />
                 <p className="text-xs text-stone-400 mt-1">Separate interests with commas</p>
               </div>
+
+              <div className="pb-2" />
             </div>
             
-            <div className="p-4 border-t border-stone-100">
+            <div className="p-4 border-t border-stone-100 flex-shrink-0" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
               <button
                 onClick={handleEditSubmit}
                 disabled={saving}
