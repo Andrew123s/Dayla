@@ -158,32 +158,34 @@ const Onboarding: React.FC<OnboardingProps> = ({ user, onComplete }) => {
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="flex-1 px-6 flex flex-col items-center justify-center text-center">
-        <div className={`w-full max-w-sm p-8 rounded-[3rem] bg-gradient-to-br ${currentStepData.color} shadow-2xl mb-8 transform transition-all duration-500`}>
-          <div className="flex justify-center mb-6">
-            {currentStepData.icon}
+      {/* Main Content — scrollable */}
+      <div className="flex-1 overflow-y-auto min-h-0 overscroll-contain px-6">
+        <div className="flex flex-col items-center text-center py-4">
+          <div className={`w-full max-w-sm p-8 rounded-[3rem] bg-gradient-to-br ${currentStepData.color} shadow-2xl mb-8 transform transition-all duration-500`}>
+            <div className="flex justify-center mb-6">
+              {currentStepData.icon}
+            </div>
+            <h2 className="text-3xl font-bold text-white mb-2">{currentStepData.title}</h2>
+            <p className="text-lg font-medium text-white/90 mb-4">{currentStepData.subtitle}</p>
+            <p className="text-white/80 leading-relaxed">{currentStepData.description}</p>
           </div>
-          <h2 className="text-3xl font-bold text-white mb-2">{currentStepData.title}</h2>
-          <p className="text-lg font-medium text-white/90 mb-4">{currentStepData.subtitle}</p>
-          <p className="text-white/80 leading-relaxed">{currentStepData.description}</p>
-        </div>
 
-        {/* Features List */}
-        {currentStepData.features && (
-          <div className="w-full max-w-sm space-y-3 mb-8">
-            {currentStepData.features.map((feature, index) => (
-              <div key={index} className="flex items-center gap-3 p-3 bg-white rounded-2xl shadow-sm">
-                <CheckCircle size={20} className="text-green-500 flex-shrink-0" />
-                <span className="text-stone-700 font-medium">{feature}</span>
-              </div>
-            ))}
-          </div>
-        )}
+          {/* Features List */}
+          {currentStepData.features && (
+            <div className="w-full max-w-sm space-y-3 mb-4">
+              {currentStepData.features.map((feature, index) => (
+                <div key={index} className="flex items-center gap-3 p-3 bg-white rounded-2xl shadow-sm">
+                  <CheckCircle size={20} className="text-green-500 flex-shrink-0" />
+                  <span className="text-stone-700 font-medium">{feature}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Footer */}
-      <div className="p-6">
+      {/* Footer — pinned */}
+      <div className="flex-shrink-0 p-6" style={{ paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))' }}>
         <button
           onClick={nextStep}
           className="w-full bg-[#3a5a40] text-white py-4 rounded-2xl font-bold text-lg shadow-lg hover:bg-[#588157] transition-all duration-300 active:scale-95 flex items-center justify-center gap-2"
