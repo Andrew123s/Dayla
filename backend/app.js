@@ -57,9 +57,12 @@ app.use(helmet({
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
-  message: 'Too many requests from this IP, please try again later.',
+  message: { success: false, message: 'Too many requests. Please try again in 15 minutes.' },
   standardHeaders: true,
   legacyHeaders: false,
+  handler: (req, res) => {
+    res.status(429).json({ success: false, message: 'Too many requests. Please try again in 15 minutes.' });
+  },
 });
 app.use('/api/', limiter);
 

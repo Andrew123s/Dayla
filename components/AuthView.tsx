@@ -60,6 +60,18 @@ const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
       });
 
       console.log('Response status:', response.status);
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        const text = await response.text();
+        console.error('Non-JSON response:', text);
+        throw new Error(
+          response.status === 429
+            ? 'Too many requests. Please wait a moment and try again.'
+            : response.status === 503 || response.status === 502
+            ? 'Server is temporarily unavailable. Please try again shortly.'
+            : 'Server returned an unexpected response. Please try again.'
+        );
+      }
       const data = await response.json();
       responseData = data;
       console.log('Response data:', data);
@@ -114,6 +126,10 @@ const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
         body: JSON.stringify({ email: userEmail }),
       });
 
+      const resendContentType = response.headers.get('content-type') || '';
+      if (!resendContentType.includes('application/json')) {
+        throw new Error('Server returned an unexpected response. Please try again.');
+      }
       const data = await response.json();
 
       if (!response.ok) {
