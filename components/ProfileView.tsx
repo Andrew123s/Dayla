@@ -262,6 +262,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onLogout }) => {
         setFriendsResults(prev => prev.map(u => u._id === fromId ? { ...u, friendStatus: 'friend' } : u));
         setFriendsMsg('Friend added!');
         setTimeout(() => setFriendsMsg(''), 3000);
+        fetchUserStats();
       }
     } catch {
       // ignore

@@ -1,5 +1,7 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/user.model');
+const Trip = require('../models/trip.model');
+const Post = require('../models/post.model');
 const Notification = require('../models/notification.model');
 const config = require('../config/env.config');
 const logger = require('../utils/logger');
@@ -239,7 +241,14 @@ const login = async (req, res) => {
 // @access  Private
 const getMe = async (req, res) => {
   try {
-    const user = await User.findById(req.user._id);
+    const userId = req.user._id;
+
+    // Fetch user + real counts in parallel
+    const [user, tripCount, postCount] = await Promise.all([
+      User.findById(userId),
+      Trip.countDocuments({ owner: userId }),
+      Post.countDocuments({ author: userId }),
+    ]);
 
     if (!user) {
       return res.status(404).json({
@@ -248,13 +257,17 @@ const getMe = async (req, res) => {
       });
     }
 
-    // Update last active
-    await user.updateLastActive();
+    // Update last active (fire-and-forget)
+    user.updateLastActive().catch(() => {});
 
     res.status(200).json({
       success: true,
       data: {
-        user: user.profile
+        user: {
+          ...user.profile,
+          tripCount,
+          postCount,
+        }
       }
     });
   } catch (error) {
