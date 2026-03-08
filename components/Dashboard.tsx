@@ -470,10 +470,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
                   return;
                 }
               }
-              // No dashboard found but we have a tripId — set it so Ntelipak can open
-              setTripId(latestTripId);
-              localStorage.setItem('currentTripId', latestTripId);
-              return;
+              // No board found for existing trip — fall through to create a new trip+board
             }
           }
         } catch (_) {
@@ -1042,11 +1039,12 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
     setInviteError('');
 
     try {
-      if (!dashboardId) {
-        throw new Error('Dashboard is still loading. Please try again in a moment.');
+      const effectiveDashboardId = dashboardId || localStorage.getItem('currentDashboardId') || '';
+      if (!effectiveDashboardId) {
+        throw new Error('No active plan found. Please create a trip first.');
       }
 
-      const response = await authFetch(`${API_BASE_URL}/api/boards/${dashboardId}/invite`, {
+      const response = await authFetch(`${API_BASE_URL}/api/boards/${effectiveDashboardId}/invite`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
