@@ -3,11 +3,8 @@ import React, {
   useState, useRef, useEffect, useCallback, memo,
 } from 'react';
 import { Socket } from 'socket.io-client';
-import {
-  Trash2, Link2, Maximize2, Clock, CropIcon,
-} from 'lucide-react';
+import { Clock } from 'lucide-react';
 import { StickyNote, User } from '../types';
-import { API_BASE_URL, authFetch } from '../lib/api';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -86,6 +83,8 @@ interface StickyNoteCardProps {
   tripId: string;
   socketRef: React.RefObject<Socket | null>;
   croppingId: string | null;
+  /** Canvas zoom level ref — used to convert screen deltas to world deltas */
+  zoomRef: React.RefObject<number>;
   onContentChange: (id: string, content: string) => void;
   onPositionChange: (id: string, x: number, y: number) => void;
   onSizeChange: (id: string, width: number, height: number) => void;
@@ -106,7 +105,7 @@ const LONG_PRESS_MS = 350;
 const StickyNoteCard: React.FC<StickyNoteCardProps> = ({
   note, user, collaboratorEditingUser,
   dashboardId, tripId, socketRef,
-  croppingId,
+  croppingId, zoomRef,
   onContentChange, onPositionChange, onSizeChange,
   onDelete, onLinkToggle, onEditStart, onEditEnd,
   onCropToggle, onZoom,
@@ -190,8 +189,10 @@ const StickyNoteCard: React.FC<StickyNoteCardProps> = ({
 
     if (isDraggingRef.current) {
       e.stopPropagation();
-      const dx = e.clientX - dragOrigin.current.clientX;
-      const dy = e.clientY - dragOrigin.current.clientY;
+      // Divide screen delta by canvas zoom to get world-coordinate delta
+      const scale = zoomRef.current ?? 1;
+      const dx = (e.clientX - dragOrigin.current.clientX) / scale;
+      const dy = (e.clientY - dragOrigin.current.clientY) / scale;
       const newX = dragOrigin.current.noteX + dx;
       const newY = dragOrigin.current.noteY + dy;
 
@@ -203,7 +204,7 @@ const StickyNoteCard: React.FC<StickyNoteCardProps> = ({
         el.style.top = `${newY}px`;
       });
     }
-  }, []);
+  }, [zoomRef]);
 
   const handleCardPointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (e.pointerId !== activePointerId.current) return;
@@ -218,12 +219,12 @@ const StickyNoteCard: React.FC<StickyNoteCardProps> = ({
       isDraggingRef.current = false;
       setIsDragging(false);
 
-      // Read final DOM position and report to parent
+      // Read final DOM position (world coords) and report to parent
       const el = cardRef.current;
       if (el) {
-        const x = parseInt(el.style.left, 10);
-        const y = parseInt(el.style.top, 10);
-        onPositionChange(note.id, x, y);
+        const x = parseFloat(el.style.left);
+        const y = parseFloat(el.style.top);
+        onPositionChange(note.id, Math.round(x), Math.round(y));
       }
     }
 
@@ -252,8 +253,10 @@ const StickyNoteCard: React.FC<StickyNoteCardProps> = ({
   const handleResizePointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (!isResizingRef.current) return;
     e.stopPropagation();
-    const dw = e.clientX - resizeOrigin.current.clientX;
-    const dh = e.clientY - resizeOrigin.current.clientY;
+    // Divide screen delta by canvas zoom to get world-coordinate delta
+    const scale = zoomRef.current ?? 1;
+    const dw = (e.clientX - resizeOrigin.current.clientX) / scale;
+    const dh = (e.clientY - resizeOrigin.current.clientY) / scale;
     const newW = Math.max(MIN_W, resizeOrigin.current.noteW + dw);
     const newH = Math.max(MIN_H, resizeOrigin.current.noteH + dh);
 
@@ -264,7 +267,7 @@ const StickyNoteCard: React.FC<StickyNoteCardProps> = ({
       el.style.width = `${newW}px`;
       if (note.type !== 'text') el.style.height = `${newH}px`;
     });
-  }, [note.type]);
+  }, [note.type, zoomRef]);
 
   const handleResizePointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (!isResizingRef.current) return;
@@ -285,7 +288,6 @@ const StickyNoteCard: React.FC<StickyNoteCardProps> = ({
     onEditStart(note.id);
     setTimeout(() => {
       textareaRef.current?.focus();
-      // Place cursor at end
       const len = textareaRef.current?.value.length ?? 0;
       textareaRef.current?.setSelectionRange(len, len);
     }, 0);
@@ -515,7 +517,7 @@ const StickyNoteCard: React.FC<StickyNoteCardProps> = ({
         </svg>
       </div>
 
-      {/* Drag hint (mobile, shown briefly when long-pressing) */}
+      {/* Drag ring overlay */}
       {isDragging && (
         <div className="absolute inset-0 rounded-2xl ring-2 ring-[#3a5a40]/30 pointer-events-none" />
       )}

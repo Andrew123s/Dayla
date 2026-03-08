@@ -206,6 +206,20 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const socketRef = useRef<Socket | null>(null);
 
+  // ── Infinite canvas state ────────────────────────────────────────────────────
+  const canvasContainerRef = useRef<HTMLDivElement>(null);
+  const canvasLayerRef = useRef<HTMLDivElement>(null);
+  const zoomRef = useRef(1);
+  const panXRef = useRef(0);
+  const panYRef = useRef(0);
+  const [zoomDisplay, setZoomDisplay] = useState(100);
+  const [isPanning, setIsPanning] = useState(false);
+  const [isSpaceHeld, setIsSpaceHeld] = useState(false);
+  const isPanningRef = useRef(false);
+  const isSpaceHeldRef = useRef(false);
+  const panOriginRef = useRef({ clientX: 0, clientY: 0, panX: 0, panY: 0 });
+  const panRafRef = useRef<number | null>(null);
+
   // Feature Toggles
   const [showWeather, setShowWeather] = useState(false);
   const [showCalendar, setShowCalendar] = useState(false);
@@ -721,13 +735,23 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   const addNote = (type: StickyNote['type'], content?: string, emoji?: string, color?: string, date?: string, audioUrl?: string) => {
     const isAsset = type === 'image' || type === 'voice';
     const author = makeAuthor();
+    const noteWidth = isAsset ? (type === 'image' ? 240 : 220) : 180;
+    const noteHeight = isAsset ? (type === 'image' ? 180 : 80) : 180;
+    // Place new notes at the visible canvas center in world coordinates
+    const vw = canvasContainerRef.current?.clientWidth ?? window.innerWidth;
+    const vh = canvasContainerRef.current?.clientHeight ?? window.innerHeight;
+    const worldCx = (vw / 2 - panXRef.current) / zoomRef.current;
+    const worldCy = (vh / 2 - panYRef.current) / zoomRef.current;
+    const spread = notes.length % 9;
+    const ox = (spread % 3 - 1) * 60;
+    const oy = Math.floor(spread / 3) * 60;
     const newNote: StickyNote = {
       id: Math.random().toString(36).substr(2, 9),
       type,
-      x: 100 + (notes.length * 20),
-      y: 150 + (notes.length * 20),
-      width: isAsset ? (type === 'image' ? 240 : 220) : 180,
-      height: isAsset ? (type === 'image' ? 180 : 80) : 180,
+      x: Math.round(worldCx - noteWidth / 2 + ox),
+      y: Math.round(worldCy - noteHeight / 2 + oy),
+      width: noteWidth,
+      height: noteHeight,
       content: content || (type === 'text' ? 'New plan item...' : type === 'schedule' ? 'Activity detail...' : ''),
       color: color || (isAsset ? 'transparent' : COLORS[Math.floor(Math.random() * COLORS.length)]),
       emoji: emoji || (type === 'schedule' ? '⏰' : type === 'image' ? '🖼️' : type === 'voice' ? '🎙️' : '🌲'),
@@ -1082,8 +1106,155 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
     }, 3000);
   };
 
+  // ── Infinite canvas helpers ────────────────────────────────────────────────
+
+  const applyTransform = () => {
+    const layer = canvasLayerRef.current;
+    const container = canvasContainerRef.current;
+    if (!layer) return;
+    const z = zoomRef.current;
+    const px = panXRef.current;
+    const py = panYRef.current;
+    layer.style.transform = `translate3d(${px}px, ${py}px, 0) scale(${z})`;
+    if (container) {
+      const dotSize = Math.max(4, 24 * z);
+      const modPx = ((px % dotSize) + dotSize) % dotSize;
+      const modPy = ((py % dotSize) + dotSize) % dotSize;
+      container.style.backgroundSize = `${dotSize}px ${dotSize}px`;
+      container.style.backgroundPosition = `${modPx}px ${modPy}px`;
+    }
+  };
+
+  const doZoom = (rawZoom: number, cx: number, cy: number) => {
+    const clamped = Math.min(3, Math.max(0.25, rawZoom));
+    const ratio = clamped / zoomRef.current;
+    panXRef.current = cx + (panXRef.current - cx) * ratio;
+    panYRef.current = cy + (panYRef.current - cy) * ratio;
+    zoomRef.current = clamped;
+    applyTransform();
+    setZoomDisplay(Math.round(clamped * 100));
+  };
+
+  // Wheel zoom + pinch-to-zoom touch events (passive: false to preventDefault)
+  useEffect(() => {
+    const container = canvasContainerRef.current;
+    if (!container) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const rect = container.getBoundingClientRect();
+      const factor = Math.exp(-e.deltaY * 0.001);
+      doZoom(zoomRef.current * factor, e.clientX - rect.left, e.clientY - rect.top);
+    };
+
+    let pinching = false;
+    let startDist = 0, startZoom = 1, startMidX = 0, startMidY = 0, startPanX = 0, startPanY = 0;
+
+    const handleTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 2) {
+        e.preventDefault();
+        pinching = true;
+        const [t0, t1] = [e.touches[0], e.touches[1]];
+        startDist = Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY);
+        startZoom = zoomRef.current;
+        startMidX = (t0.clientX + t1.clientX) / 2;
+        startMidY = (t0.clientY + t1.clientY) / 2;
+        startPanX = panXRef.current;
+        startPanY = panYRef.current;
+      } else {
+        pinching = false;
+      }
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (!pinching || e.touches.length < 2) return;
+      e.preventDefault();
+      const [t0, t1] = [e.touches[0], e.touches[1]];
+      const dist = Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY);
+      const midX = (t0.clientX + t1.clientX) / 2;
+      const midY = (t0.clientY + t1.clientY) / 2;
+      const newZoom = Math.min(3, Math.max(0.25, startZoom * (dist / startDist)));
+      const ratio = newZoom / startZoom;
+      // Zoom around the initial midpoint + pan with midpoint movement
+      panXRef.current = midX - (startMidX - startPanX) * ratio;
+      panYRef.current = midY - (startMidY - startPanY) * ratio;
+      zoomRef.current = newZoom;
+      applyTransform();
+    };
+
+    const handleTouchEnd = (e: TouchEvent) => {
+      if (e.touches.length < 2) {
+        pinching = false;
+        setZoomDisplay(Math.round(zoomRef.current * 100));
+      }
+    };
+
+    container.addEventListener('wheel', handleWheel, { passive: false });
+    container.addEventListener('touchstart', handleTouchStart, { passive: false });
+    container.addEventListener('touchmove', handleTouchMove, { passive: false });
+    container.addEventListener('touchend', handleTouchEnd);
+    return () => {
+      container.removeEventListener('wheel', handleWheel);
+      container.removeEventListener('touchstart', handleTouchStart);
+      container.removeEventListener('touchmove', handleTouchMove);
+      container.removeEventListener('touchend', handleTouchEnd);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Spacebar pan mode + Cmd+/−/0 keyboard zoom
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (e.code === 'Space' && !target.matches('input, textarea')) {
+        e.preventDefault();
+        isSpaceHeldRef.current = true;
+        setIsSpaceHeld(true);
+      }
+      if (e.metaKey || e.ctrlKey) {
+        const cx = window.innerWidth / 2;
+        const cy = window.innerHeight / 2;
+        if (e.code === 'Equal') { e.preventDefault(); doZoom(zoomRef.current * 1.25, cx, cy); }
+        if (e.code === 'Minus') { e.preventDefault(); doZoom(zoomRef.current / 1.25, cx, cy); }
+        if (e.code === 'Digit0') {
+          e.preventDefault();
+          zoomRef.current = 1; panXRef.current = 0; panYRef.current = 0;
+          applyTransform(); setZoomDisplay(100);
+        }
+      }
+    };
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.code === 'Space') { isSpaceHeldRef.current = false; setIsSpaceHeld(false); }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => { window.removeEventListener('keydown', handleKeyDown); window.removeEventListener('keyup', handleKeyUp); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Canvas pan pointer handlers (only fire when notes stopPropagation is not triggered)
+  const handleCanvasPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0 && e.button !== 1) return;
+    isPanningRef.current = true;
+    setIsPanning(true);
+    panOriginRef.current = { clientX: e.clientX, clientY: e.clientY, panX: panXRef.current, panY: panYRef.current };
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  };
+
+  const handleCanvasPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isPanningRef.current) return;
+    panXRef.current = panOriginRef.current.panX + (e.clientX - panOriginRef.current.clientX);
+    panYRef.current = panOriginRef.current.panY + (e.clientY - panOriginRef.current.clientY);
+    if (panRafRef.current) cancelAnimationFrame(panRafRef.current);
+    panRafRef.current = requestAnimationFrame(applyTransform);
+  };
+
+  const handleCanvasPointerUp = () => {
+    if (isPanningRef.current) { isPanningRef.current = false; setIsPanning(false); }
+  };
+
   return (
-    <div className="w-full h-full relative canvas-bg bg-[#f7f3ee] overflow-hidden">
+    <div className="w-full h-full relative bg-[#f7f3ee] overflow-hidden">
       <input type="file" ref={imageInputRef} onChange={handleFileSelect} className="hidden" accept="image/*" />
 
       {/* Header */}
@@ -1116,46 +1287,120 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
         </div>
       </div>
 
-      {/* Links SVG */}
-      <svg className="absolute inset-0 pointer-events-none w-full h-full z-10">
-        {notes.map(note => {
-          if (!note.linkTo) return null;
-          const target = notes.find(n => n.id === note.linkTo);
-          if (!target) return null;
-          return <line key={`link-${note.id}`} x1={note.x + note.width/2} y1={note.y + note.height/2} x2={target.x + target.width/2} y2={target.y + target.height/2} stroke="#588157" strokeWidth="2" strokeDasharray="5,5" opacity="0.6" />;
-        })}
-      </svg>
+      {/* ── Infinite Canvas ─────────────────────────────────────────────── */}
+      <div
+        ref={canvasContainerRef}
+        className="absolute inset-0 overflow-hidden touch-none select-none"
+        style={{
+          backgroundImage: 'radial-gradient(circle, #a3b18a 1px, transparent 1px)',
+          backgroundSize: '24px 24px',
+          backgroundPosition: '0px 0px',
+          cursor: isPanning ? 'grabbing' : isSpaceHeld ? 'grab' : 'default',
+        }}
+        onPointerDown={handleCanvasPointerDown}
+        onPointerMove={handleCanvasPointerMove}
+        onPointerUp={handleCanvasPointerUp}
+        onPointerCancel={handleCanvasPointerUp}
+      >
+        {/* World transform layer — everything inside is in world coordinates */}
+        <div
+          ref={canvasLayerRef}
+          className="absolute top-0 left-0 w-full h-full"
+          style={{
+            transformOrigin: '0 0',
+            transform: 'translate3d(0px, 0px, 0) scale(1)',
+            willChange: 'transform',
+          }}
+        >
+          {/* Link lines (world coordinates) */}
+          <svg
+            className="absolute pointer-events-none"
+            style={{ top: 0, left: 0, overflow: 'visible', width: 1, height: 1, zIndex: 10 }}
+          >
+            {notes.map(note => {
+              if (!note.linkTo) return null;
+              const target = notes.find(n => n.id === note.linkTo);
+              if (!target) return null;
+              return (
+                <line
+                  key={`link-${note.id}`}
+                  x1={note.x + note.width / 2} y1={note.y + note.height / 2}
+                  x2={target.x + target.width / 2} y2={target.y + target.height / 2}
+                  stroke="#588157" strokeWidth="2" strokeDasharray="5,5" opacity="0.6"
+                />
+              );
+            })}
+          </svg>
 
-      {/* Canvas Elements */}
-      {notes.map((note) => (
-        <StickyNoteCard
-          key={note.id}
-          note={note}
-          user={user}
-          collaboratorEditingUser={editingNoteId === note.id && editingUser ? editingUser : null}
-          dashboardId={dashboardId}
-          tripId={tripId}
-          socketRef={socketRef}
-          croppingId={croppingId}
-          onContentChange={(id, content) => {
-            setNotes(prev => prev.map(n => n.id === id ? { ...n, content } : n));
-          }}
-          onPositionChange={handleNotePositionChange}
-          onSizeChange={handleNoteSizeChange}
-          onDelete={handleNoteDelete}
-          onLinkToggle={toggleLink}
-          onEditStart={handleNoteEdit}
-          onEditEnd={(id) => {
-            stampEdit(id);
-            setTimeout(() => { setEditingNoteId(null); setEditingUser(null); }, 100);
-          }}
-          onCropToggle={(id) => setCroppingId(croppingId === id ? null : id)}
-          onZoom={(id, delta) => {
-            setNotes(prev => prev.map(n => n.id === id ? { ...n, crop: { ...n.crop!, zoom: Math.max(1, (n.crop?.zoom || 1) + delta) } } : n));
-            stampEdit(id);
-          }}
-        />
-      ))}
+          {/* Sticky notes */}
+          {notes.map((note) => (
+            <StickyNoteCard
+              key={note.id}
+              note={note}
+              user={user}
+              zoomRef={zoomRef}
+              collaboratorEditingUser={editingNoteId === note.id && editingUser ? editingUser : null}
+              dashboardId={dashboardId}
+              tripId={tripId}
+              socketRef={socketRef}
+              croppingId={croppingId}
+              onContentChange={(id, content) => {
+                setNotes(prev => prev.map(n => n.id === id ? { ...n, content } : n));
+              }}
+              onPositionChange={handleNotePositionChange}
+              onSizeChange={handleNoteSizeChange}
+              onDelete={handleNoteDelete}
+              onLinkToggle={toggleLink}
+              onEditStart={handleNoteEdit}
+              onEditEnd={(id) => {
+                stampEdit(id);
+                setTimeout(() => { setEditingNoteId(null); setEditingUser(null); }, 100);
+              }}
+              onCropToggle={(id) => setCroppingId(croppingId === id ? null : id)}
+              onZoom={(id, delta) => {
+                setNotes(prev => prev.map(n => n.id === id ? { ...n, crop: { ...n.crop!, zoom: Math.max(1, (n.crop?.zoom || 1) + delta) } } : n));
+                stampEdit(id);
+              }}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* Empty-board hint */}
+      {notes.length === 0 && !isInitializing && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-10">
+          <div className="p-8 bg-white/30 rounded-[3rem] backdrop-blur-sm border border-white/40 flex flex-col items-center">
+            <Trees size={56} className="mb-4 text-[#3a5a40]/30" />
+            <p className="text-sm font-bold tracking-widest uppercase text-stone-400/80">Infinite Canvas</p>
+            <p className="text-[10px] mt-2 text-center max-w-[200px] font-bold text-stone-400/60">Add notes, photos, or voice memos below. Pinch or scroll to zoom.</p>
+          </div>
+        </div>
+      )}
+
+      {/* ── Zoom Controls ─────────────────────────────────────────────── */}
+      <div className="absolute bottom-24 right-3 z-40 flex flex-col items-center gap-0.5 bg-white/90 backdrop-blur rounded-2xl shadow-lg border border-stone-100 p-1.5">
+        <button
+          onClick={() => doZoom(zoomRef.current * 1.3, window.innerWidth / 2, window.innerHeight / 2)}
+          className="w-8 h-8 flex items-center justify-center text-[#3a5a40] hover:bg-stone-100 rounded-xl font-bold text-xl leading-none transition-colors"
+          title="Zoom in (Cmd =)"
+        >+</button>
+        <span className="text-[9px] font-black text-stone-400 w-8 text-center tabular-nums">{zoomDisplay}%</span>
+        <button
+          onClick={() => doZoom(zoomRef.current / 1.3, window.innerWidth / 2, window.innerHeight / 2)}
+          className="w-8 h-8 flex items-center justify-center text-[#3a5a40] hover:bg-stone-100 rounded-xl font-bold text-xl leading-none transition-colors"
+          title="Zoom out (Cmd -)"
+        >−</button>
+        <div className="w-5 h-px bg-stone-200 my-0.5" />
+        <button
+          onClick={() => { zoomRef.current = 1; panXRef.current = 0; panYRef.current = 0; applyTransform(); setZoomDisplay(100); }}
+          className="w-8 h-8 flex items-center justify-center text-stone-400 hover:bg-stone-100 rounded-xl transition-colors"
+          title="Reset view (Cmd 0)"
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+            <path d="M3 3h6M3 3v6M21 3h-6M21 3v6M3 21h6M3 21v-6M21 21h-6M21 21v-6"/>
+          </svg>
+        </button>
+      </div>
 
       {/* Footer Controls */}
       <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur shadow-2xl rounded-full px-6 py-3 flex gap-6 items-center z-50 border border-stone-100">
@@ -2116,15 +2361,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
         );
       })()}
 
-      {notes.length === 0 && (
-        <div className="flex flex-col items-center justify-center h-full text-stone-400 opacity-60">
-            <div className="p-8 bg-white/20 rounded-[3rem] backdrop-blur-sm border border-white/30 flex flex-col items-center">
-              <Trees size={64} className="mb-4 text-[#3a5a40]/30" />
-              <p className="text-sm font-bold tracking-widest uppercase">Canvas Empty</p>
-              <p className="text-[10px] mt-2 text-center max-w-[200px] font-bold">Record voices, upload photos, or add sticky notes to build your roadmap.</p>
-            </div>
-        </div>
-      )}
 
       {/* Smart Packing Modal */}
       {showSmartPacking && (
