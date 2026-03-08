@@ -1355,9 +1355,13 @@ const ChatView: React.FC<ChatViewProps> = ({ user }) => {
         const searchOnly = findFriendsResults.filter(u => !friendIds.has(u._id));
 
         return (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4">
-          <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl max-h-[90vh] overflow-hidden animate-slide-up flex flex-col">
-            <div className="flex items-center justify-between p-4 border-b border-stone-100">
+        <div className="fixed inset-x-0 bottom-0 sm:inset-0 bg-black/50 z-50 flex flex-col justify-end sm:items-center sm:justify-center sm:p-4">
+          <div
+            className="bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl animate-slide-up flex flex-col"
+            style={{ height: '90dvh', maxHeight: '90dvh' }}
+          >
+            {/* Header — never scrolls */}
+            <div className="flex items-center justify-between p-4 border-b border-stone-100 flex-shrink-0">
               <h2 className="text-lg font-bold text-stone-800">Find Friends</h2>
               <button
                 onClick={() => { setShowNewChatModal(false); setFindFriendsQuery(''); setFindFriendsResults([]); }}
@@ -1367,8 +1371,8 @@ const ChatView: React.FC<ChatViewProps> = ({ user }) => {
               </button>
             </div>
 
-            <div className="p-4 flex flex-col flex-1 min-h-0">
-              {/* Inline success/error */}
+            {/* Search bar + group button — never scrolls */}
+            <div className="px-4 pt-3 flex-shrink-0">
               {successMessage && (
                 <div className="mb-2 p-2 bg-emerald-50 border border-emerald-200 rounded-xl text-center">
                   <p className="text-xs font-medium text-emerald-700">{successMessage}</p>
@@ -1380,7 +1384,7 @@ const ChatView: React.FC<ChatViewProps> = ({ user }) => {
                 </div>
               )}
 
-              <div className="relative mb-3">
+              <div className="relative mb-2">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" size={16} />
                 <input
                   type="text"
@@ -1398,31 +1402,34 @@ const ChatView: React.FC<ChatViewProps> = ({ user }) => {
               </div>
 
               {!findFriendsQuery.trim() && (
-                <p className="text-xs text-stone-400 text-center mb-3">Type a name or email to search for users</p>
+                <p className="text-xs text-stone-400 text-center mb-2">Type a name or email to search for users</p>
               )}
 
-              <div className="space-y-2 mb-3">
-                <button
-                  onClick={() => {
-                    setShowNewChatModal(false);
-                    setShowCreateGroupModal(true);
-                    setSelectedGroupMembers(new Set());
-                    fetchGroupFriends();
-                    setError('');
-                  }}
-                  className="w-full flex items-center gap-3 p-3 hover:bg-stone-50 rounded-xl transition-colors"
-                >
-                  <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
-                    <Users size={20} className="text-purple-600" />
-                  </div>
-                  <div className="text-left">
-                    <p className="font-medium text-stone-800 text-sm">Create Group Chat</p>
-                    <p className="text-[11px] text-stone-500">Chat with multiple friends</p>
-                  </div>
-                </button>
-              </div>
+              <button
+                onClick={() => {
+                  setShowNewChatModal(false);
+                  setShowCreateGroupModal(true);
+                  setSelectedGroupMembers(new Set());
+                  fetchGroupFriends();
+                  setError('');
+                }}
+                className="w-full flex items-center gap-3 p-3 hover:bg-stone-50 rounded-xl transition-colors mb-1"
+              >
+                <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <Users size={20} className="text-purple-600" />
+                </div>
+                <div className="text-left">
+                  <p className="font-medium text-stone-800 text-sm">Create Group Chat</p>
+                  <p className="text-[11px] text-stone-500">Chat with multiple friends</p>
+                </div>
+              </button>
+            </div>
 
-              <div className="max-h-[55vh] overflow-y-auto flex-1 space-y-1">
+            {/* Results — fills all remaining space and scrolls */}
+            <div
+              className="flex-1 min-h-0 overflow-y-auto px-4 pb-4 space-y-1"
+              style={{ WebkitOverflowScrolling: 'touch', paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}
+            >
                 {loadingNewChatFriends && !findFriendsQuery.trim() ? (
                   <div className="flex items-center justify-center py-8">
                     <div className="flex items-center gap-3 text-stone-500">
@@ -1549,7 +1556,6 @@ const ChatView: React.FC<ChatViewProps> = ({ user }) => {
                   </>
                 )}
               </div>
-            </div>
           </div>
         </div>
         );
@@ -1557,11 +1563,15 @@ const ChatView: React.FC<ChatViewProps> = ({ user }) => {
 
       {/* Create Group Chat Modal */}
       {showCreateGroupModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4">
-          <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl max-h-[90vh] overflow-hidden animate-slide-up flex flex-col">
-            <div className="flex items-center justify-between p-4 border-b border-stone-100">
+        <div className="fixed inset-x-0 bottom-0 sm:inset-0 bg-black/50 z-50 flex flex-col justify-end sm:items-center sm:justify-center sm:p-4">
+          <div
+            className="bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl animate-slide-up flex flex-col"
+            style={{ height: '90dvh', maxHeight: '90dvh' }}
+          >
+            {/* Header — never scrolls */}
+            <div className="flex items-center justify-between p-4 border-b border-stone-100 flex-shrink-0">
               <h2 className="text-lg font-bold text-stone-800">Create Group Chat</h2>
-              <button 
+              <button
                 onClick={() => {
                   setShowCreateGroupModal(false);
                   setGroupName('');
@@ -1573,8 +1583,9 @@ const ChatView: React.FC<ChatViewProps> = ({ user }) => {
                 <X size={20} className="text-stone-500" />
               </button>
             </div>
-            
-            <div className="p-4 space-y-4 flex-1 min-h-0 overflow-y-auto">
+
+            {/* Scrollable body — grows to fill space between header and footer */}
+            <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4" style={{ WebkitOverflowScrolling: 'touch' }}>
               {/* Error Message */}
               {error && showCreateGroupModal && (
                 <div className="p-3 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2">
@@ -1623,7 +1634,7 @@ const ChatView: React.FC<ChatViewProps> = ({ user }) => {
                       <p className="text-stone-400 text-xs mt-1">Add friends first to create a group</p>
                     </div>
                   ) : (
-                    <div className="max-h-[30vh] overflow-y-auto divide-y divide-stone-100">
+                    <div className="max-h-[45vh] overflow-y-auto divide-y divide-stone-100" style={{ WebkitOverflowScrolling: 'touch' }}>
                       {groupFriends.map(friend => (
                         <button
                           key={friend._id}
@@ -1654,7 +1665,11 @@ const ChatView: React.FC<ChatViewProps> = ({ user }) => {
               </div>
             </div>
             
-            <div className="p-4 border-t border-stone-100">
+            {/* Footer — always visible above keyboard / home indicator */}
+            <div
+              className="border-t border-stone-100 flex-shrink-0"
+              style={{ padding: '1rem', paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}
+            >
               <button
                 onClick={async () => {
                   if (!groupName.trim()) {
