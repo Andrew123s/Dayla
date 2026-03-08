@@ -256,6 +256,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   const [showCreateTripModal, setShowCreateTripModal] = useState(false);
   const [newTripName, setNewTripName] = useState('');
   const [creatingTrip, setCreatingTrip] = useState(false);
+  const [createTripError, setCreateTripError] = useState('');
 
   // Feature Data
   const [currency, setCurrency] = useState(CURRENCIES[0]);
@@ -721,33 +722,63 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   const handleCreateTrip = async () => {
     if (!newTripName.trim()) return;
     setCreatingTrip(true);
+    setCreateTripError('');
     try {
       const response = await authFetch(`${API_BASE_URL}/api/trips`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: newTripName.trim(), status: 'draft' }),
       });
-      if (response.ok) {
-        const data = await response.json();
-        const newTripId = data.data.trip._id;
-        const newDashboardId = data.data.dashboard._id;
-        const name = newTripName.trim();
-        setTripId(newTripId);
-        setDashboardId(newDashboardId);
-        setTripName(name);
-        setTripStatus('draft');
-        localStorage.setItem('currentTripId', newTripId);
-        localStorage.setItem('currentDashboardId', newDashboardId);
-        localStorage.setItem('currentTripName', name);
-        localStorage.setItem('currentTripStatus', 'draft');
-        setNotes([]);
-        setShowCreateTripModal(false);
-        setShowTripsPanel(false);
-        setNewTripName('');
-        fetchTripsData();
+
+      // Guard against non-JSON responses (rate limit, proxy errors, etc.)
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        const text = await response.text();
+        console.error('Non-JSON response from create trip:', text);
+        setCreateTripError(
+          response.status === 429
+            ? 'Too many requests. Please wait a moment and try again.'
+            : response.status === 401
+            ? 'Session expired. Please log out and log back in.'
+            : 'Server error. Please try again.'
+        );
+        return;
       }
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setCreateTripError(data.message || `Failed to create trip (${response.status})`);
+        return;
+      }
+
+      const newTripId = data.data?.trip?._id;
+      const newDashboardId = data.data?.dashboard?._id;
+
+      if (!newTripId || !newDashboardId) {
+        setCreateTripError('Server returned an unexpected response. Please try again.');
+        console.error('Unexpected create trip response:', data);
+        return;
+      }
+
+      const name = newTripName.trim();
+      setTripId(newTripId);
+      setDashboardId(newDashboardId);
+      setTripName(name);
+      setTripStatus('draft');
+      localStorage.setItem('currentTripId', newTripId);
+      localStorage.setItem('currentDashboardId', newDashboardId);
+      localStorage.setItem('currentTripName', name);
+      localStorage.setItem('currentTripStatus', 'draft');
+      setNotes([]);
+      setShowCreateTripModal(false);
+      setShowTripsPanel(false);
+      setNewTripName('');
+      setCreateTripError('');
+      fetchTripsData();
     } catch (err) {
       console.error('Failed to create trip:', err);
+      setCreateTripError('Network error. Please check your connection and try again.');
     } finally {
       setCreatingTrip(false);
     }
@@ -2492,16 +2523,21 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
             <input
               type="text"
               value={newTripName}
-              onChange={e => setNewTripName(e.target.value)}
+              onChange={e => { setNewTripName(e.target.value); if (createTripError) setCreateTripError(''); }}
               onKeyDown={e => e.key === 'Enter' && handleCreateTrip()}
               placeholder="e.g. Bali Summer 2026"
-              className="w-full bg-stone-50 border border-stone-200 rounded-2xl px-4 py-3 text-sm font-bold focus:ring-1 focus:ring-[#3a5a40] focus:border-[#3a5a40] mb-5"
+              className="w-full bg-stone-50 border border-stone-200 rounded-2xl px-4 py-3 text-sm font-bold focus:ring-1 focus:ring-[#3a5a40] focus:border-[#3a5a40] mb-3"
               autoFocus
             />
+            {createTripError && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 font-medium">
+                {createTripError}
+              </div>
+            )}
             <div className="flex gap-3">
               <button
                 type="button"
-                onClick={() => { setShowCreateTripModal(false); setNewTripName(''); }}
+                onClick={() => { setShowCreateTripModal(false); setNewTripName(''); setCreateTripError(''); }}
                 disabled={creatingTrip}
                 className="flex-1 py-4 bg-stone-100 text-stone-500 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-stone-200 transition-colors disabled:opacity-50"
               >

@@ -7,14 +7,15 @@ const logger = require('../utils/logger');
 // @access  Private
 const createTrip = async (req, res) => {
   try {
-    const { name, description, dates } = req.body;
+    const { name, description, dates, status } = req.body;
 
     // Create trip
     const trip = await Trip.create({
       name,
       description,
       owner: req.user._id,
-      dates
+      dates,
+      ...(status && { status })
     });
 
     // Create default dashboard for the trip
