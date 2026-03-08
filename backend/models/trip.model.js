@@ -61,8 +61,7 @@ const tripSchema = new mongoose.Schema({
   }],
   category: {
     type: String,
-    enum: ['hiking', 'business', 'family', 'camping', 'exploring', 'beach', 'road_trip', 'cultural', 'other'],
-    default: null
+    enum: ['hiking', 'business', 'family', 'camping', 'exploring', 'beach', 'road_trip', 'cultural', 'other']
   },
   ecoScore: {
     type: Number,

@@ -4,8 +4,7 @@ const mongoose = require('mongoose');
 const stickyNoteSchema = new mongoose.Schema({
   id: {
     type: String,
-    required: true,
-    unique: true
+    required: true
   },
   type: {
     type: String,
@@ -104,8 +103,7 @@ const activeUserSchema = new mongoose.Schema({
 const invitationSchema = new mongoose.Schema({
   id: {
     type: String,
-    required: true,
-    unique: true
+    required: true
   },
   email: {
     type: String,

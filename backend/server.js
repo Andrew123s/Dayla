@@ -37,6 +37,18 @@ const startServer = async () => {
     // Connect to MongoDB
     await connectDB();
 
+    // Drop legacy non-sparse unique indexes on Dashboard subdocument fields.
+    // These were created when dashboard.model.js had unique:true on notes.id and
+    // invitations.id. A non-sparse unique index rejects any second dashboard
+    // that has an empty array (null value in the index), which broke trip creation.
+    try {
+      const mongoose = require('mongoose');
+      const col = mongoose.connection.db.collection('dashboards');
+      for (const idx of ['notes.id_1', 'invitations.id_1']) {
+        await col.dropIndex(idx).catch(() => {}); // no-op if already gone
+      }
+    } catch (_) { /* index cleanup is best-effort */ }
+
     // Start server
     server.listen(PORT, () => {
       logger.info(`🚀 Server running on port ${PORT}`);
