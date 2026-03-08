@@ -113,7 +113,7 @@ export interface Trip {
   items: StickyNote[];
   collaborators: string[];
   dates?: TripDates;
-  status?: 'planning' | 'booked' | 'in_progress' | 'completed' | 'cancelled';
+  status?: 'draft' | 'planning' | 'planned' | 'booked' | 'in_progress' | 'completed' | 'cancelled';
   category?: TripCategory;
   destination?: string;
   coverImage?: string;

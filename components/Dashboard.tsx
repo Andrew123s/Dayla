@@ -248,6 +248,11 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   const [invitations, setInvitations] = useState<Array<{id: string, email: string, invitedBy: string, timestamp: Date}>>([]);
   const [showAlerts, setShowAlerts] = useState<Array<{id: string, message: string, type: 'info' | 'success' | 'warning', timestamp: Date}>>([]);
 
+  // Trip creation modal
+  const [showCreateTripModal, setShowCreateTripModal] = useState(false);
+  const [newTripName, setNewTripName] = useState('');
+  const [creatingTrip, setCreatingTrip] = useState(false);
+
   // Feature Data
   const [currency, setCurrency] = useState(CURRENCIES[0]);
   const [expenses, setExpenses] = useState<Expense[]>([
@@ -720,6 +725,74 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
       console.error('Failed to update trip category:', err);
     }
     setEditingTripCategory(null);
+  };
+
+  // Create a new named trip (status: draft) and switch the canvas to it
+  const handleCreateTrip = async () => {
+    if (!newTripName.trim()) return;
+    setCreatingTrip(true);
+    try {
+      const response = await authFetch(`${API_BASE_URL}/api/trips`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newTripName.trim(), status: 'draft' }),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        const newTripId = data.data.trip._id;
+        const newDashboardId = data.data.dashboard._id;
+        setTripId(newTripId);
+        setDashboardId(newDashboardId);
+        localStorage.setItem('currentTripId', newTripId);
+        localStorage.setItem('currentDashboardId', newDashboardId);
+        setNotes([]);
+        setShowCreateTripModal(false);
+        setShowTripsPanel(false);
+        setNewTripName('');
+        fetchTripsData();
+      }
+    } catch (err) {
+      console.error('Failed to create trip:', err);
+    } finally {
+      setCreatingTrip(false);
+    }
+  };
+
+  // Switch the canvas to a different existing trip
+  const handleSwitchTrip = async (tId: string) => {
+    try {
+      const boardRes = await authFetch(`${API_BASE_URL}/api/boards/by-trip/${tId}`);
+      if (boardRes.ok) {
+        const boardData = await boardRes.json();
+        const dbId = boardData.data?.dashboard?._id as string;
+        if (dbId) {
+          setTripId(tId);
+          setDashboardId(dbId);
+          localStorage.setItem('currentTripId', tId);
+          localStorage.setItem('currentDashboardId', dbId);
+          await fetchNotes(dbId);
+          setShowTripsPanel(false);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to switch trip:', err);
+    }
+  };
+
+  // Finalize a trip: move status from draft/planning → planned
+  const handleFinalizeTrip = async (tId: string) => {
+    try {
+      const response = await authFetch(`${API_BASE_URL}/api/trips/${tId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'planned' }),
+      });
+      if (response.ok) {
+        setMyTrips(prev => prev.map(t => t.id === tId ? { ...t, status: 'planned' } : t));
+      }
+    } catch (err) {
+      console.error('Failed to finalize trip:', err);
+    }
   };
 
   const makeAuthor = (): NoteAuthor => ({
@@ -2114,7 +2187,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
           : savedTrips.filter(t => t.category === tripsFilter);
 
         const statusColors: Record<string, string> = {
+          draft: 'bg-stone-100 text-stone-500',
           planning: 'bg-amber-100 text-amber-700',
+          planned: 'bg-emerald-100 text-emerald-700',
           booked: 'bg-blue-100 text-blue-700',
           in_progress: 'bg-green-100 text-green-700',
           completed: 'bg-stone-100 text-stone-600',
@@ -2130,7 +2205,10 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
                 <h2 className="text-2xl font-black text-[#3a5a40] flex items-center gap-2">
                   <Sparkles size={24} className="text-pink-500" /> My Trips
                 </h2>
-                <button onClick={() => setShowTripsPanel(false)} className="p-2 bg-stone-100 rounded-full"><X size={20} /></button>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setShowCreateTripModal(true)} className="p-2 bg-[#3a5a40] text-white rounded-full" title="New Trip"><Plus size={16} /></button>
+                  <button onClick={() => setShowTripsPanel(false)} className="p-2 bg-stone-100 rounded-full"><X size={20} /></button>
+                </div>
               </div>
 
               {/* Tabs */}
@@ -2249,6 +2327,23 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
                             </button>
                           )}
                         </div>
+                        {/* Trip actions */}
+                        <div className="flex gap-2 mt-3 pt-3 border-t border-stone-50">
+                          <button
+                            onClick={() => handleSwitchTrip(trip.id)}
+                            className="flex-1 text-[10px] font-black py-1.5 bg-stone-100 text-stone-600 rounded-xl hover:bg-stone-200 transition-colors uppercase tracking-wide"
+                          >
+                            Open
+                          </button>
+                          {(trip.status === 'draft' || trip.status === 'planning') && (
+                            <button
+                              onClick={() => handleFinalizeTrip(trip.id)}
+                              className="flex-1 text-[10px] font-black py-1.5 bg-emerald-50 text-emerald-700 rounded-xl hover:bg-emerald-100 transition-colors uppercase tracking-wide"
+                            >
+                              Mark Planned
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   ))
@@ -2359,6 +2454,46 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
         );
       })()}
 
+
+      {/* Create Trip Modal */}
+      {showCreateTripModal && (
+        <div className="absolute inset-0 z-[120] flex items-center justify-center bg-black/60 backdrop-blur-sm p-6">
+          <div className="bg-white w-full max-w-sm rounded-[2.5rem] p-6 shadow-2xl animate-in zoom-in-95 duration-200">
+            <h3 className="text-xl font-black text-[#3a5a40] mb-1 flex items-center gap-2">
+              <Plus size={22} /> New Trip
+            </h3>
+            <p className="text-xs text-stone-400 mb-5">Give your trip a name to get started.</p>
+            <input
+              type="text"
+              value={newTripName}
+              onChange={e => setNewTripName(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleCreateTrip()}
+              placeholder="e.g. Bali Summer 2026"
+              className="w-full bg-stone-50 border border-stone-200 rounded-2xl px-4 py-3 text-sm font-bold focus:ring-1 focus:ring-[#3a5a40] focus:border-[#3a5a40] mb-5"
+              autoFocus
+            />
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => { setShowCreateTripModal(false); setNewTripName(''); }}
+                disabled={creatingTrip}
+                className="flex-1 py-4 bg-stone-100 text-stone-500 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-stone-200 transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleCreateTrip}
+                disabled={!newTripName.trim() || creatingTrip}
+                className="flex-1 py-4 bg-[#3a5a40] text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg hover:bg-[#588157] transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {creatingTrip && <Loader size={14} className="animate-spin" />}
+                Create
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Smart Packing Modal */}
       {showSmartPacking && (
