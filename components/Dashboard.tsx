@@ -17,6 +17,7 @@ import {
   Sparkles, Mountain, Briefcase, Home, Tent, Compass, Heart, Bookmark, Tag, FolderOpen, Package
 } from 'lucide-react';
 import SmartPacking from './SmartPacking';
+import StickyNoteCard from './StickyNoteCard';
 
 interface DashboardProps {
   user: User;
@@ -197,10 +198,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   const [notes, setNotes] = useState<StickyNote[]>([]);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
-  const [draggedId, setDraggedId] = useState<string | null>(null);
-  const [resizingId, setResizingId] = useState<string | null>(null);
   const [croppingId, setCroppingId] = useState<string | null>(null);
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
 
   const imageInputRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -935,32 +933,40 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
     };
   }, []);
 
-  const handleMouseDown = (e: React.MouseEvent, id: string) => {
-    if ((e.target as HTMLElement).closest('.resize-handle')) return;
-    const note = notes.find(n => n.id === id);
-    if (!note) return;
-    setDraggedId(id);
-    setDragOffset({ x: e.clientX - note.x, y: e.clientY - note.y });
-  };
-
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (draggedId) {
-      setNotes(prev => prev.map(note => note.id === draggedId ? { ...note, x: e.clientX - dragOffset.x, y: e.clientY - dragOffset.y } : note));
-    } else if (resizingId) {
-      setNotes(prev => prev.map(note => {
-        if (note.id === resizingId) {
-          return { ...note, width: Math.max(120, e.clientX - note.x), height: Math.max(60, e.clientY - note.y) };
-        }
-        return note;
-      }));
+  // ── Note interaction callbacks (used by StickyNoteCard) ──────────────────
+  const handleNotePositionChange = (id: string, x: number, y: number) => {
+    setNotes(prev => prev.map(n => n.id === id ? { ...n, x, y } : n));
+    stampEdit(id);
+    if (socketRef.current && dashboardId) {
+      const note = notes.find(n => n.id === id);
+      if (note) socketRef.current.emit('note_update', { roomId: dashboardId, noteId: id, updates: { ...note, x, y } });
     }
   };
 
-  const handleMouseUp = () => {
-    if (draggedId) stampEdit(draggedId);
-    if (resizingId) stampEdit(resizingId);
-    setDraggedId(null);
-    setResizingId(null);
+  const handleNoteSizeChange = (id: string, width: number, height: number) => {
+    setNotes(prev => prev.map(n => n.id === id ? { ...n, width, height } : n));
+    stampEdit(id);
+  };
+
+  const handleNoteDelete = (id: string) => {
+    const removedNote = notes.find(n => n.id === id);
+    setNotes(prev => prev.filter(n => n.id !== id));
+    if (tripId) {
+      authFetch(`${API_BASE_URL}/api/trips/${tripId}/notes/${id}`, { method: 'DELETE' })
+        .then(async (res) => {
+          if (!res.ok && res.status === 403) {
+            if (removedNote) setNotes(prev => [...prev, removedNote]);
+            const data = await res.json().catch(() => ({}));
+            const alert = { id: Math.random().toString(36).substr(2, 9), message: data.message || 'Not authorized to delete notes', type: 'warning' as const, timestamp: new Date() };
+            setShowAlerts(prev => [...prev, alert]);
+            setTimeout(() => setShowAlerts(prev => prev.filter(a => a.id !== alert.id)), 4000);
+          }
+        })
+        .catch(err => console.error('Failed to delete note:', err));
+    }
+    if (socketRef.current && dashboardId) {
+      socketRef.current.emit('note_deleted', { roomId: dashboardId, noteId: id });
+    }
   };
 
   const toggleLink = (id: string) => {
@@ -1077,7 +1083,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   };
 
   return (
-    <div className="w-full h-full relative canvas-bg bg-[#f7f3ee] overflow-hidden" onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}>
+    <div className="w-full h-full relative canvas-bg bg-[#f7f3ee] overflow-hidden">
       <input type="file" ref={imageInputRef} onChange={handleFileSelect} className="hidden" accept="image/*" />
 
       {/* Header */}
@@ -1122,136 +1128,33 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
 
       {/* Canvas Elements */}
       {notes.map((note) => (
-        <div key={note.id} onMouseDown={(e) => handleMouseDown(e, note.id)} style={{ left: note.x, top: note.y, width: note.width, height: note.height, backgroundColor: (note.type === 'image' || note.type === 'voice') ? 'transparent' : note.color }} className={`absolute rounded-2xl shadow-xl cursor-move transition-all duration-100 flex flex-col z-20 group ${draggedId === note.id ? 'scale-105 rotate-1 z-30 ring-2 ring-[#3a5a40]/30' : ''} ${note.type !== 'image' && note.type !== 'voice' ? 'p-4' : ''}`}>
-          {/* Editing Indicator */}
-          {editingNoteId === note.id && editingUser && (
-            <div className="absolute -top-12 left-1/2 -translate-x-1/2 bg-[#3a5a40] text-white px-3 py-1 rounded-full text-xs font-bold shadow-lg z-30 animate-in fade-in slide-in-from-bottom-2 flex items-center gap-2">
-              <PenTool size={12} />
-              {editingUser.name} is editing
-            </div>
-          )}
-
-          <div className="absolute -top-10 left-0 right-0 flex justify-between px-2 opacity-0 group-hover:opacity-100 transition-opacity bg-white/80 backdrop-blur-sm rounded-xl py-1 border border-stone-100 shadow-sm pointer-events-auto">
-             <div className="flex gap-2">
-                <button onClick={(e) => { e.stopPropagation(); toggleLink(note.id); }} className="p-1 hover:bg-[#3a5a40]/10 rounded transition-colors"><Link2 size={16} className="text-[#3a5a40]" /></button>
-                {note.type === 'image' && <button onClick={(e) => { e.stopPropagation(); setCroppingId(croppingId === note.id ? null : note.id); }} className={`p-1 hover:bg-[#3a5a40]/10 rounded transition-colors ${croppingId === note.id ? 'bg-[#3a5a40] text-white' : 'text-[#3a5a40]'}`}><CropIcon size={16} /></button>}
-             </div>
-             <button onClick={(e) => {
-               e.stopPropagation();
-               const removedNote = note;
-               setNotes(prev => prev.filter(n => n.id !== note.id));
-               if (tripId) {
-                 authFetch(`${API_BASE_URL}/api/trips/${tripId}/notes/${note.id}`, {
-                   method: 'DELETE',
-                 }).then(async (res) => {
-                   if (!res.ok && res.status === 403) {
-                     setNotes(prev => [...prev, removedNote]);
-                     const data = await res.json().catch(() => ({}));
-                     const alert = { id: Math.random().toString(36).substr(2, 9), message: data.message || 'Not authorized to delete notes', type: 'warning' as const, timestamp: new Date() };
-                     setShowAlerts(prev => [...prev, alert]);
-                     setTimeout(() => setShowAlerts(prev => prev.filter(a => a.id !== alert.id)), 4000);
-                   }
-                 }).catch(err => console.error('Failed to delete note:', err));
-               }
-               if (socketRef.current && dashboardId) {
-                 socketRef.current.emit('note_deleted', { roomId: dashboardId, noteId: note.id });
-               }
-             }} className="p-1 hover:bg-red-50 text-red-500 rounded transition-colors"><Trash2 size={16} /></button>
-          </div>
-
-          {note.type === 'image' ? (
-            <div className="w-full h-full relative overflow-hidden rounded-2xl bg-stone-200 border-4 border-white shadow-sm">
-              <img src={note.content} className="w-full h-full object-cover transition-transform" style={{ transform: `scale(${note.crop?.zoom || 1})`, transformOrigin: 'center' }} alt="Board Asset" />
-              {croppingId === note.id && (
-                <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center gap-2 p-2">
-                  <div className="flex gap-2">
-                     <button onMouseDown={(e) => { e.stopPropagation(); setNotes(prev => prev.map(n => n.id === note.id ? { ...n, crop: { ...n.crop!, zoom: Math.max(1, n.crop!.zoom - 0.1) } } : n)); stampEdit(note.id); }} className="p-2 bg-white rounded-lg text-[#3a5a40] shadow-md">-</button>
-                     <button onMouseDown={(e) => { e.stopPropagation(); setNotes(prev => prev.map(n => n.id === note.id ? { ...n, crop: { ...n.crop!, zoom: n.crop!.zoom + 0.1 } } : n)); stampEdit(note.id); }} className="p-2 bg-white rounded-lg text-[#3a5a40] shadow-md">+</button>
-                  </div>
-                  <button onClick={() => setCroppingId(null)} className="text-[10px] text-white font-bold uppercase mt-2 underline">Done</button>
-                </div>
-              )}
-            </div>
-          ) : note.type === 'voice' ? (
-            <VoiceNote note={note} />
-          ) : (
-            <>
-              <div className="flex justify-between items-start mb-1">
-                <span className="text-lg">{note.emoji}</span>
-                {note.scheduledDate && <div className="flex items-center gap-1 text-[9px] font-bold text-stone-600 uppercase tracking-wide"><Clock size={10} /> {formatDate(note.scheduledDate)}</div>}
-              </div>
-              <textarea
-                className="flex-1 bg-transparent border-none resize-none focus:ring-0 text-sm font-medium text-stone-800 p-0 leading-tight"
-                value={note.content}
-                onClick={(e) => e.stopPropagation()}
-                onFocus={() => handleNoteEdit(note.id)}
-                onChange={(e) => {
-                  const newContent = e.target.value;
-                  setNotes(prev => prev.map(n => n.id === note.id ? { ...n, content: newContent } : n));
-                }}
-                onBlur={() => {
-                  stampEdit(note.id);
-                  setTimeout(() => {
-                    setEditingNoteId(null);
-                    setEditingUser(null);
-                  }, 100);
-                }}
-              />
-              {/* Author / Last Edited Info */}
-              {(note.createdBy || note.lastEditedBy) && (
-                <div className="mt-auto pt-1 border-t border-stone-200/50 flex flex-col gap-0.5">
-                  {note.createdBy && (
-                    <div className="flex items-center gap-1.5">
-                      {note.createdBy.avatar ? (
-                        <img src={note.createdBy.avatar} className="w-3.5 h-3.5 rounded-full object-cover" alt="" />
-                      ) : (
-                        <div className="w-3.5 h-3.5 rounded-full bg-[#3a5a40] flex items-center justify-center">
-                          <span className="text-[6px] font-bold text-white">{note.createdBy.name.charAt(0).toUpperCase()}</span>
-                        </div>
-                      )}
-                      <span className="text-[8px] font-bold text-stone-400 truncate">
-                        Added by {note.createdBy.id === user.id ? 'You' : note.createdBy.name} · {timeAgo(note.createdBy.timestamp)}
-                      </span>
-                    </div>
-                  )}
-                  {note.lastEditedBy && (
-                    <div className="flex items-center gap-1.5">
-                      {note.lastEditedBy.avatar ? (
-                        <img src={note.lastEditedBy.avatar} className="w-3.5 h-3.5 rounded-full object-cover" alt="" />
-                      ) : (
-                        <div className="w-3.5 h-3.5 rounded-full bg-[#588157] flex items-center justify-center">
-                          <span className="text-[6px] font-bold text-white">{note.lastEditedBy.name.charAt(0).toUpperCase()}</span>
-                        </div>
-                      )}
-                      <span className="text-[8px] font-bold text-stone-400 truncate">
-                        Edited by {note.lastEditedBy.id === user.id ? 'You' : note.lastEditedBy.name} · {timeAgo(note.lastEditedBy.timestamp)}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              )}
-            </>
-          )}
-
-          {/* Author badge for image/voice notes */}
-          {(note.type === 'image' || note.type === 'voice') && note.createdBy && (
-            <div className="absolute bottom-1 left-1 bg-black/50 backdrop-blur-sm rounded-full px-2 py-0.5 flex items-center gap-1 z-10">
-              {note.createdBy.avatar ? (
-                <img src={note.createdBy.avatar} className="w-3 h-3 rounded-full object-cover" alt="" />
-              ) : (
-                <div className="w-3 h-3 rounded-full bg-white/30 flex items-center justify-center">
-                  <span className="text-[5px] font-bold text-white">{note.createdBy.name.charAt(0).toUpperCase()}</span>
-                </div>
-              )}
-              <span className="text-[7px] font-bold text-white/80 truncate max-w-[80px]">
-                {note.createdBy.id === user.id ? 'You' : note.createdBy.name}
-                {note.lastEditedBy && note.lastEditedBy.id !== note.createdBy.id ? ` · edited by ${note.lastEditedBy.id === user.id ? 'You' : note.lastEditedBy.name}` : ''}
-              </span>
-            </div>
-          )}
-
-          <div onMouseDown={(e) => { e.stopPropagation(); setResizingId(note.id); }} className="resize-handle absolute -bottom-1 -right-1 w-6 h-6 bg-[#3a5a40] rounded-full flex items-center justify-center text-white shadow-lg cursor-nwse-resize opacity-0 group-hover:opacity-100 transition-opacity z-40 border-2 border-white"><Maximize2 size={12} /></div>
-        </div>
+        <StickyNoteCard
+          key={note.id}
+          note={note}
+          user={user}
+          collaboratorEditingUser={editingNoteId === note.id && editingUser ? editingUser : null}
+          dashboardId={dashboardId}
+          tripId={tripId}
+          socketRef={socketRef}
+          croppingId={croppingId}
+          onContentChange={(id, content) => {
+            setNotes(prev => prev.map(n => n.id === id ? { ...n, content } : n));
+          }}
+          onPositionChange={handleNotePositionChange}
+          onSizeChange={handleNoteSizeChange}
+          onDelete={handleNoteDelete}
+          onLinkToggle={toggleLink}
+          onEditStart={handleNoteEdit}
+          onEditEnd={(id) => {
+            stampEdit(id);
+            setTimeout(() => { setEditingNoteId(null); setEditingUser(null); }, 100);
+          }}
+          onCropToggle={(id) => setCroppingId(croppingId === id ? null : id)}
+          onZoom={(id, delta) => {
+            setNotes(prev => prev.map(n => n.id === id ? { ...n, crop: { ...n.crop!, zoom: Math.max(1, (n.crop?.zoom || 1) + delta) } } : n));
+            stampEdit(id);
+          }}
+        />
       ))}
 
       {/* Footer Controls */}
