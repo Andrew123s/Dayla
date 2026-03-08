@@ -1559,7 +1559,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
       {/* Ntelipak Glowing Blue Button — bottom-left, above toolbar */}
       <button
         onClick={() => setShowSmartPacking(true)}
-        className="ntelipak-btn absolute bottom-[72px] left-3 w-12 h-12 rounded-full flex items-center justify-center z-40 border-2 border-blue-300/50"
+        className="ntelipak-btn absolute bottom-6 left-3 w-12 h-12 rounded-full flex items-center justify-center z-40 border-2 border-blue-300/50"
         style={{ marginBottom: 'env(safe-area-inset-bottom, 0px)' }}
       >
         <Package size={20} className="text-white drop-shadow-lg" />
@@ -1570,7 +1570,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
       {/* Trips Glowing Button — bottom-right, above toolbar */}
       <button
         onClick={() => { setShowTripsPanel(true); fetchTripsData(); }}
-        className="trips-btn absolute bottom-[72px] right-3 w-12 h-12 rounded-full flex items-center justify-center z-40 border-2 border-pink-300/50"
+        className="trips-btn absolute bottom-6 right-3 w-12 h-12 rounded-full flex items-center justify-center z-40 border-2 border-pink-300/50"
         style={{ marginBottom: 'env(safe-area-inset-bottom, 0px)' }}
       >
         <Sparkles size={20} className="text-white drop-shadow-lg" />
