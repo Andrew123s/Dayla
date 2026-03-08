@@ -53,11 +53,13 @@ app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
 
-// Rate limiting
+// General API rate limit — high enough for normal SPA use (background polling,
+// note saves, dashboard init) while still blocking abusive scripts.
+// OPTIONS preflight requests are skipped: they double-count every CORS call.
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
-  message: { success: false, message: 'Too many requests. Please try again in 15 minutes.' },
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 500,
+  skip: (req) => req.method === 'OPTIONS',
   standardHeaders: true,
   legacyHeaders: false,
   handler: (req, res) => {
@@ -65,6 +67,19 @@ const limiter = rateLimit({
   },
 });
 app.use('/api/', limiter);
+
+// Strict limiter on login and register only — prevents brute-force attacks
+// without affecting any other route.
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  skip: (req) => req.method === 'OPTIONS',
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (req, res) => {
+    res.status(429).json({ success: false, message: 'Too many login attempts. Please wait 15 minutes and try again.' });
+  },
+});
 
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
@@ -90,6 +105,9 @@ app.get('/health', (req, res) => {
 });
 
 // API routes
+// Strict rate limit on login and register only (brute-force protection)
+app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/register', authLimiter);
 app.use('/api/auth', authRoutes);
 app.use('/api/trips', tripRoutes);
 app.use('/api/chat', chatRoutes);
