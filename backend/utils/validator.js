@@ -51,6 +51,9 @@ const tripSchemas = {
   createTrip: Joi.object({
     name: Joi.string().min(1).max(100).required(),
     description: Joi.string().max(500).optional(),
+    status: Joi.string().valid(
+      'draft', 'planning', 'planned', 'booked', 'in_progress', 'completed', 'cancelled'
+    ).optional(),
     dates: Joi.object({
       startDate: Joi.string().optional(),
       endDate: Joi.string().optional()
@@ -68,7 +71,7 @@ const tripSchemas = {
       'hiking', 'business', 'family', 'camping', 'exploring', 'beach', 'road_trip', 'cultural', 'other'
     ).optional(),
     status: Joi.string().valid(
-      'planning', 'booked', 'in_progress', 'completed', 'cancelled'
+      'draft', 'planning', 'planned', 'booked', 'in_progress', 'completed', 'cancelled'
     ).optional(),
     destination: Joi.object({
       name: Joi.string().max(200).optional(),

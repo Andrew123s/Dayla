@@ -193,6 +193,10 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   // Dashboard ID and Trip ID
   const [dashboardId, setDashboardId] = useState<string>('');
   const [tripId, setTripId] = useState<string>('');
+  const [tripName, setTripName] = useState<string>(localStorage.getItem('currentTripName') || '');
+  const [tripStatus, setTripStatus] = useState<Trip['status']>(
+    (localStorage.getItem('currentTripStatus') as Trip['status']) || 'planning'
+  );
   const [isInitializing, setIsInitializing] = useState(true);
   
   const [notes, setNotes] = useState<StickyNote[]>([]);
@@ -440,6 +444,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
         if (storedDashboardId && storedTripId) {
           setDashboardId(storedDashboardId);
           setTripId(storedTripId);
+          // Restore cached name/status — no extra fetch needed
+          setTripName(localStorage.getItem('currentTripName') || '');
+          setTripStatus((localStorage.getItem('currentTripStatus') as Trip['status']) || 'planning');
           fetchNotes(storedDashboardId);
           return;
         }
@@ -453,61 +460,44 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
           localStorage.removeItem('currentDashboardId');
         }
 
-        // Fallback: try to find an existing trip before creating a new one
+        // Fallback: try to find an existing trip before prompting to create one
         try {
           const tripsRes = await authFetch(`${API_BASE_URL}/api/trips`);
           if (tripsRes.ok) {
             const tripsData = await tripsRes.json();
             const trips: any[] = tripsData.data?.trips || [];
             if (trips.length > 0) {
-              const latestTripId = trips[0]._id as string;
+              const latestTrip = trips[0];
+              const latestTripId = latestTrip._id as string;
               // Try to find the dashboard for this trip
               const boardRes = await authFetch(`${API_BASE_URL}/api/boards/by-trip/${latestTripId}`);
               if (boardRes.ok) {
                 const boardData = await boardRes.json();
                 const dbId = boardData.data?.dashboard?._id as string;
                 if (dbId) {
+                  const name = latestTrip.name || '';
+                  const status: Trip['status'] = latestTrip.status || 'planning';
                   setDashboardId(dbId);
                   setTripId(latestTripId);
+                  setTripName(name);
+                  setTripStatus(status);
                   localStorage.setItem('currentDashboardId', dbId);
                   localStorage.setItem('currentTripId', latestTripId);
+                  localStorage.setItem('currentTripName', name);
+                  localStorage.setItem('currentTripStatus', status);
                   fetchNotes(dbId);
                   return;
                 }
               }
-              // No board found for existing trip — fall through to create a new trip+board
+              // No board found for existing trip — fall through to prompt user
             }
           }
         } catch (_) {
-          // ignore — fall through to create a new trip
+          // ignore — fall through to prompt user
         }
 
-        // Create a new trip (which automatically creates a dashboard)
-        const response = await authFetch(`${API_BASE_URL}/api/trips`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: 'My Adventure',
-            description: 'Planning our next adventure',
-            dates: {
-              startDate: tripDates.startDate,
-              endDate: tripDates.endDate
-            }
-          }),
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          const newDashboardId = data.data.dashboard._id;
-          const newTripId = data.data.trip._id;
-          setDashboardId(newDashboardId);
-          setTripId(newTripId);
-          localStorage.setItem('currentDashboardId', newDashboardId);
-          localStorage.setItem('currentTripId', newTripId);
-        } else {
-          const errData = await response.json().catch(() => ({}));
-          console.error('Failed to create trip/dashboard:', errData);
-        }
+        // No trips at all — prompt the user to create and name their first trip
+        setShowCreateTripModal(true);
       } catch (error) {
         console.error('Error initializing dashboard:', error);
       } finally {
@@ -741,10 +731,15 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
         const data = await response.json();
         const newTripId = data.data.trip._id;
         const newDashboardId = data.data.dashboard._id;
+        const name = newTripName.trim();
         setTripId(newTripId);
         setDashboardId(newDashboardId);
+        setTripName(name);
+        setTripStatus('draft');
         localStorage.setItem('currentTripId', newTripId);
         localStorage.setItem('currentDashboardId', newDashboardId);
+        localStorage.setItem('currentTripName', name);
+        localStorage.setItem('currentTripStatus', 'draft');
         setNotes([]);
         setShowCreateTripModal(false);
         setShowTripsPanel(false);
@@ -766,10 +761,17 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
         const boardData = await boardRes.json();
         const dbId = boardData.data?.dashboard?._id as string;
         if (dbId) {
+          const tripData = myTrips.find(t => t.id === tId);
+          const name = tripData?.name || '';
+          const status: Trip['status'] = tripData?.status || 'planning';
           setTripId(tId);
           setDashboardId(dbId);
+          setTripName(name);
+          setTripStatus(status);
           localStorage.setItem('currentTripId', tId);
           localStorage.setItem('currentDashboardId', dbId);
+          localStorage.setItem('currentTripName', name);
+          localStorage.setItem('currentTripStatus', status);
           await fetchNotes(dbId);
           setShowTripsPanel(false);
         }
@@ -789,6 +791,10 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
       });
       if (response.ok) {
         setMyTrips(prev => prev.map(t => t.id === tId ? { ...t, status: 'planned' } : t));
+        if (tId === tripId) {
+          setTripStatus('planned');
+          localStorage.setItem('currentTripStatus', 'planned');
+        }
       }
     } catch (err) {
       console.error('Failed to finalize trip:', err);
@@ -1333,8 +1339,10 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
         <div className="flex items-center gap-3">
           <div className="p-2 bg-[#3a5a40]/10 rounded-2xl"><Trees className="text-[#3a5a40]" size={24} /></div>
           <div>
-            <h1 className="text-lg font-bold text-[#3a5a40] leading-none">Dayla</h1>
-            <p className="text-[10px] text-stone-500 font-bold uppercase tracking-tight mt-1">{formatDate(tripDates.startDate)} - {formatDate(tripDates.endDate)}</p>
+            <h1 className="text-lg font-bold text-[#3a5a40] leading-none">{tripName || 'Plan a Trip'}</h1>
+            <p className="text-[10px] text-stone-500 font-bold uppercase tracking-tight mt-1">
+              {tripStatus ? tripStatus.replace('_', ' ') : ''}{tripDates.startDate ? ` · ${formatDate(tripDates.startDate)} – ${formatDate(tripDates.endDate)}` : ''}
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -1439,13 +1447,31 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
 
       {/* Empty-board hint */}
       {notes.length === 0 && !isInitializing && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-10">
-          <div className="p-8 bg-white/30 rounded-[3rem] backdrop-blur-sm border border-white/40 flex flex-col items-center">
-            <Trees size={56} className="mb-4 text-[#3a5a40]/30" />
-            <p className="text-sm font-bold tracking-widest uppercase text-stone-400/80">Infinite Canvas</p>
-            <p className="text-[10px] mt-2 text-center max-w-[200px] font-bold text-stone-400/60">Add notes, photos, or voice memos below. Pinch or scroll to zoom.</p>
+        !tripId ? (
+          /* No active trip — interactive prompt */
+          <div className="absolute inset-0 flex flex-col items-center justify-center z-10">
+            <div className="p-8 bg-white/80 rounded-[3rem] backdrop-blur-sm border border-white/60 shadow-xl flex flex-col items-center">
+              <Trees size={56} className="mb-4 text-[#3a5a40]/40" />
+              <p className="text-sm font-black tracking-widest uppercase text-stone-500 mb-1">No Active Trip</p>
+              <p className="text-[11px] text-center max-w-[200px] font-bold text-stone-400 mb-5">Create a trip to start planning on the canvas.</p>
+              <button
+                onClick={() => setShowCreateTripModal(true)}
+                className="px-6 py-3 bg-[#3a5a40] text-white text-xs font-black uppercase tracking-widest rounded-2xl shadow-lg hover:bg-[#588157] transition-colors active:scale-95"
+              >
+                + Create Trip
+              </button>
+            </div>
           </div>
-        </div>
+        ) : (
+          /* Trip active but canvas empty — passive hint */
+          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-10">
+            <div className="p-8 bg-white/30 rounded-[3rem] backdrop-blur-sm border border-white/40 flex flex-col items-center">
+              <Trees size={56} className="mb-4 text-[#3a5a40]/30" />
+              <p className="text-sm font-bold tracking-widest uppercase text-stone-400/80">Infinite Canvas</p>
+              <p className="text-[10px] mt-2 text-center max-w-[200px] font-bold text-stone-400/60">Add notes, photos, or voice memos below. Pinch or scroll to zoom.</p>
+            </div>
+          </div>
+        )
       )}
 
       {/* ── Zoom Controls ─────────────────────────────────────────────── */}
@@ -2217,7 +2243,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
                   onClick={() => setTripsTab('planned')}
                   className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all ${tripsTab === 'planned' ? 'bg-[#3a5a40] text-white shadow-lg' : 'bg-stone-100 text-stone-500'}`}
                 >
-                  Planned ({myTrips.length})
+                  My Trips ({myTrips.length})
                 </button>
                 <button
                   onClick={() => setTripsTab('saved')}
