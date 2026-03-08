@@ -1180,6 +1180,43 @@ const searchUsers = async (req, res) => {
   }
 };
 
+// @desc    Update user preferences (notifications, etc.)
+// @route   PATCH /api/auth/preferences
+// @access  Private
+const updatePreferences = async (req, res) => {
+  try {
+    const { notificationsEnabled } = req.body;
+
+    if (typeof notificationsEnabled !== 'boolean') {
+      return res.status(400).json({
+        success: false,
+        message: 'notificationsEnabled must be a boolean'
+      });
+    }
+
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      { notificationsEnabled },
+      { new: true, runValidators: true }
+    );
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    logger.info(`Preferences updated for user: ${user.email} — notificationsEnabled: ${notificationsEnabled}`);
+
+    res.status(200).json({
+      success: true,
+      message: 'Preferences updated',
+      data: { notificationsEnabled: user.notificationsEnabled }
+    });
+  } catch (error) {
+    logger.error('Update preferences error:', error);
+    res.status(500).json({ success: false, message: 'Failed to update preferences', error: error.message });
+  }
+};
+
 module.exports = {
   register,
   login,
@@ -1200,5 +1237,6 @@ module.exports = {
   declineFriendRequest,
   getNotifications,
   markNotificationsRead,
-  searchUsers
+  searchUsers,
+  updatePreferences
 };

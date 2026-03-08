@@ -81,6 +81,10 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onLogout }) => {
             posts: data.data.user.postCount || 0,
             friends: data.data.user.friendCount || 0,
           });
+          // Restore persisted notification preference
+          if (typeof data.data.user.notificationsEnabled === 'boolean') {
+            setSettings(prev => ({ ...prev, notifications: data.data.user.notificationsEnabled }));
+          }
         }
       }
     } catch (error) {
@@ -174,12 +178,36 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onLogout }) => {
     }
   };
 
-  const handleSettingToggle = (setting: keyof typeof settings) => {
-    setSettings(prev => ({
-      ...prev,
-      [setting]: !prev[setting],
-    }));
-    // In a real app, save to backend
+  const handleSettingToggle = async (setting: keyof typeof settings) => {
+    const newValue = !settings[setting];
+    setSettings(prev => ({ ...prev, [setting]: newValue }));
+
+    if (setting === 'notifications') {
+      try {
+        const response = await authFetch(`${API_BASE_URL}/api/auth/preferences`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ notificationsEnabled: newValue }),
+        });
+        if (!response.ok) {
+          // Revert on failure
+          setSettings(prev => ({ ...prev, notifications: !newValue }));
+          setMessage({ type: 'error', text: 'Failed to update notification setting' });
+          setTimeout(() => setMessage({ type: '', text: '' }), 2000);
+          return;
+        }
+        // Request or revoke browser push permission
+        if (newValue && 'Notification' in window && Notification.permission === 'default') {
+          Notification.requestPermission();
+        }
+      } catch {
+        setSettings(prev => ({ ...prev, notifications: !newValue }));
+        setMessage({ type: 'error', text: 'Failed to update notification setting' });
+        setTimeout(() => setMessage({ type: '', text: '' }), 2000);
+        return;
+      }
+    }
+
     setMessage({ type: 'success', text: 'Setting updated!' });
     setTimeout(() => setMessage({ type: '', text: '' }), 2000);
   };

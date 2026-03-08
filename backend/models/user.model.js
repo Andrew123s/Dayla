@@ -89,6 +89,10 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  notificationsEnabled: {
+    type: Boolean,
+    default: true
+  },
   emailVerified: {
     type: Boolean,
     default: false
@@ -125,6 +129,7 @@ userSchema.virtual('profile').get(function() {
     ecoScore: this.ecoScore,
     badges: this.badges,
     friendCount: this.friends.length,
+    notificationsEnabled: this.notificationsEnabled,
     createdAt: this.createdAt
   };
 });
