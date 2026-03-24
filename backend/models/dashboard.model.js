@@ -13,13 +13,11 @@ const stickyNoteSchema = new mongoose.Schema({
   },
   x: {
     type: Number,
-    required: true,
-    min: 0
+    required: true
   },
   y: {
     type: Number,
-    required: true,
-    min: 0
+    required: true
   },
   width: {
     type: Number,

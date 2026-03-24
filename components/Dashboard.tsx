@@ -448,7 +448,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
           // Restore cached name/status — no extra fetch needed
           setTripName(localStorage.getItem('currentTripName') || '');
           setTripStatus((localStorage.getItem('currentTripStatus') as Trip['status']) || 'planning');
-          fetchNotes(storedDashboardId);
+          await fetchNotes(storedDashboardId);
           return;
         }
 
@@ -486,7 +486,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
                   localStorage.setItem('currentTripId', latestTripId);
                   localStorage.setItem('currentTripName', name);
                   localStorage.setItem('currentTripStatus', status);
-                  fetchNotes(dbId);
+                  await fetchNotes(dbId);
                   return;
                 }
               }

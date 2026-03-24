@@ -90,8 +90,8 @@ const tripSchemas = {
     type: Joi.string().valid(
       'text', 'image', 'voice', 'weather', 'schedule', 'budget', 'sustainability'
     ).required(),
-    x: Joi.number().min(0).required(),
-    y: Joi.number().min(0).required(),
+    x: Joi.number().required(),
+    y: Joi.number().required(),
     width: Joi.number().min(60).max(800).required(),
     height: Joi.number().min(60).max(800).required(),
     content: Joi.string().max(50000).required(),
@@ -114,8 +114,8 @@ const tripSchemas = {
     type: Joi.string().valid(
       'text', 'image', 'voice', 'weather', 'schedule', 'budget', 'sustainability'
     ).optional(),
-    x: Joi.number().min(0).optional(),
-    y: Joi.number().min(0).optional(),
+    x: Joi.number().optional(),
+    y: Joi.number().optional(),
     width: Joi.number().min(60).max(800).optional(),
     height: Joi.number().min(60).max(800).optional(),
     content: Joi.string().max(50000).optional(),
