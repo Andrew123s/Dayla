@@ -1665,10 +1665,9 @@ const ChatView: React.FC<ChatViewProps> = ({ user }) => {
               </div>
             </div>
             
-            {/* Footer — always visible above keyboard / home indicator */}
+            {/* Footer — always visible above keyboard / nav bar / home indicator */}
             <div
-              className="border-t border-stone-100 flex-shrink-0"
-              style={{ padding: '1rem', paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}
+              className="border-t border-stone-100 flex-shrink-0 p-4 pb-24 sm:pb-4"
             >
               <button
                 onClick={async () => {
