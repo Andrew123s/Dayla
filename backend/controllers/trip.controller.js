@@ -20,15 +20,12 @@ const createTrip = async (req, res) => {
     });
 
     // Create default dashboard for the trip
+    // Owner is tracked by the `owner` field; don't duplicate into collaborators.
     const dashboard = await Dashboard.create({
       tripId: trip._id,
       name: `${name} Dashboard`,
       owner: req.user._id,
-      collaborators: [{
-        user: req.user._id,
-        role: 'admin',
-        joinedAt: new Date()
-      }]
+      collaborators: []
     });
 
     logger.info(`Trip created: ${trip.name} by ${req.user.email}`);

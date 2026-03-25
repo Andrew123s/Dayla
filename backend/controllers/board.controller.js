@@ -35,12 +35,17 @@ const getActiveUsers = async (req, res) => {
       });
     }
 
+    const ownerId = (dashboard.owner || '').toString();
+    const externalCollabs = (dashboard.collaborators || []).filter(
+      c => c.user.toString() !== ownerId
+    );
+
     res.status(200).json({
       success: true,
       data: {
         activeUsers: dashboard.activeUsers,
         count: dashboard.activeUsers.length,
-        collaboratorCount: 1 + (dashboard.collaborators || []).length,
+        collaboratorCount: 1 + externalCollabs.length,
       }
     });
   } catch (error) {
@@ -92,13 +97,18 @@ const joinDashboard = async (req, res) => {
 
     logger.info(`User ${req.user.email} joined dashboard ${boardId}`);
 
+    const ownerId = dashboard.owner.toString();
+    const externalCollabs = (dashboard.collaborators || []).filter(
+      c => c.user.toString() !== ownerId
+    );
+
     res.status(200).json({
       success: true,
       message: 'Successfully joined dashboard',
       data: {
         activeUsers: dashboard.activeUsers,
         count: dashboard.activeUsers.length,
-        collaboratorCount: 1 + (dashboard.collaborators || []).length,
+        collaboratorCount: 1 + externalCollabs.length,
       }
     });
   } catch (error) {
@@ -262,26 +272,33 @@ const inviteUser = async (req, res) => {
     const invitationUrl = `${frontendUrl}/accept-invitation?invitationId=${invitation.id}`;
 
     // Send email invitation
+    let emailDelivered = false;
     try {
-      await sendInvitationEmail(email, req.user.name, dashboard.name, invitationUrl);
-      logger.info(`Invitation email sent to ${email} for dashboard ${boardId}`);
+      const emailResult = await sendInvitationEmail(email, req.user.name, dashboard.name, invitationUrl);
+      emailDelivered = emailResult && emailResult.id && emailResult.id !== 'dev-mode' && emailResult.id !== 'email-failed' && emailResult.id !== 'email-error';
+      if (emailDelivered) {
+        logger.info(`Invitation email sent to ${email} for dashboard ${boardId}`);
+      }
     } catch (emailError) {
       logger.error('Failed to send invitation email:', emailError);
-      // Continue with invitation even if email fails
     }
 
     logger.info(`User ${req.user.email} invited ${email} to dashboard ${boardId}`);
 
     res.status(200).json({
       success: true,
-      message: 'Invitation sent successfully',
+      message: emailDelivered
+        ? 'Invitation sent successfully'
+        : 'Invitation created, but the email could not be delivered. Share the link manually.',
       data: {
         invitation: {
           id: invitation.id,
           email: invitation.email,
           status: invitation.status,
           expiresAt: invitation.expiresAt
-        }
+        },
+        emailDelivered,
+        invitationUrl: emailDelivered ? undefined : invitationUrl,
       }
     });
   } catch (error) {

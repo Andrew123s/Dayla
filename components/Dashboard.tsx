@@ -413,8 +413,12 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
           const tidStr = typeof tid === 'string' ? tid : tid.toString();
           setTripId(tidStr);
           localStorage.setItem('currentTripId', tidStr);
-          // Extract collaborator count: owner (1) + collaborators array
-          const collabs = dashboard?.collaborators || [];
+          // Count collaborators — exclude owner to avoid double-counting
+          const ownerId = (dashboard?.owner?._id || dashboard?.owner || '').toString();
+          const collabs = (dashboard?.collaborators || []).filter((c: any) => {
+            const cId = (c.user?._id || c.user || '').toString();
+            return cId !== ownerId;
+          });
           setCollaboratorCount(1 + collabs.length);
           const parts: Participant[] = [
             { id: user.id, name: 'You', avatar: user.avatar || '' },
@@ -436,7 +440,11 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
           return tidStr;
         }
         // Extract collaborators even if tripId wasn't found
-        const collabs = dashboard?.collaborators || [];
+        const ownerIdFb = (dashboard?.owner?._id || dashboard?.owner || '').toString();
+        const collabs = (dashboard?.collaborators || []).filter((c: any) => {
+          const cId = (c.user?._id || c.user || '').toString();
+          return cId !== ownerIdFb;
+        });
         setCollaboratorCount(1 + collabs.length);
       } else {
         console.warn('Failed to fetch dashboard notes:', response.status);
@@ -674,7 +682,11 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
           const data = await response.json();
           const dashboard = data.data?.dashboard;
           if (dashboard) {
-            const collabs = dashboard.collaborators || [];
+            const oid = (dashboard.owner?._id || dashboard.owner || '').toString();
+            const collabs = (dashboard.collaborators || []).filter((c: any) => {
+              const cId = (c.user?._id || c.user || '').toString();
+              return cId !== oid;
+            });
             setCollaboratorCount(1 + collabs.length);
           }
         }
@@ -1303,10 +1315,17 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
       // Close modal on success
       setShowInviteModal(false);
 
+      const emailDelivered = data.data?.emailDelivered !== false;
+      const fallbackUrl = data.data?.invitationUrl;
+      let alertMsg = `Invitation sent to ${email}! They will receive an email shortly.`;
+      if (!emailDelivered && fallbackUrl) {
+        alertMsg = `Invitation created for ${email}, but the email could not be delivered. Share this link: ${fallbackUrl}`;
+      }
+
       const successAlert = {
         id: Math.random().toString(36).substr(2, 9),
-        message: `Invitation sent to ${email}! They will receive an email shortly.`,
-        type: 'success' as const,
+        message: alertMsg,
+        type: emailDelivered ? 'success' as const : 'warning' as const,
         timestamp: new Date()
       };
       setShowAlerts(prev => [...prev, successAlert]);
