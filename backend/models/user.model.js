@@ -128,7 +128,7 @@ userSchema.virtual('profile').get(function() {
     location: this.location,
     ecoScore: this.ecoScore,
     badges: this.badges,
-    friendCount: this.friends.length,
+    friendCount: (this.friends || []).length,
     notificationsEnabled: this.notificationsEnabled,
     createdAt: this.createdAt
   };
