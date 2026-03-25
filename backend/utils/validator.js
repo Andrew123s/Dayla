@@ -57,7 +57,19 @@ const tripSchemas = {
     dates: Joi.object({
       startDate: Joi.string().optional(),
       endDate: Joi.string().optional()
-    }).optional()
+    }).optional(),
+    destination: Joi.object({
+      name: Joi.string().max(200).optional(),
+      coordinates: Joi.object({
+        lat: Joi.number().optional(),
+        lng: Joi.number().optional()
+      }).optional(),
+      country: Joi.string().max(100).optional(),
+      region: Joi.string().max(100).optional()
+    }).optional(),
+    category: Joi.string().valid(
+      'hiking', 'business', 'family', 'camping', 'exploring', 'beach', 'road_trip', 'cultural', 'other'
+    ).optional()
   }),
 
   updateTrip: Joi.object({

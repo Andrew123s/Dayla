@@ -14,7 +14,8 @@ import {
   CreditCard, PieChart, Users, DollarSign, Filter, Trash2, Leaf, Droplets,
   Trees, Zap, Award, BookOpen, Globe, TrendingDown, Store, Star, Play, Pause, Move, Maximize2, Crop as CropIcon,
   UserPlus, Bell, PenTool, Loader, Cloud, CloudLightning,
-  Sparkles, Mountain, Briefcase, Home, Tent, Compass, Heart, Bookmark, Tag, FolderOpen, Package
+  Sparkles, Mountain, Briefcase, Home, Tent, Compass, Heart, Bookmark, Tag, FolderOpen, Package,
+  Car, Check, ArrowRight
 } from 'lucide-react';
 import SmartPacking from './SmartPacking';
 import StickyNoteCard from './StickyNoteCard';
@@ -258,6 +259,12 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   const [newTripName, setNewTripName] = useState('');
   const [creatingTrip, setCreatingTrip] = useState(false);
   const [createTripError, setCreateTripError] = useState('');
+  const [createTripStep, setCreateTripStep] = useState(1);
+  const [newTripCategory, setNewTripCategory] = useState<TripCategory | ''>('');
+  const [newTripDestination, setNewTripDestination] = useState('');
+  const [newTripStartDate, setNewTripStartDate] = useState('');
+  const [newTripEndDate, setNewTripEndDate] = useState('');
+  const [newTripDescription, setNewTripDescription] = useState('');
 
   // Feature Data
   const [currency, setCurrency] = useState(CURRENCIES[0]);
@@ -719,19 +726,43 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
     setEditingTripCategory(null);
   };
 
-  // Create a new named trip (status: draft) and switch the canvas to it
+  const resetCreateTripForm = () => {
+    setShowCreateTripModal(false);
+    setNewTripName('');
+    setNewTripCategory('');
+    setNewTripDestination('');
+    setNewTripStartDate('');
+    setNewTripEndDate('');
+    setNewTripDescription('');
+    setCreateTripError('');
+    setCreateTripStep(1);
+  };
+
   const handleCreateTrip = async () => {
     if (!newTripName.trim()) return;
     setCreatingTrip(true);
     setCreateTripError('');
     try {
+      const payload: Record<string, unknown> = {
+        name: newTripName.trim(),
+        status: 'planning',
+      };
+      if (newTripDescription.trim()) payload.description = newTripDescription.trim();
+      if (newTripCategory) payload.category = newTripCategory;
+      if (newTripDestination.trim()) payload.destination = { name: newTripDestination.trim() };
+      if (newTripStartDate || newTripEndDate) {
+        payload.dates = {
+          ...(newTripStartDate && { startDate: newTripStartDate }),
+          ...(newTripEndDate && { endDate: newTripEndDate }),
+        };
+      }
+
       const response = await authFetch(`${API_BASE_URL}/api/trips`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newTripName.trim(), status: 'draft' }),
+        body: JSON.stringify(payload),
       });
 
-      // Guard against non-JSON responses (rate limit, proxy errors, etc.)
       const contentType = response.headers.get('content-type') || '';
       if (!contentType.includes('application/json')) {
         const text = await response.text();
@@ -766,16 +797,14 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
       setTripId(newTripId);
       setDashboardId(newDashboardId);
       setTripName(name);
-      setTripStatus('draft');
+      setTripStatus('planning');
       localStorage.setItem('currentTripId', newTripId);
       localStorage.setItem('currentDashboardId', newDashboardId);
       localStorage.setItem('currentTripName', name);
-      localStorage.setItem('currentTripStatus', 'draft');
+      localStorage.setItem('currentTripStatus', 'planning');
       setNotes([]);
-      setShowCreateTripModal(false);
       setShowTripsPanel(false);
-      setNewTripName('');
-      setCreateTripError('');
+      resetCreateTripForm();
       fetchTripsData();
     } catch (err) {
       console.error('Failed to create trip:', err);
@@ -2544,46 +2573,232 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
       })()}
 
 
-      {/* Create Trip Modal */}
+      {/* Create Trip Modal — Multi-step */}
       {showCreateTripModal && (
-        <div className="absolute inset-0 z-[120] flex items-center justify-center bg-black/60 backdrop-blur-sm p-6">
-          <div className="bg-white w-full max-w-sm rounded-[2.5rem] p-6 shadow-2xl animate-in zoom-in-95 duration-200">
-            <h3 className="text-xl font-black text-[#3a5a40] mb-1 flex items-center gap-2">
-              <Plus size={22} /> New Trip
-            </h3>
-            <p className="text-xs text-stone-400 mb-5">Give your trip a name to get started.</p>
-            <input
-              type="text"
-              value={newTripName}
-              onChange={e => { setNewTripName(e.target.value); if (createTripError) setCreateTripError(''); }}
-              onKeyDown={e => e.key === 'Enter' && handleCreateTrip()}
-              placeholder="e.g. Bali Summer 2026"
-              className="w-full bg-stone-50 border border-stone-200 rounded-2xl px-4 py-3 text-sm font-bold focus:ring-1 focus:ring-[#3a5a40] focus:border-[#3a5a40] mb-3"
-              autoFocus
-            />
-            {createTripError && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 font-medium">
-                {createTripError}
-              </div>
-            )}
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={() => { setShowCreateTripModal(false); setNewTripName(''); setCreateTripError(''); }}
-                disabled={creatingTrip}
-                className="flex-1 py-4 bg-stone-100 text-stone-500 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-stone-200 transition-colors disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleCreateTrip}
-                disabled={!newTripName.trim() || creatingTrip}
-                className="flex-1 py-4 bg-[#3a5a40] text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg hover:bg-[#588157] transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                {creatingTrip && <Loader size={14} className="animate-spin" />}
-                Create
-              </button>
+        <div className="absolute inset-0 z-[120] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-white w-full max-w-sm rounded-[2.5rem] shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden">
+            {/* Step indicators */}
+            <div className="flex items-center gap-1.5 px-6 pt-5 pb-2">
+              {[1, 2, 3].map(s => (
+                <div key={s} className={`h-1 flex-1 rounded-full transition-colors duration-300 ${s <= createTripStep ? 'bg-[#3a5a40]' : 'bg-stone-200'}`} />
+              ))}
+            </div>
+
+            <div className="px-6 pb-5">
+              {/* ---------- STEP 1: Name & Category ---------- */}
+              {createTripStep === 1 && (
+                <div>
+                  <h3 className="text-lg font-black text-[#3a5a40] mb-0.5 flex items-center gap-2">
+                    <Compass size={20} /> Plan a New Trip
+                  </h3>
+                  <p className="text-[11px] text-stone-400 mb-4">What should we call this adventure?</p>
+
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-stone-400 mb-1.5">Trip Name *</label>
+                  <input
+                    type="text"
+                    value={newTripName}
+                    onChange={e => { setNewTripName(e.target.value); if (createTripError) setCreateTripError(''); }}
+                    onKeyDown={e => e.key === 'Enter' && newTripName.trim() && setCreateTripStep(2)}
+                    placeholder="e.g. Bali Summer 2026"
+                    className="w-full bg-stone-50 border border-stone-200 rounded-2xl px-4 py-3 text-sm font-bold focus:ring-2 focus:ring-[#3a5a40]/30 focus:border-[#3a5a40] mb-4 transition-all"
+                    autoFocus
+                  />
+
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-stone-400 mb-2">Category</label>
+                  <div className="grid grid-cols-3 gap-2 mb-4">
+                    {([
+                      { value: 'hiking', label: 'Hiking', icon: Mountain },
+                      { value: 'beach', label: 'Beach', icon: Sun },
+                      { value: 'camping', label: 'Camping', icon: Tent },
+                      { value: 'business', label: 'Business', icon: Briefcase },
+                      { value: 'family', label: 'Family', icon: Home },
+                      { value: 'exploring', label: 'Exploring', icon: Compass },
+                      { value: 'road_trip', label: 'Road Trip', icon: Car },
+                      { value: 'cultural', label: 'Cultural', icon: Globe },
+                      { value: 'other', label: 'Other', icon: Sparkles },
+                    ] as { value: TripCategory; label: string; icon: React.FC<{ size?: number; className?: string }> }[]).map(cat => {
+                      const Icon = cat.icon;
+                      const selected = newTripCategory === cat.value;
+                      return (
+                        <button
+                          key={cat.value}
+                          type="button"
+                          onClick={() => setNewTripCategory(selected ? '' : cat.value)}
+                          className={`flex flex-col items-center gap-1 py-2.5 rounded-xl border text-[10px] font-bold uppercase tracking-wider transition-all active:scale-95 ${
+                            selected
+                              ? 'bg-[#3a5a40] text-white border-[#3a5a40] shadow-md'
+                              : 'bg-stone-50 text-stone-500 border-stone-200 hover:border-[#3a5a40]/40'
+                          }`}
+                        >
+                          <Icon size={18} className={selected ? 'text-white' : 'text-stone-400'} />
+                          {cat.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {createTripError && (
+                    <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 font-medium">
+                      {createTripError}
+                    </div>
+                  )}
+
+                  <div className="flex gap-3">
+                    <button type="button" onClick={resetCreateTripForm} className="flex-1 py-3.5 bg-stone-100 text-stone-500 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-stone-200 transition-colors">
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCreateTripStep(2)}
+                      disabled={!newTripName.trim()}
+                      className="flex-1 py-3.5 bg-[#3a5a40] text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg hover:bg-[#588157] transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
+                    >
+                      Next <ArrowRight size={14} />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* ---------- STEP 2: Destination & Dates ---------- */}
+              {createTripStep === 2 && (
+                <div>
+                  <h3 className="text-lg font-black text-[#3a5a40] mb-0.5 flex items-center gap-2">
+                    <MapPin size={20} /> Where & When
+                  </h3>
+                  <p className="text-[11px] text-stone-400 mb-4">Add destination and dates (optional — you can set these later).</p>
+
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-stone-400 mb-1.5">Destination</label>
+                  <div className="relative mb-4">
+                    <MapPin size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400" />
+                    <input
+                      type="text"
+                      value={newTripDestination}
+                      onChange={e => setNewTripDestination(e.target.value)}
+                      placeholder="e.g. Bali, Indonesia"
+                      className="w-full bg-stone-50 border border-stone-200 rounded-2xl pl-10 pr-4 py-3 text-sm font-bold focus:ring-2 focus:ring-[#3a5a40]/30 focus:border-[#3a5a40] transition-all"
+                      autoFocus
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 mb-4">
+                    <div>
+                      <label className="block text-[10px] font-black uppercase tracking-widest text-stone-400 mb-1.5">Start Date</label>
+                      <input
+                        type="date"
+                        value={newTripStartDate}
+                        onChange={e => setNewTripStartDate(e.target.value)}
+                        className="w-full bg-stone-50 border border-stone-200 rounded-2xl px-3 py-3 text-sm font-bold focus:ring-2 focus:ring-[#3a5a40]/30 focus:border-[#3a5a40] transition-all"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-black uppercase tracking-widest text-stone-400 mb-1.5">End Date</label>
+                      <input
+                        type="date"
+                        value={newTripEndDate}
+                        onChange={e => setNewTripEndDate(e.target.value)}
+                        min={newTripStartDate || undefined}
+                        className="w-full bg-stone-50 border border-stone-200 rounded-2xl px-3 py-3 text-sm font-bold focus:ring-2 focus:ring-[#3a5a40]/30 focus:border-[#3a5a40] transition-all"
+                      />
+                    </div>
+                  </div>
+
+                  {newTripStartDate && newTripEndDate && (
+                    <div className="mb-4 px-3 py-2 bg-[#e9edc9]/60 rounded-xl flex items-center gap-2 text-xs font-bold text-[#3a5a40]">
+                      <Calendar size={14} />
+                      {Math.max(1, Math.ceil((new Date(newTripEndDate).getTime() - new Date(newTripStartDate).getTime()) / 86400000))} day{Math.ceil((new Date(newTripEndDate).getTime() - new Date(newTripStartDate).getTime()) / 86400000) !== 1 ? 's' : ''}
+                    </div>
+                  )}
+
+                  {createTripError && (
+                    <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 font-medium">
+                      {createTripError}
+                    </div>
+                  )}
+
+                  <div className="flex gap-3">
+                    <button type="button" onClick={() => setCreateTripStep(1)} className="flex-1 py-3.5 bg-stone-100 text-stone-500 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-stone-200 transition-colors flex items-center justify-center gap-1">
+                      <ChevronLeft size={14} /> Back
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCreateTripStep(3)}
+                      className="flex-1 py-3.5 bg-[#3a5a40] text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg hover:bg-[#588157] transition-colors flex items-center justify-center gap-2"
+                    >
+                      Next <ArrowRight size={14} />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* ---------- STEP 3: Description & Review ---------- */}
+              {createTripStep === 3 && (
+                <div>
+                  <h3 className="text-lg font-black text-[#3a5a40] mb-0.5 flex items-center gap-2">
+                    <PenTool size={20} /> Final Details
+                  </h3>
+                  <p className="text-[11px] text-stone-400 mb-4">Add a short description, then create your trip.</p>
+
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-stone-400 mb-1.5">Description</label>
+                  <textarea
+                    value={newTripDescription}
+                    onChange={e => setNewTripDescription(e.target.value)}
+                    placeholder="What's the plan? Any notes for collaborators..."
+                    rows={3}
+                    maxLength={500}
+                    className="w-full bg-stone-50 border border-stone-200 rounded-2xl px-4 py-3 text-sm font-bold focus:ring-2 focus:ring-[#3a5a40]/30 focus:border-[#3a5a40] resize-none mb-4 transition-all"
+                    autoFocus
+                  />
+
+                  {/* Review summary */}
+                  <div className="bg-[#f7f3ee] rounded-2xl p-4 mb-4 space-y-2">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-stone-400 mb-2">Trip Summary</p>
+                    <div className="flex items-center gap-2 text-sm font-bold text-stone-700">
+                      <Compass size={14} className="text-[#3a5a40]" /> {newTripName}
+                    </div>
+                    {newTripCategory && (
+                      <div className="flex items-center gap-2 text-xs text-stone-500">
+                        <Tag size={12} className="text-[#588157]" /> {newTripCategory.replace('_', ' ')}
+                      </div>
+                    )}
+                    {newTripDestination && (
+                      <div className="flex items-center gap-2 text-xs text-stone-500">
+                        <MapPin size={12} className="text-[#588157]" /> {newTripDestination}
+                      </div>
+                    )}
+                    {(newTripStartDate || newTripEndDate) && (
+                      <div className="flex items-center gap-2 text-xs text-stone-500">
+                        <Calendar size={12} className="text-[#588157]" /> {newTripStartDate || '...'} → {newTripEndDate || '...'}
+                      </div>
+                    )}
+                    {newTripDescription && (
+                      <div className="flex items-start gap-2 text-xs text-stone-500">
+                        <PenTool size={12} className="text-[#588157] shrink-0 mt-0.5" /> <span className="line-clamp-2">{newTripDescription}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {createTripError && (
+                    <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 font-medium">
+                      {createTripError}
+                    </div>
+                  )}
+
+                  <div className="flex gap-3">
+                    <button type="button" onClick={() => setCreateTripStep(2)} disabled={creatingTrip} className="flex-1 py-3.5 bg-stone-100 text-stone-500 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-stone-200 transition-colors disabled:opacity-50 flex items-center justify-center gap-1">
+                      <ChevronLeft size={14} /> Back
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCreateTrip}
+                      disabled={creatingTrip}
+                      className="flex-1 py-3.5 bg-[#3a5a40] text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg hover:bg-[#588157] transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                      {creatingTrip ? <Loader size={14} className="animate-spin" /> : <Check size={14} />}
+                      {creatingTrip ? 'Creating...' : 'Create Trip'}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
