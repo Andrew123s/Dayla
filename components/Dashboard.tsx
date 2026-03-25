@@ -239,6 +239,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   const [tripsLoading, setTripsLoading] = useState(false);
   const [tripsTab, setTripsTab] = useState<'planned' | 'saved'>('planned');
   const [tripsFilter, setTripsFilter] = useState<TripCategory | 'all'>('all');
+  const [tripsStatusFilter, setTripsStatusFilter] = useState<Trip['status'] | 'all'>('all');
   const [editingTripCategory, setEditingTripCategory] = useState<string | null>(null);
 
   // Collaboration Features
@@ -2235,9 +2236,11 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
           { value: 'other', label: 'Other', icon: <Tag size={14} />, emoji: '🏷️' },
         ];
 
-        const filteredTrips = tripsFilter === 'all'
-          ? myTrips
-          : myTrips.filter(t => t.category === tripsFilter);
+        const filteredTrips = myTrips.filter(t => {
+          if (tripsStatusFilter !== 'all' && t.status !== tripsStatusFilter) return false;
+          if (tripsFilter !== 'all' && t.category !== tripsFilter) return false;
+          return true;
+        });
 
         const filteredSaved = tripsFilter === 'all'
           ? savedTrips
@@ -2282,6 +2285,31 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
                 >
                   <Bookmark size={12} className="inline mr-1" />Saved ({savedTrips.length})
                 </button>
+              </div>
+
+              {/* Status Filter */}
+              <div className="flex gap-1.5 overflow-x-auto scrollbar-hide pb-2">
+                {([
+                  { value: 'all', label: 'All' },
+                  { value: 'draft', label: 'Draft' },
+                  { value: 'planning', label: 'Planning' },
+                  { value: 'planned', label: 'Planned' },
+                  { value: 'booked', label: 'Booked' },
+                  { value: 'in_progress', label: 'In Progress' },
+                  { value: 'completed', label: 'Completed' },
+                ] as { value: Trip['status'] | 'all'; label: string }[]).map(s => (
+                  <button
+                    key={s.value}
+                    onClick={() => setTripsStatusFilter(s.value)}
+                    className={`px-3 py-1 rounded-full text-[10px] font-bold whitespace-nowrap transition-all shrink-0 ${
+                      tripsStatusFilter === s.value
+                        ? `${statusColors[s.value] || 'bg-[#3a5a40] text-white'} shadow-md ring-1 ring-current/20`
+                        : 'bg-stone-100 text-stone-500 hover:bg-stone-200'
+                    }`}
+                  >
+                    {s.label}{s.value !== 'all' ? ` (${myTrips.filter(t => t.status === s.value).length})` : ''}
+                  </button>
+                ))}
               </div>
 
               {/* Category Filter */}
@@ -2408,7 +2436,11 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
                   <div className="text-center py-16">
                     <FolderOpen size={40} className="mx-auto text-stone-300 mb-3" />
                     <p className="text-sm text-stone-400 font-bold">
-                      {tripsFilter !== 'all' ? `No ${CATEGORIES.find(c => c.value === tripsFilter)?.label} trips` : 'No planned trips yet'}
+                      {tripsStatusFilter !== 'all'
+                        ? `No ${tripsStatusFilter.replace('_', ' ')} trips`
+                        : tripsFilter !== 'all'
+                          ? `No ${CATEGORIES.find(c => c.value === tripsFilter)?.label} trips`
+                          : 'No trips yet'}
                     </p>
                     <p className="text-xs text-stone-300 mt-1">Start planning on the canvas to see your trips here</p>
                   </div>
