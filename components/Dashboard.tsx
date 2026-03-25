@@ -1,5 +1,5 @@
 
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { io, Socket } from 'socket.io-client';
 import {
   StickyNote, NoteAuthor, User, WeatherDay, WeatherSuggestion, TripDates,
@@ -210,6 +210,11 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   const audioChunksRef = useRef<Blob[]>([]);
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const socketRef = useRef<Socket | null>(null);
+
+  // ── Persistence helpers ──────────────────────────────────────────────────────
+  const notesRef = useRef<StickyNote[]>([]);
+  const dirtyNoteIdsRef = useRef<Set<string>>(new Set());
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── Infinite canvas state ────────────────────────────────────────────────────
   const canvasContainerRef = useRef<HTMLDivElement>(null);
@@ -516,6 +521,93 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
 
     initializeDashboard();
   }, []);
+
+  // Keep notesRef in sync with state so unmount cleanup can read latest notes
+  useEffect(() => { notesRef.current = notes; }, [notes]);
+
+  // Flush any dirty notes to the backend (called by debounce timer and unmount)
+  const flushDirtyNotes = useCallback(() => {
+    const dirty = dirtyNoteIdsRef.current;
+    if (dirty.size === 0) return;
+    const currentTripId = tripId || localStorage.getItem('currentTripId');
+    if (!currentTripId) return;
+    const currentNotes = notesRef.current;
+    const token = localStorage.getItem('dayla_auth_token');
+    if (!token) return;
+    const ids = [...dirty];
+    dirty.clear();
+    for (const noteId of ids) {
+      const note = currentNotes.find(n => n.id === noteId);
+      if (!note) continue;
+      fetch(`${API_BASE_URL}/api/trips/${currentTripId}/notes/${noteId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(note),
+        keepalive: true,
+      }).catch(() => {});
+    }
+  }, [tripId]);
+
+  // Schedule a debounced save (resets on each call)
+  const scheduleDirtySave = useCallback(() => {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(flushDirtyNotes, 1200);
+  }, [flushDirtyNotes]);
+
+  // On unmount: cancel timer and flush any remaining dirty notes immediately
+  useEffect(() => {
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      // Read latest values from refs — safe because refs are mutable
+      const dirty = dirtyNoteIdsRef.current;
+      if (dirty.size === 0) return;
+      const tid = localStorage.getItem('currentTripId');
+      const token = localStorage.getItem('dayla_auth_token');
+      if (!tid || !token) return;
+      const curr = notesRef.current;
+      for (const noteId of [...dirty]) {
+        const note = curr.find(n => n.id === noteId);
+        if (!note) continue;
+        fetch(`${API_BASE_URL}/api/trips/${tid}/notes/${noteId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify(note),
+          keepalive: true,
+        }).catch(() => {});
+      }
+      dirty.clear();
+    };
+  }, []);
+
+  // Persist canvas viewport to localStorage whenever pan/zoom settles
+  const saveViewport = useCallback(() => {
+    const dbId = dashboardId || localStorage.getItem('currentDashboardId');
+    if (!dbId) return;
+    localStorage.setItem(`dayla_viewport_${dbId}`, JSON.stringify({
+      zoom: zoomRef.current, panX: panXRef.current, panY: panYRef.current,
+    }));
+  }, [dashboardId]);
+
+  // Restore canvas viewport when dashboardId is known
+  useEffect(() => {
+    if (!dashboardId) return;
+    const saved = localStorage.getItem(`dayla_viewport_${dashboardId}`);
+    if (!saved) return;
+    try {
+      const { zoom, panX, panY } = JSON.parse(saved);
+      zoomRef.current = zoom ?? 1;
+      panXRef.current = panX ?? 0;
+      panYRef.current = panY ?? 0;
+      setZoomDisplay(Math.round((zoom ?? 1) * 100));
+      // Apply immediately once the canvas layer is available
+      requestAnimationFrame(() => {
+        const layer = canvasLayerRef.current;
+        if (layer) {
+          layer.style.transform = `translate3d(${panXRef.current}px, ${panYRef.current}px, 0) scale(${zoomRef.current})`;
+        }
+      });
+    } catch { /* corrupt data — ignore */ }
+  }, [dashboardId]);
 
   // Connect to socket and manage active users
   useEffect(() => {
@@ -924,6 +1016,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   };
 
   const stampEdit = (noteId: string) => {
+    dirtyNoteIdsRef.current.delete(noteId);
     const author = makeAuthor();
     setNotes(prev => {
       const updated = prev.map(n => n.id === noteId ? { ...n, lastEditedBy: author } : n);
@@ -1271,6 +1364,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
     zoomRef.current = clamped;
     applyTransform();
     setZoomDisplay(Math.round(clamped * 100));
+    saveViewport();
   };
 
   // Wheel zoom + pinch-to-zoom touch events (passive: false to preventDefault)
@@ -1324,6 +1418,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
       if (e.touches.length < 2) {
         pinching = false;
         setZoomDisplay(Math.round(zoomRef.current * 100));
+        saveViewport();
       }
     };
 
@@ -1357,7 +1452,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
         if (e.code === 'Digit0') {
           e.preventDefault();
           zoomRef.current = 1; panXRef.current = 0; panYRef.current = 0;
-          applyTransform(); setZoomDisplay(100);
+          applyTransform(); setZoomDisplay(100); saveViewport();
         }
       }
     };
@@ -1388,7 +1483,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   };
 
   const handleCanvasPointerUp = () => {
-    if (isPanningRef.current) { isPanningRef.current = false; setIsPanning(false); }
+    if (isPanningRef.current) { isPanningRef.current = false; setIsPanning(false); saveViewport(); }
   };
 
   return (
@@ -1486,6 +1581,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
               croppingId={croppingId}
               onContentChange={(id, content) => {
                 setNotes(prev => prev.map(n => n.id === id ? { ...n, content } : n));
+                dirtyNoteIdsRef.current.add(id);
+                scheduleDirtySave();
               }}
               onPositionChange={handleNotePositionChange}
               onSizeChange={handleNoteSizeChange}
@@ -1924,7 +2021,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
                           <div className="flex items-center gap-3">
                             <span className="text-lg">{n.emoji}</span>
                             <span className="text-xs font-bold text-stone-700 flex-1">{n.content}</span>
-                            <button onClick={() => setNotes(prev => prev.filter(p => p.id !== n.id))} className="text-stone-300 hover:text-red-400 transition-colors">
+                            <button onClick={() => handleNoteDelete(n.id)} className="text-stone-300 hover:text-red-400 transition-colors">
                               <X size={14} />
                             </button>
                           </div>
