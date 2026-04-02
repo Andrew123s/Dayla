@@ -87,7 +87,7 @@ export default function ChatScreen({ route, navigation }: ChatScreenProps) {
     };
   }, [loadMessages]);
 
-  const send = async () => {
+  const send = useCallback(async () => {
     const text = input.trim();
     if (!text || sending) return;
     setSending(true);
@@ -120,9 +120,14 @@ export default function ChatScreen({ route, navigation }: ChatScreenProps) {
     } finally {
       setSending(false);
     }
-  };
+  }, [conversationId, input, sending, loadMessages]);
 
-  const renderItem = ({ item }: { item: Message }) => {
+  const goBack = useCallback(() => {
+    navigation.goBack();
+  }, [navigation]);
+
+  const renderItem = useCallback(
+    ({ item }: { item: Message }) => {
     const sid = String(item.sender?._id ?? '');
     const isMine = sid === myId && myId !== '';
     return (
@@ -149,7 +154,11 @@ export default function ChatScreen({ route, navigation }: ChatScreenProps) {
         </View>
       </View>
     );
-  };
+    },
+    [myId]
+  );
+
+  const keyExtractor = useCallback((item: Message) => item._id, []);
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -159,7 +168,7 @@ export default function ChatScreen({ route, navigation }: ChatScreenProps) {
         keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0}
       >
         <View style={styles.topBar}>
-          <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={8}>
+          <TouchableOpacity onPress={goBack} hitSlop={8}>
             <Text style={styles.back}>‹ Back</Text>
           </TouchableOpacity>
         </View>
@@ -174,7 +183,7 @@ export default function ChatScreen({ route, navigation }: ChatScreenProps) {
           <FlatList
             data={messages}
             inverted
-            keyExtractor={(item) => item._id}
+            keyExtractor={keyExtractor}
             renderItem={renderItem}
             contentContainerStyle={styles.listContent}
           />

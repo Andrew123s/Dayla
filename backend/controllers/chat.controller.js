@@ -75,23 +75,54 @@ const createConversation = async (req, res) => {
 // @access  Private
 const getConversations = async (req, res) => {
   try {
-    const conversations = await Conversation.find({
+    const filter = {
       'participants.user': req.user._id,
       participants: { $exists: true, $ne: [] }
-    })
-    .populate('participants.user', 'name avatar')
-    .populate({
-      path: 'lastMessage',
-      populate: { path: 'sender', select: 'name avatar' }
-    })
-    .sort({ updatedAt: -1 })
-    .lean();
+    };
+
+    const baseQuery = () =>
+      Conversation.find(filter)
+        .populate('participants.user', 'name avatar')
+        .populate({
+          path: 'lastMessage',
+          populate: { path: 'sender', select: 'name avatar' }
+        })
+        .sort({ updatedAt: -1 });
+
+    const usePagination =
+      req.query.page !== undefined || req.query.limit !== undefined;
+
+    if (!usePagination) {
+      const conversations = await baseQuery().lean();
+      return res.status(200).json({
+        success: true,
+        data: {
+          conversations,
+          count: conversations.length
+        }
+      });
+    }
+
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit, 10) || 10));
+    const skip = (page - 1) * limit;
+
+    const [conversations, total] = await Promise.all([
+      baseQuery().skip(skip).limit(limit).lean(),
+      Conversation.countDocuments(filter)
+    ]);
 
     res.status(200).json({
       success: true,
       data: {
         conversations,
-        count: conversations.length
+        count: conversations.length,
+        pagination: {
+          page,
+          limit,
+          total,
+          pages: Math.ceil(total / limit) || 1
+        }
       }
     });
   } catch (error) {

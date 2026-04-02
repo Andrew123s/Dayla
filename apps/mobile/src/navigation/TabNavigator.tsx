@@ -1,3 +1,9 @@
+/**
+ * Tab stacks are imported statically (not React.lazy). React Native does not
+ * support React.lazy/Suspense for screen bundles the way web React does; lazy
+ * loading here is handled by React Navigation: a tab’s stack mounts when that
+ * tab is first focused, which is the standard RN pattern for deferring work.
+ */
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Text } from 'react-native';
 import ChatStack from './ChatStack';

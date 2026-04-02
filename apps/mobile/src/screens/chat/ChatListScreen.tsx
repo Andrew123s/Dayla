@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -64,32 +64,57 @@ function formatTime(iso?: string) {
   });
 }
 
+const PAGE_SIZE = 10;
+
 export default function ChatListScreen({ navigation }: ChatListScreenProps) {
   const { user } = useAuth();
   const myId = user?.id ?? user?._id;
   const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const loadingMoreRef = useRef(false);
 
-  const loadConversations = useCallback(async () => {
+  const loadConversations = useCallback(async (pageNum: number, append: boolean) => {
     setError(null);
     try {
-      const res = await authFetch('/api/chat/conversations');
+      const res = await authFetch(
+        `/api/chat/conversations?page=${pageNum}&limit=${PAGE_SIZE}`
+      );
       const json = (await res.json().catch(() => ({}))) as {
         success?: boolean;
-        data?: { conversations?: Conversation[] };
+        data?: {
+          conversations?: Conversation[];
+          pagination?: { page: number; pages: number };
+        };
         message?: string;
       };
       if (!res.ok) {
         throw new Error(json.message ?? 'Failed to load conversations');
       }
-      setConversations(json.data?.conversations ?? []);
+      const newRows = json.data?.conversations ?? [];
+      const pagination = json.data?.pagination;
+      if (append) {
+        setConversations((prev) => [...prev, ...newRows]);
+      } else {
+        setConversations(newRows);
+      }
+      setHasMore(
+        pagination
+          ? pageNum < pagination.pages
+          : newRows.length >= PAGE_SIZE
+      );
     } catch (e) {
       setError(
         e instanceof Error ? e.message : 'Failed to load conversations'
       );
-      setConversations([]);
+      if (!append) {
+        setConversations([]);
+        setHasMore(false);
+      }
     }
   }, []);
 
@@ -97,7 +122,8 @@ export default function ChatListScreen({ navigation }: ChatListScreenProps) {
     let active = true;
     (async () => {
       setLoading(true);
-      await loadConversations();
+      setPage(1);
+      await loadConversations(1, false);
       if (active) setLoading(false);
     })();
     return () => {
@@ -107,11 +133,28 @@ export default function ChatListScreen({ navigation }: ChatListScreenProps) {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await loadConversations();
+    setPage(1);
+    await loadConversations(1, false);
     setRefreshing(false);
   }, [loadConversations]);
 
-  const resolveTitle = (c: Conversation): string => {
+  const onEndReached = useCallback(() => {
+    if (loadingMoreRef.current || loadingMore || !hasMore || loading) return;
+    loadingMoreRef.current = true;
+    const nextPage = page + 1;
+    setLoadingMore(true);
+    (async () => {
+      try {
+        await loadConversations(nextPage, true);
+        setPage(nextPage);
+      } finally {
+        setLoadingMore(false);
+        loadingMoreRef.current = false;
+      }
+    })();
+  }, [loadingMore, hasMore, loading, page, loadConversations]);
+
+  const resolveTitle = useCallback((c: Conversation): string => {
     if (c.isGroup && c.name) return c.name;
     const others =
       c.participants?.filter(
@@ -121,9 +164,9 @@ export default function ChatListScreen({ navigation }: ChatListScreenProps) {
       ) ?? [];
     const other = others[0]?.user;
     return other?.name ?? c.name ?? 'Chat';
-  };
+  }, [myId]);
 
-  const resolveAvatar = (c: Conversation): string | null | undefined => {
+  const resolveAvatar = useCallback((c: Conversation): string | null | undefined => {
     const others =
       c.participants?.filter(
         (p) =>
@@ -131,13 +174,14 @@ export default function ChatListScreen({ navigation }: ChatListScreenProps) {
           String(p.user._id ?? '') !== String(myId ?? '')
       ) ?? [];
     return others[0]?.user?.avatar ?? undefined;
-  };
+  }, [myId]);
 
-  const onFab = () => {
+  const onFab = useCallback(() => {
     Alert.alert('New conversation', 'Composer will open here.');
-  };
+  }, []);
 
-  const renderItem = ({ item }: { item: Conversation }) => {
+  const renderItem = useCallback(
+    ({ item }: { item: Conversation }) => {
     const rowTitle = resolveTitle(item);
     const avatar = resolveAvatar(item);
     const initial = rowTitle.charAt(0).toUpperCase();
@@ -177,7 +221,17 @@ export default function ChatListScreen({ navigation }: ChatListScreenProps) {
         </View>
       </TouchableOpacity>
     );
-  };
+    },
+    [navigation, resolveAvatar, resolveTitle]
+  );
+
+  const keyExtractor = useCallback((item: Conversation) => item._id, []);
+
+  const listFooter = loadingMore ? (
+    <View style={styles.footerLoading}>
+      <ActivityIndicator size="small" color={colors.primary} />
+    </View>
+  ) : null;
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -194,8 +248,10 @@ export default function ChatListScreen({ navigation }: ChatListScreenProps) {
       ) : (
         <FlatList
           data={conversations}
-          keyExtractor={(item) => item._id}
+          keyExtractor={keyExtractor}
           renderItem={renderItem}
+          onEndReached={onEndReached}
+          onEndReachedThreshold={0.5}
           contentContainerStyle={
             conversations.length === 0 ? styles.emptyList : styles.list
           }
@@ -209,6 +265,7 @@ export default function ChatListScreen({ navigation }: ChatListScreenProps) {
           ListEmptyComponent={
             <Text style={styles.emptyText}>No conversations yet</Text>
           }
+          ListFooterComponent={listFooter}
         />
       )}
 
@@ -316,6 +373,10 @@ const styles = StyleSheet.create({
   preview: {
     fontSize: 14,
     color: colors.muted,
+  },
+  footerLoading: {
+    paddingVertical: 16,
+    alignItems: 'center',
   },
   fab: {
     position: 'absolute',

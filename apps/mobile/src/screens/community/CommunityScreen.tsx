@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -39,28 +39,51 @@ type CommunityPost = {
   liked?: boolean;
 };
 
+const PAGE_SIZE = 10;
+
 export default function CommunityScreen() {
   const [posts, setPosts] = useState<CommunityPost[]>([]);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const loadingMoreRef = useRef(false);
 
-  const loadPosts = useCallback(async () => {
+  const loadPosts = useCallback(async (pageNum: number, append: boolean) => {
     setError(null);
     try {
-      const res = await authFetch('/api/community/posts');
+      const res = await authFetch(
+        `/api/community/posts?page=${pageNum}&limit=${PAGE_SIZE}`
+      );
       const json = (await res.json().catch(() => ({}))) as {
         success?: boolean;
-        data?: { posts?: CommunityPost[] };
+        data?: {
+          posts?: CommunityPost[];
+          pagination?: { page: number; pages: number };
+        };
         message?: string;
       };
       if (!res.ok) {
         throw new Error(json.message ?? 'Failed to load posts');
       }
-      setPosts(json.data?.posts ?? []);
+      const newPosts = json.data?.posts ?? [];
+      const pagination = json.data?.pagination;
+      if (append) {
+        setPosts((prev) => [...prev, ...newPosts]);
+      } else {
+        setPosts(newPosts);
+      }
+      setHasMore(
+        pagination ? pageNum < pagination.pages : newPosts.length >= PAGE_SIZE
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load posts');
-      setPosts([]);
+      if (!append) {
+        setPosts([]);
+        setHasMore(false);
+      }
     }
   }, []);
 
@@ -68,7 +91,8 @@ export default function CommunityScreen() {
     let active = true;
     (async () => {
       setLoading(true);
-      await loadPosts();
+      setPage(1);
+      await loadPosts(1, false);
       if (active) setLoading(false);
     })();
     return () => {
@@ -78,11 +102,28 @@ export default function CommunityScreen() {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await loadPosts();
+    setPage(1);
+    await loadPosts(1, false);
     setRefreshing(false);
   }, [loadPosts]);
 
-  const toggleLike = async (post: CommunityPost) => {
+  const onEndReached = useCallback(() => {
+    if (loadingMoreRef.current || loadingMore || !hasMore || loading) return;
+    loadingMoreRef.current = true;
+    const nextPage = page + 1;
+    setLoadingMore(true);
+    (async () => {
+      try {
+        await loadPosts(nextPage, true);
+        setPage(nextPage);
+      } finally {
+        setLoadingMore(false);
+        loadingMoreRef.current = false;
+      }
+    })();
+  }, [loadingMore, hasMore, loading, page, loadPosts]);
+
+  const toggleLike = useCallback(async (post: CommunityPost) => {
     try {
       const res = await authFetch(`/api/community/posts/${post._id}/likes`, {
         method: 'POST',
@@ -111,9 +152,10 @@ export default function CommunityScreen() {
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Like failed');
     }
-  };
+  }, []);
 
-  const renderItem = ({ item }: { item: CommunityPost }) => {
+  const renderItem = useCallback(
+    ({ item }: { item: CommunityPost }) => {
     const author = item.author;
     const initial = (author?.name ?? '?').charAt(0).toUpperCase();
     const commentCount = Array.isArray(item.comments)
@@ -161,7 +203,17 @@ export default function CommunityScreen() {
         </View>
       </View>
     );
-  };
+    },
+    [toggleLike]
+  );
+
+  const keyExtractor = useCallback((item: CommunityPost) => item._id, []);
+
+  const listFooter = loadingMore ? (
+    <View style={styles.footerLoading}>
+      <ActivityIndicator size="small" color={colors.primary} />
+    </View>
+  ) : null;
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -178,8 +230,10 @@ export default function CommunityScreen() {
       ) : (
         <FlatList
           data={posts}
-          keyExtractor={(item) => item._id}
+          keyExtractor={keyExtractor}
           renderItem={renderItem}
+          onEndReached={onEndReached}
+          onEndReachedThreshold={0.5}
           contentContainerStyle={
             posts.length === 0 ? styles.emptyList : styles.list
           }
@@ -195,6 +249,7 @@ export default function CommunityScreen() {
               No posts yet. Be the first to share!
             </Text>
           }
+          ListFooterComponent={listFooter}
         />
       )}
     </SafeAreaView>
@@ -309,5 +364,9 @@ const styles = StyleSheet.create({
   metaText: {
     fontSize: 14,
     color: colors.muted,
+  },
+  footerLoading: {
+    paddingVertical: 16,
+    alignItems: 'center',
   },
 });

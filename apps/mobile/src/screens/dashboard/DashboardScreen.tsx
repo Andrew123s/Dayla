@@ -10,7 +10,10 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { authFetch } from '../../services/api';
+import type { DashboardStackParamList } from '../../navigation/DashboardStack';
 
 const colors = {
   primary: '#3a5a40',
@@ -55,7 +58,10 @@ function formatDateRange(dates?: Trip['dates']) {
   return `${start} – ${end}`;
 }
 
+type Nav = NativeStackNavigationProp<DashboardStackParamList, 'Dashboard'>;
+
 export default function DashboardScreen() {
+  const navigation = useNavigation<Nav>();
   const [trips, setTrips] = useState<Trip[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -98,18 +104,30 @@ export default function DashboardScreen() {
     setRefreshing(false);
   }, [loadTrips]);
 
-  const onFab = () => {
+  const onFab = useCallback(() => {
     Alert.alert('Create trip', 'Trip creation will open here.');
-  };
+  }, []);
 
-  const renderItem = ({ item }: { item: Trip }) => {
+  const renderItem = useCallback(
+    ({ item }: { item: Trip }) => {
     const dest =
       item.destination?.name ||
       item.destination?.region ||
       item.destination?.country ||
       'Destination TBD';
+    const tripId = String(item._id ?? item.id ?? '');
     return (
-      <View style={styles.card}>
+      <TouchableOpacity
+        style={styles.card}
+        activeOpacity={0.7}
+        onPress={() =>
+          navigation.navigate('TripDetail', {
+            tripId,
+            tripName: item.name,
+            destination: dest !== 'Destination TBD' ? dest : undefined,
+          })
+        }
+      >
         <Text style={styles.cardTitle}>{item.name}</Text>
         <Text style={styles.cardDest}>{dest}</Text>
         <View style={styles.cardRow}>
@@ -123,9 +141,11 @@ export default function DashboardScreen() {
         {item.category ? (
           <Text style={styles.category}>{item.category}</Text>
         ) : null}
-      </View>
+      </TouchableOpacity>
     );
-  };
+    },
+    [navigation]
+  );
 
   return (
     <SafeAreaView style={styles.safe}>
