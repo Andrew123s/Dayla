@@ -9,13 +9,11 @@ export default defineConfig(({ mode }) => {
         port: 3000,
         host: '0.0.0.0',
         proxy: {
-          // Proxy API requests to the backend server
           '/api': {
             target: 'http://localhost:3005',
             changeOrigin: true,
             secure: false,
           },
-          // Proxy socket.io WebSocket connections to the backend
           '/socket.io': {
             target: 'http://localhost:3005',
             changeOrigin: true,
@@ -32,6 +30,12 @@ export default defineConfig(({ mode }) => {
       resolve: {
         alias: {
           '@': path.resolve(__dirname, '.'),
+          '@dayla/types': path.resolve(__dirname, '../../packages/types/src'),
+          '@dayla/config': path.resolve(__dirname, '../../packages/config/src'),
+          '@dayla/auth': path.resolve(__dirname, '../../packages/auth/src'),
+          '@dayla/api': path.resolve(__dirname, '../../packages/api/src'),
+          '@dayla/socket': path.resolve(__dirname, '../../packages/socket/src'),
+          '@dayla/utils': path.resolve(__dirname, '../../packages/utils/src'),
         }
       }
     };

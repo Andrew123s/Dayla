@@ -1,25 +1,23 @@
 {
-  "name": "dayla---nature-&-exploration-planner",
+  "name": "dayla",
   "private": true,
-  "version": "0.0.0",
-  "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
-  },
-  "dependencies": {
-    "@google/genai": "^1.38.0",
-    "lucide-react": "^0.562.0",
-    "react": "^19.2.3",
-    "react-dom": "^19.2.3",
-    "socket.io-client": "^4.8.1"
+    "dev:web": "pnpm --filter @dayla/web dev",
+    "dev:mobile": "pnpm --filter @dayla/mobile start",
+    "dev:backend": "pnpm --filter @dayla/backend dev",
+    "build:web": "pnpm --filter @dayla/web build",
+    "build:packages": "turbo run build --filter='./packages/*'",
+    "dev": "turbo run dev --parallel",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "clean": "turbo run clean"
   },
   "devDependencies": {
-    "@types/node": "^22.14.0",
-    "@vitejs/plugin-react": "^5.0.0",
-    "sharp": "^0.34.5",
-    "typescript": "~5.8.2",
-    "vite": "^6.2.0"
+    "turbo": "^2.5.0",
+    "typescript": "~5.8.2"
+  },
+  "packageManager": "pnpm@10.13.1",
+  "engines": {
+    "node": ">=18.0.0"
   }
 }
