@@ -181,6 +181,13 @@ class AuthSessionNotifier extends Notifier<AuthState> {
     state = state.copyWith(user: user);
   }
 
+  Future<void> refreshUser() async {
+    final response = await _repo.getMe();
+    if (response.success && response.data?.user != null) {
+      state = state.copyWith(user: response.data!.user);
+    }
+  }
+
   Future<void> logout() async {
     await _repo.logout();
     await _tokenStorage.delete();

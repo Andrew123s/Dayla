@@ -237,25 +237,36 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen>
               ),
             ],
           ),
-          if (trip.collaborators.isNotEmpty) ...[
-            const SizedBox(height: 24),
-            Text('Collaborators',
-                style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
-            ...trip.collaborators.map((c) => ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: CircleAvatar(
-                    backgroundColor:
-                        AppColors.sage.withValues(alpha: 0.3),
-                    backgroundImage:
-                        c.avatar != null ? NetworkImage(c.avatar!) : null,
-                    child: c.avatar == null
-                        ? Text(c.name[0].toUpperCase())
-                        : null,
-                  ),
-                  title: Text(c.name),
-                )),
-          ],
+          const SizedBox(height: 24),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Collaborators',
+                  style: Theme.of(context).textTheme.titleMedium),
+              IconButton(
+                icon: const Icon(Icons.person_add, size: 20),
+                color: AppColors.primary,
+                onPressed: () => _showInviteCollaborator(trip.id),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          if (trip.collaborators.isEmpty)
+            Text('No collaborators yet',
+                style: TextStyle(color: Colors.grey.shade500, fontSize: 13)),
+          ...trip.collaborators.map((c) => ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: CircleAvatar(
+                  backgroundColor:
+                      AppColors.sage.withValues(alpha: 0.3),
+                  backgroundImage:
+                      c.avatar != null ? NetworkImage(c.avatar!) : null,
+                  child: c.avatar == null
+                      ? Text(c.name[0].toUpperCase())
+                      : null,
+                ),
+                title: Text(c.name),
+              )),
           if (trip.tags.isNotEmpty) ...[
             const SizedBox(height: 16),
             Wrap(
@@ -294,24 +305,34 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen>
 
     final notes = _board!.notes;
     if (notes.isEmpty) {
-      return const Center(
+      return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.sticky_note_2_outlined,
+            const Icon(Icons.sticky_note_2_outlined,
                 size: 48, color: AppColors.sage),
-            SizedBox(height: 12),
-            Text('No sticky notes yet'),
-            SizedBox(height: 4),
-            Text('Add notes from the web app',
-                style: TextStyle(color: Colors.grey, fontSize: 13)),
+            const SizedBox(height: 12),
+            const Text('No sticky notes yet'),
+            const SizedBox(height: 12),
+            FilledButton.icon(
+              onPressed: _showAddNote,
+              icon: const Icon(Icons.add),
+              label: const Text('Add Note'),
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14)),
+              ),
+            ),
           ],
         ),
       );
     }
 
-    return ListView.separated(
-      padding: const EdgeInsets.all(16),
+    return Stack(
+      children: [
+        ListView.separated(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
       itemCount: notes.length,
       separatorBuilder: (_, __) => const SizedBox(height: 10),
       itemBuilder: (context, index) {
@@ -363,6 +384,19 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen>
           ),
         );
       },
+    ),
+        Positioned(
+          bottom: 16,
+          right: 16,
+          child: FloatingActionButton(
+            mini: true,
+            backgroundColor: AppColors.primary,
+            foregroundColor: Colors.white,
+            onPressed: _showAddNote,
+            child: const Icon(Icons.add),
+          ),
+        ),
+      ],
     );
   }
 
@@ -448,6 +482,154 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen>
           ),
         ],
       ),
+    );
+  }
+
+  void _showInviteCollaborator(String tripId) {
+    final emailCtrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        bool sending = false;
+        String? error;
+        String? success;
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) => AlertDialog(
+            title: const Text('Invite Collaborator'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: emailCtrl,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: InputDecoration(
+                    hintText: 'friend@example.com',
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14)),
+                  ),
+                ),
+                if (error != null) ...[
+                  const SizedBox(height: 8),
+                  Text(error!,
+                      style:
+                          const TextStyle(color: Colors.red, fontSize: 13)),
+                ],
+                if (success != null) ...[
+                  const SizedBox(height: 8),
+                  Text(success!,
+                      style:
+                          const TextStyle(color: Colors.green, fontSize: 13)),
+                ],
+              ],
+            ),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Close')),
+              FilledButton(
+                onPressed: sending
+                    ? null
+                    : () async {
+                        final email = emailCtrl.text.trim();
+                        if (email.isEmpty) return;
+                        setDialogState(() {
+                          sending = true;
+                          error = null;
+                          success = null;
+                        });
+                        final repo = ref.read(dashboardRepositoryProvider);
+                        final ok =
+                            await repo.addCollaborator(tripId, email);
+                        if (ok) {
+                          setDialogState(() {
+                            sending = false;
+                            success = 'Invitation sent!';
+                          });
+                          emailCtrl.clear();
+                          _loadData();
+                        } else {
+                          setDialogState(() {
+                            sending = false;
+                            error = 'Failed to invite. Check the email.';
+                          });
+                        }
+                      },
+                style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.primary),
+                child: Text(sending ? 'Sending...' : 'Invite'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showAddNote() {
+    final contentCtrl = TextEditingController();
+    String noteType = 'text';
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        bool saving = false;
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) => AlertDialog(
+            title: const Text('Add Note'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Wrap(
+                  spacing: 6,
+                  children: ['text', 'schedule', 'budget', 'sustainability']
+                      .map((t) => ChoiceChip(
+                            label: Text(t),
+                            selected: noteType == t,
+                            onSelected: (_) =>
+                                setDialogState(() => noteType = t),
+                            selectedColor:
+                                AppColors.primary.withValues(alpha: 0.15),
+                            visualDensity: VisualDensity.compact,
+                          ))
+                      .toList(),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: contentCtrl,
+                  maxLines: 4,
+                  decoration: InputDecoration(
+                    hintText: 'Note content...',
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14)),
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Cancel')),
+              FilledButton(
+                onPressed: saving
+                    ? null
+                    : () async {
+                        if (contentCtrl.text.trim().isEmpty) return;
+                        setDialogState(() => saving = true);
+                        final repo = ref.read(dashboardRepositoryProvider);
+                        await repo.createStickyNote(widget.tripId, {
+                          'content': contentCtrl.text.trim(),
+                          'type': noteType,
+                        });
+                        _loadData();
+                        if (ctx.mounted) Navigator.pop(ctx);
+                      },
+                style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.primary),
+                child: Text(saving ? 'Saving...' : 'Add'),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 

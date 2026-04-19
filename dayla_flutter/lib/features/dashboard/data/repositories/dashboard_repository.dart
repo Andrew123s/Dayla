@@ -91,9 +91,39 @@ class DashboardRepository {
     }
   }
 
+  Future<bool> addCollaborator(String tripId, String email) async {
+    try {
+      final json = await _remote.addCollaborator(tripId, email);
+      return json['success'] == true;
+    } on DioException {
+      return false;
+    }
+  }
+
   Future<bool> inviteToBoard(String boardId, String email) async {
     try {
       final json = await _remote.inviteToBoard(boardId, email);
+      return json['success'] == true;
+    } on DioException {
+      return false;
+    }
+  }
+
+  Future<bool> createStickyNote(
+    String tripId,
+    Map<String, dynamic> data,
+  ) async {
+    try {
+      final json = await _remote.createStickyNote(tripId, data);
+      return json['success'] == true;
+    } on DioException {
+      return false;
+    }
+  }
+
+  Future<bool> deleteStickyNote(String tripId, String noteId) async {
+    try {
+      final json = await _remote.deleteStickyNote(tripId, noteId);
       return json['success'] == true;
     } on DioException {
       return false;

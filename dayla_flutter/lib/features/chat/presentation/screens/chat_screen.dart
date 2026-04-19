@@ -7,6 +7,7 @@ import 'package:dayla_flutter/features/auth/application/providers/auth_session_p
 import 'package:dayla_flutter/features/chat/application/providers/chat_providers.dart';
 import 'package:dayla_flutter/features/chat/data/models/chat_model.dart';
 import 'package:dayla_flutter/features/chat/presentation/screens/conversation_screen.dart';
+import 'package:dayla_flutter/features/chat/presentation/widgets/create_chat_sheet.dart';
 
 class ChatScreen extends ConsumerWidget {
   const ChatScreen({super.key});
@@ -21,11 +22,31 @@ class ChatScreen extends ConsumerWidget {
         title: const Text('Messages'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.group_add_outlined),
+            tooltip: 'Join Group',
+            onPressed: () => _showJoinGroup(context, ref),
+          ),
+          IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () =>
                 ref.read(conversationsProvider.notifier).refresh(),
           ),
         ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
+        onPressed: () {
+          showModalBottomSheet(
+            context: context,
+            isScrollControlled: true,
+            shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            builder: (_) => const CreateChatSheet(),
+          );
+        },
+        child: const Icon(Icons.edit),
       ),
       body: conversationsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -64,7 +85,7 @@ class ChatScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 8),
                   const Text(
-                    'Add friends to start chatting',
+                    'Start a conversation or join a group',
                     style: TextStyle(color: Colors.grey),
                   ),
                 ],
@@ -92,6 +113,84 @@ class ChatScreen extends ConsumerWidget {
       ),
     );
   }
+
+  void _showJoinGroup(BuildContext context, WidgetRef ref) {
+    final codeCtrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        bool joining = false;
+        String? error;
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) => AlertDialog(
+            title: const Text('Join Group'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: codeCtrl,
+                  decoration: InputDecoration(
+                    hintText: 'Paste invite code',
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14)),
+                  ),
+                ),
+                if (error != null) ...[
+                  const SizedBox(height: 8),
+                  Text(error!,
+                      style:
+                          const TextStyle(color: Colors.red, fontSize: 13)),
+                ],
+              ],
+            ),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Cancel')),
+              FilledButton(
+                onPressed: joining
+                    ? null
+                    : () async {
+                        final code = codeCtrl.text.trim();
+                        if (code.isEmpty) return;
+                        setDialogState(() {
+                          joining = true;
+                          error = null;
+                        });
+                        final datasource =
+                            ref.read(chatRemoteDatasourceProvider);
+                        try {
+                          final result =
+                              await datasource.joinViaInvite(code);
+                          if (result['success'] == true) {
+                            ref
+                                .read(conversationsProvider.notifier)
+                                .refresh();
+                            if (ctx.mounted) Navigator.pop(ctx);
+                          } else {
+                            setDialogState(() {
+                              joining = false;
+                              error = result['message'] as String? ??
+                                  'Failed to join';
+                            });
+                          }
+                        } catch (_) {
+                          setDialogState(() {
+                            joining = false;
+                            error = 'Failed to join group';
+                          });
+                        }
+                      },
+                style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.primary),
+                child: Text(joining ? 'Joining...' : 'Join'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
 }
 
 class _ConversationTile extends StatelessWidget {
@@ -112,9 +211,8 @@ class _ConversationTile extends StatelessWidget {
       leading: CircleAvatar(
         radius: 24,
         backgroundColor: AppColors.sage.withValues(alpha: 0.3),
-        backgroundImage: _getAvatar() != null
-            ? NetworkImage(_getAvatar()!)
-            : null,
+        backgroundImage:
+            _getAvatar() != null ? NetworkImage(_getAvatar()!) : null,
         child: _getAvatar() == null
             ? Text(
                 displayName.isNotEmpty ? displayName[0].toUpperCase() : '?',
