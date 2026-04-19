@@ -37,6 +37,7 @@ class CommunityRepository {
     String? locationName,
     List<String>? tags,
     String? visibility,
+    List<String>? imageUrls,
   }) async {
     try {
       final data = <String, dynamic>{'content': content};
@@ -47,10 +48,25 @@ class CommunityRepository {
         data['tags'] = tags.map((t) => {'name': t, 'category': 'general'}).toList();
       }
       if (visibility != null) data['visibility'] = visibility;
+      if (imageUrls != null && imageUrls.isNotEmpty) {
+        data['images'] = imageUrls.map((url) => {'url': url}).toList();
+      }
       final json = await _remote.createPost(data);
       final post = json['data']?['post'];
       if (post != null) {
         return PostModel.fromJson(post as Map<String, dynamic>);
+      }
+      return null;
+    } on DioException {
+      return null;
+    }
+  }
+
+  Future<String?> uploadImage(String filePath) async {
+    try {
+      final json = await _remote.uploadImage(filePath);
+      if (json['success'] == true) {
+        return json['data']?['url'] as String?;
       }
       return null;
     } on DioException {

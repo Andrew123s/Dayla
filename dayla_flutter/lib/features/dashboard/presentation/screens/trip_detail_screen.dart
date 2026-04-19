@@ -235,7 +235,11 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen>
                   ),
                 ),
               ),
-              const SizedBox(width: 12),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
               Expanded(
                 child: _ActionCard(
                   icon: Icons.cloud,
@@ -247,6 +251,17 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen>
                         '${loc != null ? "&location=${Uri.encodeComponent(loc)}" : ""}';
                     context.push('/trip/${trip.id}/weather?$params');
                   },
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _ActionCard(
+                  icon: Icons.wallet,
+                  label: 'Budget',
+                  color: AppColors.sand,
+                  onTap: () => context.push(
+                    '/trip/${trip.id}/budget?name=${Uri.encodeComponent(trip.name)}',
+                  ),
                 ),
               ),
             ],

@@ -35,12 +35,14 @@ class PostsNotifier extends AsyncNotifier<List<PostModel>> {
     required String content,
     String? locationName,
     List<String>? tags,
+    List<String>? imageUrls,
   }) async {
     final repo = ref.read(communityRepositoryProvider);
     final post = await repo.createPost(
       content: content,
       locationName: locationName,
       tags: tags,
+      imageUrls: imageUrls,
     );
     if (post != null) {
       await refresh();
