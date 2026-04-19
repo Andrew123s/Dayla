@@ -10,4 +10,5 @@ abstract final class RoutePaths {
   static const tripDetail = '/trip/:tripId';
   static const packing = '/trip/:tripId/packing';
   static const climatiq = '/trip/:tripId/carbon';
+  static const weather = '/trip/:tripId/weather';
 }

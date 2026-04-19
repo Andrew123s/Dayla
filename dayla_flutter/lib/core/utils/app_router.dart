@@ -13,6 +13,7 @@ import 'package:dayla_flutter/features/dashboard/presentation/screens/dashboard_
 import 'package:dayla_flutter/features/invitation/presentation/screens/invitation_screen.dart';
 import 'package:dayla_flutter/features/climatiq/presentation/screens/climatiq_screen.dart';
 import 'package:dayla_flutter/features/dashboard/presentation/screens/trip_detail_screen.dart';
+import 'package:dayla_flutter/features/dashboard/presentation/screens/weather_screen.dart';
 import 'package:dayla_flutter/features/packing/presentation/screens/packing_screen.dart';
 import 'package:dayla_flutter/features/profile/presentation/screens/profile_screen.dart';
 import 'package:dayla_flutter/features/verify_email/presentation/screens/verify_email_screen.dart';
@@ -96,6 +97,19 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           final tripName =
               state.uri.queryParameters['name'] ?? 'Trip';
           return ClimatiqScreen(tripId: tripId, tripName: tripName);
+        },
+      ),
+      GoRoute(
+        path: RoutePaths.weather,
+        builder: (context, state) {
+          final tripName =
+              state.uri.queryParameters['name'] ?? 'Trip';
+          final location =
+              state.uri.queryParameters['location'];
+          return WeatherScreen(
+            tripName: tripName,
+            defaultLocation: location,
+          );
         },
       ),
       StatefulShellRoute.indexedStack(

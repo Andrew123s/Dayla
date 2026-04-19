@@ -235,6 +235,20 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen>
                   ),
                 ),
               ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _ActionCard(
+                  icon: Icons.cloud,
+                  label: 'Weather',
+                  color: Colors.blue,
+                  onTap: () {
+                    final loc = trip.destination?.name;
+                    final params = 'name=${Uri.encodeComponent(trip.name)}'
+                        '${loc != null ? "&location=${Uri.encodeComponent(loc)}" : ""}';
+                    context.push('/trip/${trip.id}/weather?$params');
+                  },
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 24),

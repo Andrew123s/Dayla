@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:timeago/timeago.dart' as timeago;
 
+import 'package:dayla_flutter/core/network/socket_service.dart';
 import 'package:dayla_flutter/core/theme/app_colors.dart';
 import 'package:dayla_flutter/features/auth/application/providers/auth_session_provider.dart';
 import 'package:dayla_flutter/features/chat/application/providers/chat_providers.dart';
@@ -25,15 +26,41 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   final _messageController = TextEditingController();
   final _scrollController = ScrollController();
   bool _sending = false;
+  List<MessageModel> _messages = [];
+  bool _loaded = false;
 
   @override
   void initState() {
     super.initState();
     ref.read(chatRepositoryProvider).markAsRead(widget.conversationId);
+    _setupSocket();
+  }
+
+  void _setupSocket() {
+    final socket = ref.read(socketServiceProvider);
+    socket.joinConversation(widget.conversationId);
+    socket.onNewMessage((data) {
+      if (!mounted) return;
+      if (data is Map<String, dynamic>) {
+        final msgConvoId = data['conversationId'] as String?;
+        if (msgConvoId == widget.conversationId) {
+          try {
+            final msg = MessageModel.fromJson(data);
+            setState(() => _messages.insert(0, msg));
+            ref.read(chatRepositoryProvider).markAsRead(widget.conversationId);
+          } catch (_) {
+            ref.invalidate(messagesProvider(widget.conversationId));
+          }
+        }
+      }
+    });
   }
 
   @override
   void dispose() {
+    final socket = ref.read(socketServiceProvider);
+    socket.leaveConversation(widget.conversationId);
+    socket.offNewMessage();
     _messageController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -82,7 +109,12 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                 child: Text('Failed to load messages',
                     style: TextStyle(color: Colors.grey.shade600)),
               ),
-              data: (messages) {
+              data: (fetchedMessages) {
+                if (!_loaded) {
+                  _messages = List.from(fetchedMessages);
+                  _loaded = true;
+                }
+                final messages = _messages;
                 if (messages.isEmpty) {
                   return Center(
                     child: Text(
