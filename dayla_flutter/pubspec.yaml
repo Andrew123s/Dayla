@@ -39,6 +39,13 @@ dependencies:
   dio: ^5.9.2
   freezed_annotation: ^3.1.0
   json_annotation: ^4.9.0
+  flutter_secure_storage: ^9.2.4
+  shared_preferences: ^2.3.5
+  image_picker: ^1.1.2
+  cached_network_image: ^3.4.1
+  intl: ^0.19.0
+  socket_io_client: ^3.0.2
+  timeago: ^3.7.0
 
 dev_dependencies:
   flutter_test:

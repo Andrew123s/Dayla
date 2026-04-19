@@ -11,7 +11,10 @@ final dioProvider = Provider<Dio>((ref) {
       baseUrl: ApiConfig.baseUrl,
       connectTimeout: const Duration(seconds: 30),
       receiveTimeout: const Duration(seconds: 30),
-      headers: const {'Accept': 'application/json'},
+      headers: const {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      },
     ),
   );
 
@@ -29,10 +32,7 @@ final dioProvider = Provider<Dio>((ref) {
 
   if (kDebugMode) {
     dio.interceptors.add(
-      LogInterceptor(
-        requestBody: true,
-        responseBody: true,
-      ),
+      LogInterceptor(requestBody: true, responseBody: true),
     );
   }
 
