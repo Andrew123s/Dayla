@@ -273,9 +273,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
 
   // Feature Data
   const [currency, setCurrency] = useState(CURRENCIES[0]);
-  const [expenses, setExpenses] = useState<Expense[]>([
-    { id: '1', title: 'Cabin Rental', amount: 450, category: 'Accommodation', date: '2025-06-15', paidById: user.id, splitBetweenIds: [user.id] }
-  ]);
+  const [expenses, setExpenses] = useState<Expense[]>([]);
   const [participants, setParticipants] = useState<Participant[]>([
     { id: user.id, name: 'You', avatar: user.avatar || '' },
   ]);
@@ -291,10 +289,16 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   const [weatherData, setWeatherData] = useState<any>(null);
   const [weatherLoading, setWeatherLoading] = useState(false);
   const [weatherError, setWeatherError] = useState('');
-  const [weatherLocation, setWeatherLocation] = useState('Accra');
+  const [weatherLocation, setWeatherLocation] = useState('');
 
   // Fetch weather data from backend
   const fetchWeather = async (location: string) => {
+    // Don't fetch until the user has entered a location.
+    if (!location.trim()) {
+      setWeatherData(null);
+      setWeatherError('');
+      return;
+    }
     setWeatherLoading(true);
     setWeatherError('');
     try {
@@ -313,9 +317,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
     }
   };
 
-  // Fetch weather when modal opens
+  // Fetch weather when modal opens (only if a location was already entered)
   useEffect(() => {
-    if (showWeather) {
+    if (showWeather && weatherLocation.trim()) {
       fetchWeather(weatherLocation);
     }
   }, [showWeather]);
@@ -1812,24 +1816,32 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
             </div>
 
             <div className="flex-1 overflow-y-auto p-6 space-y-6">
-               <div className="space-y-3">
-                 <h4 className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Spent by Category</h4>
-                 <div className="grid grid-cols-2 gap-3">
-                    {Object.entries(spentByCategory).map(([cat, amount]) => (
-                      <div key={cat} className="bg-white p-3 rounded-2xl border border-stone-100 flex items-center gap-3">
-                         <div className="w-2 h-8 rounded-full" style={{ backgroundColor: CATEGORY_COLORS[cat as BudgetCategory] }} />
-                         <div>
-                            <p className="text-[9px] font-black text-stone-400 uppercase tracking-tighter leading-none">{cat}</p>
-                            <p className="text-sm font-black text-stone-800">{currency.symbol}{amount}</p>
-                         </div>
-                      </div>
-                    ))}
+               {expenses.length > 0 && (
+                 <div className="space-y-3">
+                   <h4 className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Spent by Category</h4>
+                   <div className="grid grid-cols-2 gap-3">
+                      {Object.entries(spentByCategory).map(([cat, amount]) => (
+                        <div key={cat} className="bg-white p-3 rounded-2xl border border-stone-100 flex items-center gap-3">
+                           <div className="w-2 h-8 rounded-full" style={{ backgroundColor: CATEGORY_COLORS[cat as BudgetCategory] }} />
+                           <div>
+                              <p className="text-[9px] font-black text-stone-400 uppercase tracking-tighter leading-none">{cat}</p>
+                              <p className="text-sm font-black text-stone-800">{currency.symbol}{amount}</p>
+                           </div>
+                        </div>
+                      ))}
+                   </div>
                  </div>
-               </div>
+               )}
 
                <div className="space-y-3">
                  <h4 className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Recent Expenses</h4>
                  <div className="space-y-2">
+                    {expenses.length === 0 && (
+                      <div className="bg-white p-6 rounded-2xl border border-stone-100 text-center">
+                        <p className="text-sm font-bold text-stone-700">No expenses yet</p>
+                        <p className="text-xs text-stone-400 mt-1">Add your first expense to start tracking your budget.</p>
+                      </div>
+                    )}
                     {expenses.map(exp => (
                       <div key={exp.id} className="bg-white p-4 rounded-2xl border border-stone-100 flex justify-between items-center group">
                         <div className="flex items-center gap-3">
@@ -2117,7 +2129,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
                 <div className="flex flex-col">
                   <h2 className="text-2xl font-black text-[#3a5a40] flex items-center gap-2"><CloudSun size={24} /> Forecast</h2>
                   <p className="text-[10px] text-stone-400 font-black uppercase mt-1 tracking-widest">
-                    {weatherData ? weatherData.current.location : 'Loading...'}
+                    {weatherData ? weatherData.current.location : (weatherLoading ? 'Loading...' : 'Search a city')}
                   </p>
                 </div>
                 <button onClick={() => setShowWeather(false)} className="p-2 bg-stone-100 rounded-full"><X size={20} /></button>
@@ -2151,6 +2163,15 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
                    <AlertTriangle size={32} className="mx-auto mb-2 text-red-400" />
                    <p className="text-sm font-bold text-red-700">{weatherError}</p>
                    <button onClick={() => fetchWeather(weatherLocation)} className="mt-3 text-xs text-red-500 hover:underline font-bold">Try Again</button>
+                 </div>
+               )}
+
+               {/* Empty state — nothing searched yet */}
+               {!weatherData && !weatherLoading && !weatherError && (
+                 <div className="bg-white border border-stone-100 p-8 rounded-[2.5rem] text-center">
+                   <CloudSun size={40} className="mx-auto mb-3 text-[#a3b18a]" />
+                   <p className="text-sm font-bold text-stone-700">Search for a location</p>
+                   <p className="text-xs text-stone-400 mt-1">Type a city above to see its forecast.</p>
                  </div>
                )}
 
