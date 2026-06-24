@@ -1,0 +1,24 @@
+# Netlify build configuration for the Dayla pnpm monorepo.
+#
+# The web app (@dayla/web) depends on local workspace packages (@dayla/*) using
+# the `workspace:*` protocol, which only pnpm/yarn can resolve — a plain `npm
+# install` will fail. We therefore build from the repo root with pnpm so the
+# workspace links resolve, then publish the Vite output in apps/web/dist.
+#
+# NOTE: In the Netlify UI (Site configuration → Build & deploy → Build settings),
+# the "Base directory" must be empty (the repo root) so this file is used.
+
+[build]
+  base = "."
+  command = "pnpm install && pnpm build:web"
+  publish = "apps/web/dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# SPA fallback: serve index.html for client-side routes (/auth, /privacy, ...).
+# Real static files (e.g. /landing.html) are served before this rule applies.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
