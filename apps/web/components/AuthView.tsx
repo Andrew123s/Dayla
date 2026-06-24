@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { User } from '../types';
-import { Compass, Leaf, AlertCircle, CheckCircle } from 'lucide-react';
+import { AlertCircle, CheckCircle } from 'lucide-react';
 import { API_BASE_URL, setAuthToken } from '../lib/api';
 
 interface AuthViewProps {
@@ -147,16 +147,18 @@ const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
 
   return (
     <div className="w-full bg-[#3a5a40] flex flex-col items-center justify-center p-8 text-white" style={{ height: 'var(--app-height, 100dvh)' }}>
-      <div className="mb-12 text-center">
-        <div className="bg-white/10 p-6 rounded-[2.5rem] backdrop-blur-xl inline-block mb-4 shadow-2xl">
-            <Leaf size={64} className="text-[#a3b18a]" />
-        </div>
-        <h1 className="text-5xl font-bold tracking-tight">Dayla</h1>
-        <p className="text-[#a3b18a] font-medium tracking-widest uppercase text-xs mt-2">Explore Together</p>
+      <div className="mb-10 text-center">
+        <img
+          src="/icons/Daylap_Logo_white.png"
+          alt="Dayla — Ready Set Go"
+          className="mx-auto mb-4 drop-shadow-2xl"
+          style={{ width: 'min(55vw, 190px)', height: 'auto', display: 'block' }}
+        />
+        <p className="text-[#a3b18a] font-medium tracking-widest uppercase text-xs">Explore Together</p>
       </div>
 
       <div className="w-full max-w-sm bg-white/10 backdrop-blur-md p-8 rounded-[2rem] border border-white/10 shadow-xl">
-        <h2 className="text-2xl font-bold mb-6 text-center">{isLogin ? 'Welcome Back' : 'Create Account'}</h2>
+        <h2 className="text-2xl font-bold mb-6 text-center">Login or Sign Up</h2>
 
         {/* Error Message */}
         {error && (
