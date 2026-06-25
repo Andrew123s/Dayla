@@ -9,6 +9,11 @@ const cookieParser = require('cookie-parser');
 require('dotenv').config();
 const errorHandler = require('./middleware/error.middleware');
 const logger = require('./utils/logger');
+const pkg = require('./package.json');
+
+// Captured once at boot so /version reports when this process actually started
+// (useful for spotting a deploy that silently fell back to an older build).
+const BOOT_TIME = new Date().toISOString();
 
 // Import routes
 const authRoutes = require('./routes/auth.routes');
@@ -103,6 +108,32 @@ app.get('/health', (req, res) => {
     status: 'OK',
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || 'development'
+  });
+});
+
+// Version / build-info endpoint.
+//
+// Makes a stale or half-applied deploy self-evident: hit GET /version and
+// compare `commit` to the latest commit on GitHub. Render injects RENDER_GIT_*
+// automatically. `features.budget` is hard-coded true *in this build* — so if
+// the deployed /version reports it (or exists at all), you know the budget
+// routes shipped. An older build that predates the budget feature returns the
+// catch-all 404 for /version, which is itself the signal.
+app.get('/version', (req, res) => {
+  res.status(200).json({
+    success: true,
+    service: pkg.name || 'dayla-backend',
+    version: pkg.version || '0.0.0',
+    commit: process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || 'unknown',
+    branch: process.env.RENDER_GIT_BRANCH || process.env.GIT_BRANCH || 'unknown',
+    node: process.version,
+    environment: process.env.NODE_ENV || 'development',
+    bootedAt: BOOT_TIME,
+    uptimeSeconds: Math.round(process.uptime()),
+    features: {
+      // Present only because this build includes the budget routes/controller.
+      budget: true
+    }
   });
 });
 
