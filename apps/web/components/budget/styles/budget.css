@@ -1,0 +1,58 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   Budget module global styles
+   - Fonts (Hanken Grotesk + Space Mono) via Google Fonts
+   - Hidden scrollbars for the .bud-scroll utility
+   - Sheet / fade / pop keyframes referenced by inline animations
+   Import once near your app root: `import '.../styles/budget.css'`
+   ───────────────────────────────────────────────────────────────────────────── */
+
+@import url('https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap');
+
+.bud-scroll::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+.bud-scroll {
+  scrollbar-width: none;
+}
+
+@keyframes budSheetUp {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+@keyframes budFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes budPop {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes budSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.bud-spinner {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 3px solid #ddd6c8;
+  border-top-color: #3a5a40;
+  animation: budSpin 0.8s linear infinite;
+}

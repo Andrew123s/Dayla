@@ -146,6 +146,69 @@ const tripSchemas = {
   })
 };
 
+// Budget/Expense validation schemas
+const budgetSchemas = {
+  createExpense: Joi.object({
+    title: Joi.string().min(1).max(120).required().messages({
+      'string.empty': 'Title is required',
+      'any.required': 'Title is required'
+    }),
+    description: Joi.string().max(500).allow('', null).optional(),
+    amount: Joi.number().positive().required().messages({
+      'number.base': 'Amount must be a number',
+      'number.positive': 'Amount must be greater than zero',
+      'any.required': 'Amount is required'
+    }),
+    currency: Joi.string().min(2).max(8).required(),
+    category: Joi.string().max(40).optional(),
+    date: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).required().messages({
+      'string.pattern.base': 'Date must be in YYYY-MM-DD format'
+    }),
+    location: Joi.string().max(120).allow('', null).optional(),
+    paidBy: Joi.string().required(),
+    splitMethod: Joi.string().valid('equal', 'percent', 'custom').required(),
+    splits: Joi.array().items(
+      Joi.object({
+        user: Joi.string().required(),
+        amount: Joi.number().min(0).required()
+      })
+    ).min(1).required(),
+    receiptUrl: Joi.string().uri().allow('', null).optional(),
+    settled: Joi.boolean().optional()
+  }),
+
+  updateExpense: Joi.object({
+    title: Joi.string().min(1).max(120).optional(),
+    description: Joi.string().max(500).allow('', null).optional(),
+    amount: Joi.number().positive().optional(),
+    currency: Joi.string().min(2).max(8).optional(),
+    category: Joi.string().max(40).optional(),
+    date: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    location: Joi.string().max(120).allow('', null).optional(),
+    paidBy: Joi.string().optional(),
+    splitMethod: Joi.string().valid('equal', 'percent', 'custom').optional(),
+    splits: Joi.array().items(
+      Joi.object({
+        user: Joi.string().required(),
+        amount: Joi.number().min(0).required()
+      })
+    ).min(1).optional(),
+    receiptUrl: Joi.string().uri().allow('', null).optional(),
+    settled: Joi.boolean().optional()
+  }),
+
+  setSettled: Joi.object({
+    settled: Joi.boolean().required()
+  }),
+
+  createSettlement: Joi.object({
+    from: Joi.string().required(),
+    to: Joi.string().required(),
+    amountUSD: Joi.number().positive().required(),
+    date: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).optional()
+  })
+};
+
 // Chat/Message validation schemas
 const chatSchemas = {
   createConversation: Joi.object({
@@ -335,6 +398,7 @@ const validate = (schema, data, options = {}) => {
 module.exports = {
   userSchemas,
   tripSchemas,
+  budgetSchemas,
   chatSchemas,
   communitySchemas,
   boardSchemas,

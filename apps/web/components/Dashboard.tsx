@@ -3,7 +3,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { io, Socket } from 'socket.io-client';
 import {
   StickyNote, NoteAuthor, User, WeatherDay, WeatherSuggestion, TripDates,
-  Expense, Participant, BudgetCategory, SustainabilityImpact, OffsetProject, EcoChallenge,
+  Participant, SustainabilityImpact, OffsetProject, EcoChallenge,
   Trip, SavedCommunityTrip, TripCategory
 } from '../types';
 import { API_BASE_URL, authFetch } from '../lib/api';
@@ -11,7 +11,7 @@ import {
   Plus, Image as ImageIcon, Mic, Type, Share2, Calendar, Link2, Layout,
   CloudSun, X, MapPin, Wind, Thermometer, CloudRain, Sun, AlertTriangle,
   CheckCircle2, Info, Search, Clock, ChevronLeft, ChevronRight, Wallet,
-  CreditCard, PieChart, Users, DollarSign, Filter, Trash2, Leaf, Droplets,
+  CreditCard, Users, Filter, Trash2, Leaf, Droplets,
   Trees, Zap, Award, BookOpen, Globe, TrendingDown, Store, Star, Play, Pause, Move, Maximize2, Crop as CropIcon,
   UserPlus, Bell, PenTool, Loader, Cloud, CloudLightning,
   Sparkles, Mountain, Briefcase, Home, Tent, Compass, Heart, Bookmark, Tag, FolderOpen, Package,
@@ -19,28 +19,13 @@ import {
 } from 'lucide-react';
 import SmartPacking from './SmartPacking';
 import StickyNoteCard from './StickyNoteCard';
+import { BudgetPanel } from './budget/BudgetPanel';
 
 interface DashboardProps {
   user: User;
 }
 
 const COLORS = ['#faedcd', '#d4a373', '#e9edc9', '#fefae0', '#ccd5ae'];
-const CATEGORY_COLORS: Record<BudgetCategory, string> = {
-  'Accommodation': '#d4a373',
-  'Transportation': '#a3b18a',
-  'Food & Dining': '#ccd5ae',
-  'Activities': '#3a5a40',
-  'Shopping': '#faedcd',
-  'Other': '#d1d5db'
-};
-
-const CURRENCIES = [
-  { code: 'USD', symbol: '$' },
-  { code: 'GHC', symbol: '₵' },
-  { code: 'EUR', symbol: '€' },
-  { code: 'GBP', symbol: '£' },
-  { code: 'JPY', symbol: '¥' }
-];
 
 /**
  * InviteForm Component handles inviting new collaborators
@@ -235,7 +220,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   const [showCalendar, setShowCalendar] = useState(false);
   const [showBudget, setShowBudget] = useState(false);
   const [showSusCal, setShowSusCal] = useState(false);
-  const [showAddExpense, setShowAddExpense] = useState(false);
   const [showTripsPanel, setShowTripsPanel] = useState(false);
   const [showSmartPacking, setShowSmartPacking] = useState(false);
 
@@ -272,8 +256,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   const [newTripDescription, setNewTripDescription] = useState('');
 
   // Feature Data
-  const [currency, setCurrency] = useState(CURRENCIES[0]);
-  const [expenses, setExpenses] = useState<Expense[]>([]);
   const [participants, setParticipants] = useState<Participant[]>([
     { id: user.id, name: 'You', avatar: user.avatar || '' },
   ]);
@@ -391,15 +373,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
       fetchEcoData();
     }
   }, [showSusCal]);
-
-  // New Expense Form State
-  const [newExpense, setNewExpense] = useState<Partial<Expense>>({
-    title: '',
-    amount: 0,
-    category: 'Food & Dining',
-    paidById: user.id,
-    splitBetweenIds: participants.map(p => p.id)
-  });
 
   // Fetch notes and collaborator data from the backend dashboard
   // Returns the recovered tripId (or null if not found)
@@ -1258,30 +1231,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
     return `${days}d ago`;
   };
 
-  const totalSpent = useMemo(() => expenses.reduce((sum, exp) => sum + exp.amount, 0), [expenses]);
-  
-  const spentByCategory = useMemo(() => {
-    return expenses.reduce((acc, exp) => {
-      acc[exp.category] = (acc[exp.category] || 0) + exp.amount;
-      return acc;
-    }, {} as Record<string, number>);
-  }, [expenses]);
-
-  const saveExpense = () => {
-    if (!newExpense.title || !newExpense.amount) return;
-    const expense: Expense = {
-      id: Math.random().toString(36).substr(2, 9),
-      title: newExpense.title || 'Untitled',
-      amount: Number(newExpense.amount),
-      category: newExpense.category as BudgetCategory,
-      date: new Date().toISOString().split('T')[0],
-      paidById: newExpense.paidById || user.id,
-      splitBetweenIds: newExpense.splitBetweenIds || [user.id]
-    };
-    setExpenses([...expenses, expense]);
-    setShowAddExpense(false);
-  };
-
   // Collaboration Functions
   const handleInviteUser = async (email: string) => {
     setInviteSending(true);
@@ -1786,117 +1735,15 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
       {/* Feature Modals */}
       {showBudget && (
         <div className="absolute inset-0 z-[100] flex items-end justify-center bg-black/40 backdrop-blur-sm">
-          <div className="bg-[#f7f3ee] w-full max-w-md h-[90vh] rounded-t-[3rem] shadow-2xl overflow-hidden flex flex-col animate-slide-up">
-            <div className="p-6 bg-white border-b border-stone-100">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-2xl font-black text-[#3a5a40] flex items-center gap-2"><Wallet size={24} /> Trip Budget</h2>
-                <div className="flex gap-2">
-                   <select 
-                     value={currency.code} 
-                     onChange={(e) => setCurrency(CURRENCIES.find(c => c.code === e.target.value) || CURRENCIES[0])}
-                     className="bg-stone-100 border-none rounded-xl text-[10px] font-bold px-2"
-                   >
-                     {CURRENCIES.map(c => <option key={c.code} value={c.code}>{c.code} ({c.symbol})</option>)}
-                   </select>
-                   <button onClick={() => setShowBudget(false)} className="p-2 bg-stone-100 rounded-full"><X size={20} /></button>
-                </div>
-              </div>
-              <div className="bg-[#3a5a40] p-6 rounded-[2.5rem] text-white flex flex-col shadow-xl">
-                <div className="flex justify-between items-center mb-4">
-                   <div>
-                     <p className="text-[10px] font-bold uppercase tracking-widest text-[#a3b18a]">Total Spent</p>
-                     <h3 className="text-4xl font-black">{currency.symbol}{totalSpent}</h3>
-                   </div>
-                   <div className="p-4 bg-white/10 rounded-2xl"><PieChart size={32} /></div>
-                </div>
-                <div className="h-2 bg-white/10 rounded-full overflow-hidden">
-                   <div className="h-full bg-[#a3b18a]" style={{ width: `${Math.min(100, (totalSpent/2500)*100)}%` }} />
-                </div>
-              </div>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-6 space-y-6">
-               {expenses.length > 0 && (
-                 <div className="space-y-3">
-                   <h4 className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Spent by Category</h4>
-                   <div className="grid grid-cols-2 gap-3">
-                      {Object.entries(spentByCategory).map(([cat, amount]) => (
-                        <div key={cat} className="bg-white p-3 rounded-2xl border border-stone-100 flex items-center gap-3">
-                           <div className="w-2 h-8 rounded-full" style={{ backgroundColor: CATEGORY_COLORS[cat as BudgetCategory] }} />
-                           <div>
-                              <p className="text-[9px] font-black text-stone-400 uppercase tracking-tighter leading-none">{cat}</p>
-                              <p className="text-sm font-black text-stone-800">{currency.symbol}{amount}</p>
-                           </div>
-                        </div>
-                      ))}
-                   </div>
-                 </div>
-               )}
-
-               <div className="space-y-3">
-                 <h4 className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Recent Expenses</h4>
-                 <div className="space-y-2">
-                    {expenses.length === 0 && (
-                      <div className="bg-white p-6 rounded-2xl border border-stone-100 text-center">
-                        <p className="text-sm font-bold text-stone-700">No expenses yet</p>
-                        <p className="text-xs text-stone-400 mt-1">Add your first expense to start tracking your budget.</p>
-                      </div>
-                    )}
-                    {expenses.map(exp => (
-                      <div key={exp.id} className="bg-white p-4 rounded-2xl border border-stone-100 flex justify-between items-center group">
-                        <div className="flex items-center gap-3">
-                          <div className="p-2 bg-stone-50 rounded-xl text-[#3a5a40]"><DollarSign size={18} /></div>
-                          <div>
-                            <h4 className="text-sm font-bold text-stone-800">{exp.title}</h4>
-                            <p className="text-[10px] text-stone-400 font-bold uppercase tracking-tight">Paid by {participants.find(p => p.id === exp.paidById)?.name}</p>
-                          </div>
-                        </div>
-                        <span className="font-black text-stone-800">{currency.symbol}{exp.amount}</span>
-                      </div>
-                    ))}
-                 </div>
-                 <button 
-                   onClick={() => setShowAddExpense(true)}
-                   className="w-full py-4 bg-[#3a5a40] text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg active:scale-95 transition-all"
-                 >
-                   + Add New Expense
-                 </button>
-               </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Add Expense Dialog */}
-      {showAddExpense && (
-        <div className="absolute inset-0 z-[110] flex items-center justify-center bg-black/60 backdrop-blur-sm p-6">
-          <div className="bg-white w-full max-w-sm rounded-[2.5rem] p-6 shadow-2xl animate-in zoom-in-95 duration-200">
-             <h3 className="text-xl font-black text-[#3a5a40] mb-6">New Expense</h3>
-             <div className="space-y-4">
-                <input 
-                  type="text" placeholder="What for? (e.g. Dinner)" 
-                  className="w-full bg-stone-50 border-stone-200 border rounded-2xl px-4 py-3 text-sm font-bold"
-                  onChange={(e) => setNewExpense({...newExpense, title: e.target.value})}
-                />
-                <div className="flex gap-2">
-                  <div className="bg-stone-50 border border-stone-200 rounded-2xl px-3 py-3 flex items-center text-stone-400 font-bold">{currency.symbol}</div>
-                  <input 
-                    type="number" placeholder="0.00" 
-                    className="flex-1 bg-stone-50 border-stone-200 border rounded-2xl px-4 py-3 text-sm font-bold"
-                    onChange={(e) => setNewExpense({...newExpense, amount: Number(e.target.value)})}
-                  />
-                </div>
-                <select 
-                   className="w-full bg-stone-50 border-stone-200 border rounded-2xl px-4 py-3 text-sm font-bold"
-                   onChange={(e) => setNewExpense({...newExpense, category: e.target.value as BudgetCategory})}
-                >
-                  {Object.keys(CATEGORY_COLORS).map(cat => <option key={cat} value={cat}>{cat}</option>)}
-                </select>
-                <div className="flex gap-3 pt-4">
-                  <button onClick={() => setShowAddExpense(false)} className="flex-1 py-4 bg-stone-100 text-stone-500 rounded-2xl font-black text-xs uppercase tracking-widest">Cancel</button>
-                  <button onClick={saveExpense} className="flex-1 py-4 bg-[#3a5a40] text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg">Save</button>
-                </div>
-             </div>
+          <div className="relative bg-[#f4f1ea] w-full max-w-md h-[92vh] rounded-t-[2rem] shadow-2xl overflow-hidden animate-slide-up">
+            <button
+              onClick={() => setShowBudget(false)}
+              aria-label="Close budget"
+              className="absolute top-3 right-4 z-[60] w-9 h-9 rounded-full bg-white/85 backdrop-blur flex items-center justify-center shadow"
+            >
+              <X size={18} />
+            </button>
+            <BudgetPanel tripId={tripId} currentUser={user} />
           </div>
         </div>
       )}

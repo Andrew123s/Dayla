@@ -13,6 +13,7 @@ const logger = require('./utils/logger');
 // Import routes
 const authRoutes = require('./routes/auth.routes');
 const tripRoutes = require('./routes/trip.routes');
+const budgetRoutes = require('./routes/budget.routes');
 const chatRoutes = require('./routes/chat.routes');
 const uploadRoutes = require('./routes/upload.routes');
 const communityRoutes = require('./routes/community.routes');
@@ -20,6 +21,7 @@ const boardRoutes = require('./routes/board.routes');
 const climatiqRoutes = require('./routes/climatiq.routes');
 const weatherRoutes = require('./routes/weather.routes');
 const packingRoutes = require('./routes/packing.routes');
+const pikoRoutes = require('./routes/piko.routes');
 
 // Create Express app
 const app = express();
@@ -110,6 +112,7 @@ app.use('/api/auth/login', authLimiter);
 app.use('/api/auth/register', authLimiter);
 app.use('/api/auth', authRoutes);
 app.use('/api/trips', tripRoutes);
+app.use('/api/trips', budgetRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/community', communityRoutes);
@@ -117,6 +120,7 @@ app.use('/api/boards', boardRoutes);
 app.use('/api/climatiq', climatiqRoutes);
 app.use('/api/weather', weatherRoutes);
 app.use('/api/packing', packingRoutes);
+app.use('/api/piko', pikoRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {
