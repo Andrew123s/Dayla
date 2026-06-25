@@ -85,10 +85,13 @@ const getTrips = async (req, res) => {
 // @access  Private
 const getTrip = async (req, res) => {
   try {
+    // NOTE: `items` refs a `StickyNote` model that is never registered (sticky
+    // notes are embedded in the Dashboard, not a standalone collection), so
+    // populating it threw MissingSchemaError and 500'd every call to this route.
+    // It's not used by any consumer, so we simply don't populate it.
     const trip = await Trip.findById(req.params.id)
       .populate('owner', 'name avatar bio')
-      .populate('collaborators', 'name avatar')
-      .populate('items');
+      .populate('collaborators', 'name avatar');
 
     if (!trip) {
       return res.status(404).json({
