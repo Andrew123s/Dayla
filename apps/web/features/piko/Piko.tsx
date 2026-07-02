@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { Map, Compass, Bookmark, Plus, Loader2, RefreshCw } from 'lucide-react';
-import { PikoTab, Route, NewRouteInput, PikoPlan, RouteComment, GroupMember } from './types';
+import { PikoTab, Route, NewRouteInput, PikoPlan, RouteComment, GroupMember, GroupTask } from './types';
 import { PikoDataSource, createLocalDataSource } from './dataSource';
 import { parseGpx, gpxToRouteInput } from './gpx';
 import { DiscoverPage } from './pages/DiscoverPage';
@@ -39,6 +39,18 @@ export interface PikoProps {
   apiBase?: string;
   /** Real group members (Dayla trip collaborators). Defaults to the demo group. */
   members?: GroupMember[];
+  /**
+   * Dashboard-backed group decision (Dayla). When provided, the group panel uses
+   * these instead of the standalone saved-routes + localStorage behaviour.
+   */
+  group?: {
+    candidates?: Route[];
+    onGroupVote?: (routeId: string, value: -1 | 0 | 1) => void;
+    tasks?: GroupTask[];
+    onAssignTask?: (taskId: string, assignee: string | null) => void;
+    selectedId?: string | null;
+    onSelectRoute?: (routeId: string | null) => void;
+  };
 }
 
 const SUB_TABS: { id: PikoTab; icon: typeof Compass; label: string }[] = [
@@ -52,7 +64,7 @@ const SUB_TABS: { id: PikoTab; icon: typeof Compass; label: string }[] = [
  * sub-tab + detail navigation, loads from a pluggable data source, and persists
  * saved/created routes. Drop in as a single component.
  */
-export function Piko({ onExit, dataSource, embedded = false, onAddToPlan, onNavigate, apiBase = '', members }: PikoProps) {
+export function Piko({ onExit, dataSource, embedded = false, onAddToPlan, onNavigate, apiBase = '', members, group }: PikoProps) {
   const source = useMemo(() => dataSource ?? createLocalDataSource(), [dataSource]);
 
   const [tab, setTab] = useState<PikoTab>('discover');
@@ -429,9 +441,13 @@ export function Piko({ onExit, dataSource, embedded = false, onAddToPlan, onNavi
         {groupOpen && (
           <GroupPlanPage
             onClose={() => setGroupOpen(false)}
-            candidates={groupCandidates}
+            candidates={group?.candidates ?? groupCandidates}
             members={members ?? GROUP_MEMBERS}
-            onVote={voteOnRoute}
+            onVote={group?.onGroupVote ?? voteOnRoute}
+            tasks={group?.tasks}
+            onAssignTask={group?.onAssignTask}
+            selectedId={group?.selectedId}
+            onSelectRoute={group?.onSelectRoute}
             onOpenRoute={(r) => {
               setGroupOpen(false);
               setSelectedRoute(r);

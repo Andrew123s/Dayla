@@ -23,33 +23,60 @@ interface GroupPlanPageProps {
   members: GroupMember[];
   onVote: (routeId: string, value: -1 | 0 | 1) => void;
   onOpenRoute: (route: Route) => void;
+  /** Dashboard-backed mode (Dayla): controlled tasks + persisted selection. */
+  tasks?: GroupTask[];
+  onAssignTask?: (taskId: string, assignee: string | null) => void;
+  selectedId?: string | null;
+  onSelectRoute?: (routeId: string | null) => void;
 }
 
 /**
  * Group collaboration view: presence, a group-aware ranked shortlist whose top
  * pick is the collaborative "Selected Route", live voting, and task assignment.
+ *
+ * Standalone it self-manages tasks (localStorage) and treats the top rank as the
+ * pick. In Dayla, `tasks`/`onAssignTask` + `selectedId`/`onSelectRoute` are
+ * provided so everything persists on the dashboard and syncs to the group.
  */
-export function GroupPlanPage({ onClose, candidates, members, onVote, onOpenRoute }: GroupPlanPageProps) {
+export function GroupPlanPage({
+  onClose,
+  candidates,
+  members,
+  onVote,
+  onOpenRoute,
+  tasks: tasksProp,
+  onAssignTask,
+  selectedId,
+  onSelectRoute,
+}: GroupPlanPageProps) {
   const ranked = useMemo(() => rankForGroup(candidates), [candidates]);
-  const selected = ranked[0];
-  const rest = ranked.slice(1);
+  // A locked group pick floats to the top slot; otherwise the auto #1.
+  const pinned = selectedId ? ranked.find((f) => f.route.id === selectedId) : null;
+  const selected = pinned || ranked[0];
+  const rest = ranked.filter((f) => !selected || f.route.id !== selected.route.id);
 
-  const [tasks, setTasks] = useState<GroupTask[]>(() => loadTasks());
+  const controlled = tasksProp !== undefined;
+  const [internalTasks, setInternalTasks] = useState<GroupTask[]>(() => loadTasks());
+  const tasks = controlled ? (tasksProp as GroupTask[]) : internalTasks;
   const memberOf = (id: string | null) => members.find((m) => m.id === id) ?? null;
   const onlineCount = members.filter((m) => m.online).length;
 
   const cycleAssignee = (taskId: string) => {
-    setTasks((prev) => {
-      const ids: (string | null)[] = [null, ...members.map((m) => m.id)];
-      const next = prev.map((t) => {
-        if (t.id !== taskId) return t;
-        const idx = ids.indexOf(t.assignee);
-        return { ...t, assignee: ids[(idx + 1) % ids.length] };
-      });
-      saveTasks(next);
-      return next;
+    const ids: (string | null)[] = [null, ...members.map((m) => m.id)];
+    const cur = tasks.find((t) => t.id === taskId);
+    const next = ids[(ids.indexOf(cur ? cur.assignee : null) + 1) % ids.length];
+    if (controlled) {
+      onAssignTask?.(taskId, next);
+      return;
+    }
+    setInternalTasks((prev) => {
+      const updated = prev.map((t) => (t.id === taskId ? { ...t, assignee: next } : t));
+      saveTasks(updated);
+      return updated;
     });
   };
+
+  const isLocked = !!selectedId && !!selected && selectedId === selected.route.id;
 
   return (
     <motion.div
@@ -130,7 +157,7 @@ export function GroupPlanPage({ onClose, candidates, members, onVote, onOpenRout
                       <img src={selected.route.photos[0]} alt={selected.route.title} className="w-full h-full object-cover" />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
                       <span className="absolute top-3 left-3 flex items-center gap-1 rounded-full bg-emerald-500 px-2.5 py-1 text-[11px] font-bold text-white">
-                        <Award size={12} /> Top pick · {selected.score}
+                        <Award size={12} /> {isLocked ? 'Group pick' : 'Top pick'} · {selected.score}
                       </span>
                       <div className="absolute bottom-2.5 left-3.5 right-3.5">
                         <p className="text-white font-black text-lg leading-tight drop-shadow">{selected.route.title}</p>
@@ -144,6 +171,19 @@ export function GroupPlanPage({ onClose, candidates, members, onVote, onOpenRout
                     <span className="flex items-center gap-1"><Leaf size={13} className="text-emerald-500" />{selected.route.ecoScore}</span>
                     <VoteChip route={selected.route} onVote={onVote} className="ml-auto" />
                   </div>
+                  {onSelectRoute && (
+                    <div className="px-4 pb-3">
+                      <button
+                        type="button"
+                        onClick={() => onSelectRoute(isLocked ? null : selected.route.id)}
+                        className={`w-full py-2 rounded-xl text-sm font-bold transition-colors ${
+                          isLocked ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-900 text-white'
+                        }`}
+                      >
+                        {isLocked ? '✓ Locked as the group’s pick — tap to unlock' : 'Lock as the group’s pick'}
+                      </button>
+                    </div>
+                  )}
                 </div>
               </section>
             )}

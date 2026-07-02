@@ -10,6 +10,12 @@ const {
   acceptInvitation,
   declineInvitation,
 } = require('../controllers/board.controller');
+const {
+  groupVoteRoute,
+  selectRoute,
+  addGroupTask,
+  assignGroupTask,
+} = require('../controllers/boardGroup.controller');
 const { protect } = require('../middleware/auth.middleware');
 
 const router = express.Router();
@@ -24,6 +30,12 @@ router.get('/:boardId/active-users', getActiveUsers);
 router.post('/:boardId/join', joinDashboard);
 router.post('/:boardId/leave', leaveDashboard);
 router.put('/:boardId/activity', updateActivity);
+
+// Piko group decision (Layer 3) — group-scoped votes, selected route, role tasks
+router.post('/:boardId/routes/:routeId/group-vote', groupVoteRoute);
+router.post('/:boardId/select-route', selectRoute);
+router.post('/:boardId/tasks', addGroupTask);
+router.patch('/:boardId/tasks/:taskId', assignGroupTask);
 
 // Invitation routes
 router.post('/:boardId/invite', inviteUser);
