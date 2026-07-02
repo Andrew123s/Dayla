@@ -26,7 +26,7 @@ const boardRoutes = require('./routes/board.routes');
 const climatiqRoutes = require('./routes/climatiq.routes');
 const weatherRoutes = require('./routes/weather.routes');
 const packingRoutes = require('./routes/packing.routes');
-// Piko (Trails) is parked — to be developed separately and re-integrated later.
+const pikoRoutes = require('./routes/piko.routes');
 
 // Create Express app
 const app = express();
@@ -151,6 +151,7 @@ app.use('/api/boards', boardRoutes);
 app.use('/api/climatiq', climatiqRoutes);
 app.use('/api/weather', weatherRoutes);
 app.use('/api/packing', packingRoutes);
+app.use('/api/piko', pikoRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {

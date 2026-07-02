@@ -8,7 +8,7 @@ const stickyNoteSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: ['text', 'image', 'voice', 'weather', 'schedule', 'budget', 'sustainability'],
+    enum: ['text', 'image', 'voice', 'weather', 'schedule', 'budget', 'sustainability', 'route'],
     required: true
   },
   x: {
@@ -195,7 +195,24 @@ const dashboardSchema = new mongoose.Schema({
   version: {
     type: Number,
     default: 1
-  }
+  },
+  // ── Piko group planning (additive) ──────────────────────────────────────────
+  // The collaborative "Selected Route" for this trip (route slug/id), plus
+  // group-scoped votes { routeId: { userId: 1 | -1 } } and non-packing role tasks.
+  // Existing dashboards default cleanly (null / {} / []).
+  selectedRouteId: {
+    type: String,
+    default: null
+  },
+  routeVotes: {
+    type: mongoose.Schema.Types.Mixed,
+    default: {}
+  },
+  groupTasks: [{
+    id: { type: String, required: true },
+    label: { type: String, required: true },
+    assignee: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null }
+  }]
 }, {
   timestamps: true,
   toJSON: { virtuals: true },
