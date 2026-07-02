@@ -24,6 +24,42 @@ const COORDS = {
   'six-glaciers': [51.417, -116.218], 'grouse-grind': [49.37, -123.082], 'nevado-toluca': [19.108, -99.758],
 };
 
+// Bump when seed content changes (photos, copy, …) so existing databases
+// refresh on the next boot via ensureCuratedRoutes().
+const SEED_VERSION = 2;
+
+// Real photographs of each place (Wikipedia/Wikimedia Commons lead images,
+// every URL verified reachable at seed-authoring time).
+const PHOTOS = {
+  'morskie-oko': 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/62/Morskie_Oko_08_VIII_2004-0015.jpg/1280px-Morskie_Oko_08_VIII_2004-0015.jpg',
+  giewont: 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d7/Giewont_T58.jpg/1280px-Giewont_T58.jpg',
+  koscieliska: 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/0a/Brama_Kraszewskiego_2.jpg/1280px-Brama_Kraszewskiego_2.jpg',
+  'path-of-the-gods': 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/3d/Amalfi_Coast_%28Italy%2C_October_2020%29_-_75_%2850558355441%29.jpg/1280px-Amalfi_Coast_%28Italy%2C_October_2020%29_-_75_%2850558355441%29.jpg',
+  'tre-cime': 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/4f/2019_Tre_Cime.jpg/1280px-2019_Tre_Cime.jpg',
+  'cinque-terre-blue': 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/70/Cinque_Terre_%28Italy%2C_October_2020%29_-_24_%2850543603956%29.jpg/1280px-Cinque_Terre_%28Italy%2C_October_2020%29_-_24_%2850543603956%29.jpg',
+  'calanques-cassis': 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/47/Sugiton_-_panoramio_%281%29.jpg/1280px-Sugiton_-_panoramio_%281%29.jpg',
+  'verdon-blanc-martel': 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f9/Verdon_Gorge_1.jpg/1280px-Verdon_Gorge_1.jpg',
+  'caminito-del-rey': 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/7a/Caminito_del_Rey_3.jpg/1280px-Caminito_del_Rey_3.jpg',
+  'montserrat-sant-jeroni': 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/cd/Montserrat_des_de_Manresa.JPG/1280px-Montserrat_des_de_Manresa.JPG',
+  'eiger-trail': 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/fc/North_face.jpg/1280px-North_face.jpg',
+  'five-lakes-zermatt': 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/60/Matterhorn_from_Domh%C3%BCtte_-_2.jpg/1280px-Matterhorn_from_Domh%C3%BCtte_-_2.jpg',
+  'adlerweg-tyrol': 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/ab/Karwendel.JPG/1280px-Karwendel.JPG',
+  'partnach-gorge': 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/8c/Partnachklamm.jpg/1280px-Partnachklamm.jpg',
+  'zugspitze-hollental': 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/7e/Zugspitze_2.JPG/3840px-Zugspitze_2.JPG',
+  trolltunga: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b6/Trolltunga_2017.jpg/3840px-Trolltunga_2017.jpg',
+  preikestolen: 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/85/Lyse_Fjord_et_Preikestolen.jpg/3840px-Lyse_Fjord_et_Preikestolen.jpg',
+  'arthurs-seat': 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/0f/Arthur%27s_Seat%2C_Edinburgh.JPG/3840px-Arthur%27s_Seat%2C_Edinburgh.JPG',
+  'old-man-storr': 'https://upload.wikimedia.org/wikipedia/commons/b/b4/The_Storr_by_Grinner.jpg',
+  reykjadalur: 'https://upload.wikimedia.org/wikipedia/commons/7/7f/Hveragerdi10.JPG',
+  'levada-25-fontes': 'https://upload.wikimedia.org/wikipedia/commons/d/dd/Levada_Madeira.jpg',
+  'angels-landing': 'https://upload.wikimedia.org/wikipedia/commons/f/fd/Angels_Landing_-_Zion_Canyon.jpg',
+  'bright-angel': 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/da/Grand_Canyon_National_Park_-_South_-_03.jpg/3840px-Grand_Canyon_National_Park_-_South_-_03.jpg',
+  'bear-mountain-loop': 'https://upload.wikimedia.org/wikipedia/commons/f/ff/Bear_Mountain%2C_Hudson_Highlands%2C_New_York.jpg',
+  'six-glaciers': 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f1/Lake_Louise_17092005.jpg/1280px-Lake_Louise_17092005.jpg',
+  'grouse-grind': 'https://upload.wikimedia.org/wikipedia/commons/8/87/Grouse_Mountain_Gondola.JPG',
+  'nevado-toluca': 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/28/Vista_del_Nevado_de_Toluca.jpg/3840px-Vista_del_Nevado_de_Toluca.jpg',
+};
+
 const IMG = [
   'https://images.unsplash.com/photo-1439853949127-fa647821eba0?auto=format&fit=crop&q=80&w=1200',
   'https://images.unsplash.com/photo-1470770841072-f978cf4d019e?auto=format&fit=crop&q=80&w=1200',
@@ -103,7 +139,8 @@ async function upsertCuratedRoutes() {
       distanceKm: s.distanceKm,
       elevationGainM: s.elevationGainM,
       estimatedDurationMins: s.estimatedDurationMins,
-      photos: img(i),
+      // Real place photo first; scenic pool image as the secondary gallery shot.
+      photos: PHOTOS[s.id] ? [PHOTOS[s.id], IMG[i % IMG.length]] : img(i),
       tags: s.tags,
       ecoScore: s.ecoScore,
       weatherScore: s.weatherScore,
@@ -113,6 +150,7 @@ async function upsertCuratedRoutes() {
       startPoint: coord ? { type: 'Point', coordinates: [coord[1], coord[0]] } : undefined,
       creatorName: 'Dayla',
       moderation: { status: 'approved', reports: [] },
+      seedVersion: SEED_VERSION,
     };
     // Upsert by slug; never clobber engagement (savedBy/votes/comments) on re-seed.
     await Route.findOneAndUpdate({ slug: s.id }, { $set: doc }, { upsert: true, new: true, setDefaultsOnInsert: true });
@@ -122,12 +160,13 @@ async function upsertCuratedRoutes() {
 }
 
 /**
- * Boot-time guard: seed the curated catalogue only when it's missing, so a fresh
- * production database self-populates without shell access. Fast no-op otherwise.
+ * Boot-time guard: seed when the curated catalogue is missing OR stale (older
+ * seedVersion), so fresh databases self-populate and content updates (e.g. the
+ * real place photos) roll out without shell access. Fast no-op otherwise.
  */
 async function ensureCuratedRoutes() {
-  const count = await Route.countDocuments({ type: 'curated' });
-  if (count > 0) return 0;
+  const current = await Route.countDocuments({ type: 'curated', seedVersion: SEED_VERSION });
+  if (current >= SEEDS.length) return 0;
   return upsertCuratedRoutes();
 }
 

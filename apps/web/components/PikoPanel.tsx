@@ -3,6 +3,7 @@ import { ArrowLeft } from 'lucide-react';
 import { Piko, createApiDataSource } from '../features/piko';
 import type { GroupMember, GroupTask, Route } from '../features/piko';
 import { DEFAULT_TASKS } from '../features/piko/group';
+import { fetchLiveWeather } from '../features/piko/weather';
 import { API_BASE_URL, authFetch } from '../lib/api';
 import { getSocket } from '../lib/socket';
 
@@ -26,10 +27,19 @@ interface Collaborator {
 
 interface PikoPanelProps {
   dashboardId: string;
+  /** Trip id — used to funnel packing-type tasks into the Ntelipak list. */
+  tripId?: string;
   user: { id: string; name: string; avatar?: string };
   collaborators?: Collaborator[];
   onClose: () => void;
 }
+
+// Group-date weather is computed ONCE per route per session (Layer 4) — a
+// module-level cache keyed by routeId so re-opening the panel never refetches.
+const weatherScoreCache = new Map<string, number>();
+
+// Default role tasks that are really packing items → funnel to Ntelipak.
+const PACKING_TASK_IDS = new Set(['t-water', 't-firstaid', 't-snacks']);
 
 const PALETTE = ['#3a5a40', '#c1734a', '#4f7a99', '#9a6a9c', '#7c9b86', '#d2a93f', '#c98694', '#a9a396'];
 function colorFor(id: string): string {
@@ -50,7 +60,7 @@ interface GroupSnapshot {
   serverTasks: GroupTask[];
 }
 
-export function PikoPanel({ dashboardId, user, collaborators = [], onClose }: PikoPanelProps) {
+export function PikoPanel({ dashboardId, tripId, user, collaborators = [], onClose }: PikoPanelProps) {
   const [toast, setToast] = useState<string | null>(null);
   const [snap, setSnap] = useState<GroupSnapshot>({ candidates: [], selectedId: null, serverTasks: [] });
   const source = useMemo(() => createApiDataSource(authFetch, API_BASE_URL), []);
@@ -96,6 +106,7 @@ export function PikoPanel({ dashboardId, user, collaborators = [], onClose }: Pi
         const gv = votes[rid] || {};
         const voteScore = Object.values(gv).reduce((s: number, v) => s + (v as number), 0);
         const userVote = ((gv[user.id] as number) || 0) as -1 | 0 | 1;
+        const startPoint = Array.isArray(m.startPoint) && m.startPoint.length === 2 ? (m.startPoint as [number, number]) : null;
         candidates.push({
           id: rid,
           type: 'curated',
@@ -110,14 +121,39 @@ export function PikoPanel({ dashboardId, user, collaborators = [], onClose }: Pi
           photos: m.thumbnail ? [m.thumbnail] : [],
           tags: [],
           ecoScore: m.ecoScore ?? 75,
-          weatherScore: 70,
+          // Live group-date weather (cached) feeds the ranking; 70 until known.
+          weatherScore: weatherScoreCache.get(rid) ?? 70,
           accessibilityScore: 50,
-          ecoImpact: { transportMode: '', co2EstimateKg: 0, greenerAlternatives: [] },
+          ecoImpact: {
+            transportMode: '',
+            co2EstimateKg: m.co2EstimateKg ?? 0,
+            greenerAlternatives: [],
+          },
+          startPoint,
           voteScore,
           userVote,
         } as Route);
       }
       setSnap({ candidates, selectedId: d.selectedRouteId || null, serverTasks: d.groupTasks || [] });
+
+      // Layer 4: fetch trailhead weather ONCE per route (module cache), then
+      // patch the scores so the group ranking reflects real conditions.
+      const missing = candidates.filter((c) => c.startPoint && !weatherScoreCache.has(c.id));
+      if (missing.length) {
+        void Promise.all(
+          missing.map(async (c) => {
+            const w = await fetchLiveWeather(c.startPoint![1], c.startPoint![0]);
+            if (w) weatherScoreCache.set(c.id, w.score);
+          })
+        ).then(() => {
+          setSnap((s) => ({
+            ...s,
+            candidates: s.candidates.map((c) =>
+              weatherScoreCache.has(c.id) ? { ...c, weatherScore: weatherScoreCache.get(c.id)! } : c
+            ),
+          }));
+        });
+      }
     } catch {
       /* keep current on transient failure */
     }
@@ -192,7 +228,9 @@ export function PikoPanel({ dashboardId, user, collaborators = [], onClose }: Pi
 
   const onAssignTask = useCallback(
     async (taskId: string, assignee: string | null) => {
-      const label = (DEFAULT_TASKS.find((t) => t.id === taskId) || tasks.find((t) => t.id === taskId))?.label;
+      const task = DEFAULT_TASKS.find((t) => t.id === taskId) || tasks.find((t) => t.id === taskId);
+      const label = task?.label;
+      const prevAssignee = tasks.find((t) => t.id === taskId)?.assignee ?? null;
       try {
         await authFetch(`${API_BASE_URL}/api/boards/${dashboardId}/tasks/${taskId}`, {
           method: 'PATCH',
@@ -202,9 +240,28 @@ export function PikoPanel({ dashboardId, user, collaborators = [], onClose }: Pi
       } catch {
         /* ignore */
       }
+
+      // Layer 4 funnel: "bring X" tasks are packing items — on FIRST assignment,
+      // add them to the trip's Ntelipak list as a shared item (role tasks like
+      // Navigate / Arrange transport stay on the dashboard only).
+      if (tripId && label && PACKING_TASK_IDS.has(taskId) && prevAssignee === null && assignee !== null) {
+        try {
+          const res = await authFetch(`${API_BASE_URL}/api/packing/${tripId}/items`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: label.replace(/^Bring\s+/i, ''), isShared: true }),
+          });
+          if (res.ok) {
+            setToast(`“${label}” added to the Ntelipak packing list`);
+            setTimeout(() => setToast(null), 3000);
+          }
+        } catch {
+          /* packing funnel is best-effort */
+        }
+      }
       fetchGroup();
     },
-    [dashboardId, fetchGroup, tasks]
+    [dashboardId, tripId, fetchGroup, tasks]
   );
 
   const group = useMemo(

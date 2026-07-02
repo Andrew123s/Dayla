@@ -56,7 +56,45 @@ const groupVoteRoute = async (req, res) => {
   }
 };
 
-// @route POST /api/boards/:boardId/select-route   body { routeId }
+/**
+ * Layer 4: guarded auto-packing. When the group locks a route, regenerate the
+ * trip's Ntelipak list through the EXISTING /api/packing/:tripId/generate
+ * endpoint (proven persistence — we never write packing items directly). The
+ * call is fire-and-forget with the caller's own auth forwarded, so a packing
+ * failure can never break route selection. Skippable via body { autoPack:false }.
+ */
+function triggerAutoPacking(req, dashboard, routeId) {
+  (async () => {
+    try {
+      if (!dashboard.tripId || !routeId) return;
+      const note = (dashboard.notes || []).find(
+        (n) => n.type === 'route' && n.metadata && String(n.metadata.routeId) === String(routeId)
+      );
+      const m = (note && note.metadata) || {};
+      // Route-derived inputs: difficulty → activities, location → destination.
+      const activities = ['hiking'];
+      if (m.difficulty === 'hard') activities.push('camping');
+      const tags = Array.isArray(m.tags) ? m.tags.map((t) => String(t).toLowerCase()) : [];
+      if (tags.some((t) => /coast|beach|lake|hot spring/.test(t))) activities.push('swimming');
+
+      const port = process.env.PORT || 5000;
+      const headers = { 'Content-Type': 'application/json' };
+      if (req.headers.authorization) headers.Authorization = req.headers.authorization;
+      if (req.headers.cookie) headers.Cookie = req.headers.cookie;
+      const resp = await fetch(`http://127.0.0.1:${port}/api/packing/${dashboard.tripId}/generate`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ activities, destination: m.location || undefined }),
+      });
+      logger.info(`Auto-packing for trip ${dashboard.tripId} after route lock → ${resp.status}`);
+      if (resp.ok) emit(req, dashboard._id, 'packing:regenerated', { dashboardId: dashboard._id.toString(), routeId });
+    } catch (e) {
+      logger.warn('Auto-packing trigger failed (non-fatal):', e.message);
+    }
+  })();
+}
+
+// @route POST /api/boards/:boardId/select-route   body { routeId, autoPack? }
 const selectRoute = async (req, res) => {
   try {
     const { dashboard, member } = await loadMember(req.params.boardId, req.user._id);
@@ -69,6 +107,12 @@ const selectRoute = async (req, res) => {
       dashboardId: dashboard._id.toString(),
       routeId: dashboard.selectedRouteId,
     });
+
+    // Auto-generate the packing list for the newly locked route (guarded).
+    if (dashboard.selectedRouteId && req.body.autoPack !== false) {
+      triggerAutoPacking(req, dashboard, dashboard.selectedRouteId);
+    }
+
     res.status(200).json({ success: true, data: { selectedRouteId: dashboard.selectedRouteId } });
   } catch (error) {
     logger.error('selectRoute error:', error);

@@ -1631,8 +1631,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
         </button>
       </div>
 
-      {/* Footer Controls */}
-      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur shadow-2xl rounded-full px-6 py-3 flex gap-6 items-center z-50 border border-stone-100">
+      {/* Footer Controls — swipeable when tools exceed the viewport width */}
+      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur shadow-2xl rounded-full px-5 py-3 flex gap-4 items-center z-50 border border-stone-100 overflow-x-auto no-scrollbar max-w-[calc(100vw-16px)] [&>button]:shrink-0">
         <button onClick={() => addNote('text')} className="flex flex-col items-center gap-1 text-[#3a5a40] hover:scale-110 transition-transform">
           <Type size={20} /><span className="text-[8px] font-bold">NOTE</span>
         </button>
@@ -1658,29 +1658,13 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
         <button onClick={() => setShowPiko(true)} className="flex flex-col items-center gap-1 text-[#3a5a40] hover:scale-110 transition-transform">
           <Mountain size={20} /><span className="text-[8px] font-bold">TRAILS</span>
         </button>
+        <button onClick={() => setShowSmartPacking(true)} className="flex flex-col items-center gap-1 text-blue-500 hover:scale-110 transition-transform">
+          <Package size={20} /><span className="text-[8px] font-bold">PACK</span>
+        </button>
+        <button onClick={() => { setShowTripsPanel(true); fetchTripsData(); }} className="flex flex-col items-center gap-1 text-pink-500 hover:scale-110 transition-transform">
+          <Sparkles size={20} /><span className="text-[8px] font-bold">TRIPS</span>
+        </button>
       </div>
-
-      {/* Ntelipak Glowing Blue Button — bottom-left, above toolbar */}
-      <button
-        onClick={() => setShowSmartPacking(true)}
-        className="ntelipak-btn absolute bottom-6 left-3 w-12 h-12 rounded-full flex items-center justify-center z-40 border-2 border-blue-300/50"
-        style={{ marginBottom: 'env(safe-area-inset-bottom, 0px)' }}
-      >
-        <Package size={20} className="text-white drop-shadow-lg" />
-        <span className="ntelipak-glitter-a absolute w-1 h-1 rounded-full bg-white" />
-        <span className="ntelipak-glitter-b absolute w-1 h-1 rounded-full bg-white" />
-      </button>
-
-      {/* Trips Glowing Button — bottom-right, above toolbar */}
-      <button
-        onClick={() => { setShowTripsPanel(true); fetchTripsData(); }}
-        className="trips-btn absolute bottom-6 right-3 w-12 h-12 rounded-full flex items-center justify-center z-40 border-2 border-pink-300/50"
-        style={{ marginBottom: 'env(safe-area-inset-bottom, 0px)' }}
-      >
-        <Sparkles size={20} className="text-white drop-shadow-lg" />
-        <span className="glitter-a absolute w-1 h-1 rounded-full bg-white" />
-        <span className="glitter-b absolute w-1 h-1 rounded-full bg-white" />
-      </button>
 
       {/* Alert Notifications */}
       {showAlerts.length > 0 && (
@@ -1756,6 +1740,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
       {showPiko && (
         <PikoPanel
           dashboardId={dashboardId}
+          tripId={tripId}
           user={{ id: user.id, name: user.name, avatar: user.avatar }}
           collaborators={activeUsers}
           onClose={() => setShowPiko(false)}

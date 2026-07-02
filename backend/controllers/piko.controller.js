@@ -223,6 +223,45 @@ const addToPlan = async (req, res) => {
       (dashboard.collaborators || []).some((c) => c.user && c.user.toString() === uid);
     if (!isMember) return res.status(403).json({ success: false, message: 'Not a member of this plan' });
 
+    const startPoint =
+      route.startPoint && Array.isArray(route.startPoint.coordinates) && route.startPoint.coordinates.length === 2
+        ? route.startPoint.coordinates
+        : null;
+
+    // Real eco impact (Layer 4): compute the trip-base → trailhead journey CO2
+    // via Climatiq ONCE and cache it in the note metadata. Gated behind an
+    // explicit env key so it no-ops cleanly when unset; falls back to the
+    // route's static estimate on any failure.
+    let co2EstimateKg = route.ecoImpact ? route.ecoImpact.co2EstimateKg : 0;
+    let co2Source = 'static';
+    if (process.env.CLIMATIQ_API_KEY && startPoint) {
+      try {
+        const Trip = require('../models/trip.model');
+        const trip = await Trip.findById(dashboard.tripId).select('destination');
+        const base = trip && trip.destination && trip.destination.coordinates;
+        if (base && typeof base.lat === 'number' && typeof base.lng === 'number') {
+          const toRad = (d) => (d * Math.PI) / 180;
+          const dLat = toRad(startPoint[1] - base.lat);
+          const dLng = toRad(startPoint[0] - base.lng);
+          const h = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(base.lat)) * Math.cos(toRad(startPoint[1])) * Math.sin(dLng / 2) ** 2;
+          const distanceKm = Math.round(2 * 6371 * Math.asin(Math.min(1, Math.sqrt(h))));
+          if (distanceKm > 1) {
+            const transport = ((route.ecoImpact && route.ecoImpact.transportMode) || '').toLowerCase();
+            const mode = /train|rail/.test(transport) ? 'train' : /bus|shuttle|coach/.test(transport) ? 'bus' : 'car';
+            const climatiq = require('../services/climatiq.service');
+            const passengers = 1 + (dashboard.collaborators || []).length;
+            const co2 = await climatiq.calculateTransportEmissions({ mode, distance: distanceKm, passengers });
+            if (typeof co2 === 'number' && Number.isFinite(co2)) {
+              co2EstimateKg = Math.round(co2 * 10) / 10;
+              co2Source = 'climatiq';
+            }
+          }
+        }
+      } catch (e) {
+        logger.warn('Climatiq eco estimate failed (using static):', e.message);
+      }
+    }
+
     const note = {
       id: `route-${route._id}-${Date.now()}`,
       type: 'route',
@@ -241,6 +280,11 @@ const addToPlan = async (req, res) => {
         difficulty: route.difficulty,
         ecoScore: route.ecoScore,
         thumbnail: (route.photos || [])[0] || null,
+        // Layer 4: trailhead for group-date weather + cached eco estimate.
+        startPoint,
+        co2EstimateKg,
+        co2Source,
+        tags: route.tags || [],
       },
       createdBy: { userId: req.user._id, name: req.user.name || 'You' },
     };

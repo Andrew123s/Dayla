@@ -65,6 +65,9 @@ const routeSchema = new mongoose.Schema(
     savedBy: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
     votes: { type: [voteSchema], default: [] },
     comments: { type: [commentSchema], default: [] },
+    // Version of the curated seed that produced this doc (0 = user-generated /
+    // pre-versioned). Lets ensureCuratedRoutes() refresh stale catalogue content.
+    seedVersion: { type: Number, default: 0 },
     moderation: {
       status: { type: String, enum: ['approved', 'pending', 'flagged', 'removed'], default: 'approved' },
       reports: {
