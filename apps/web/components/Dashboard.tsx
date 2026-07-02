@@ -20,6 +20,7 @@ import {
 import SmartPacking from './SmartPacking';
 import StickyNoteCard from './StickyNoteCard';
 import { BudgetPanel } from './budget/BudgetPanel';
+import PikoPanel from './PikoPanel';
 
 interface DashboardProps {
   user: User;
@@ -219,6 +220,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   const [showWeather, setShowWeather] = useState(false);
   const [showCalendar, setShowCalendar] = useState(false);
   const [showBudget, setShowBudget] = useState(false);
+  const [showPiko, setShowPiko] = useState(false);
   const [showSusCal, setShowSusCal] = useState(false);
   const [showTripsPanel, setShowTripsPanel] = useState(false);
   const [showSmartPacking, setShowSmartPacking] = useState(false);
@@ -1653,6 +1655,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
         <button onClick={() => setShowBudget(true)} className="flex flex-col items-center gap-1 text-[#3a5a40] hover:scale-110 transition-transform">
           <Wallet size={20} /><span className="text-[8px] font-bold">BUDGET</span>
         </button>
+        <button onClick={() => setShowPiko(true)} className="flex flex-col items-center gap-1 text-[#3a5a40] hover:scale-110 transition-transform">
+          <Mountain size={20} /><span className="text-[8px] font-bold">TRAILS</span>
+        </button>
       </div>
 
       {/* Ntelipak Glowing Blue Button — bottom-left, above toolbar */}
@@ -1746,6 +1751,15 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
             <BudgetPanel tripId={tripId} currentUser={user} />
           </div>
         </div>
+      )}
+
+      {showPiko && (
+        <PikoPanel
+          dashboardId={dashboardId}
+          user={{ id: user.id, name: user.name, avatar: user.avatar }}
+          collaborators={activeUsers}
+          onClose={() => setShowPiko(false)}
+        />
       )}
 
       {showCalendar && (() => {

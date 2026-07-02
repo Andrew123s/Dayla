@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const Route = require('../models/route.model');
 const Dashboard = require('../models/dashboard.model');
+const graphhopper = require('../services/graphhopper.service');
 const logger = require('../utils/logger');
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -260,12 +261,24 @@ const addToPlan = async (req, res) => {
   }
 };
 
+// @desc  Snap drawn/recorded waypoints to real trails (Draw + Record flows)
+// @route POST /api/piko/route   body: { points, profile, elevation }
+const routeSnap = async (req, res) => {
+  try {
+    const result = await graphhopper.snapRoute(req.body);
+    res.status(200).json({ success: true, data: result });
+  } catch (error) {
+    res.status(error.status || 500).json({ success: false, message: error.message || 'Routing failed' });
+  }
+};
+
 module.exports = {
   listRoutes,
   getRoute,
   createRoute,
   toggleSave,
   getSaved,
+  routeSnap,
   vote,
   listComments,
   addComment,

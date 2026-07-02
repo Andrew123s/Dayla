@@ -311,6 +311,44 @@ const StickyNoteCard: React.FC<StickyNoteCardProps> = ({
   const isImageNote = note.type === 'image';
   const isVoiceNote = note.type === 'voice';
 
+  // ── Route note (Piko "add to plan") ────────────────────────────────────────
+  if (note.type === 'route') {
+    const m: any = (note as any).metadata || {};
+    return (
+      <div
+        ref={cardRef}
+        className={`absolute rounded-2xl overflow-hidden flex flex-col select-none group bg-white ring-1 ring-emerald-100 transition-shadow duration-150 ${isDragging ? 'shadow-2xl' : 'shadow-lg hover:shadow-xl'}`}
+        style={{ left: note.x, top: note.y, width: note.width, height: note.height, zIndex: isDragging ? 30 : 20, cursor: isDragging ? 'grabbing' : 'grab', transform: isDragging ? 'scale(1.03) rotate(1deg)' : 'none' }}
+        onPointerDown={handleCardPointerDown}
+        onPointerMove={handleCardPointerMove}
+        onPointerUp={handleCardPointerUp}
+        onPointerCancel={handleCardPointerUp}
+        onClick={handleNoteTap}
+      >
+        <div
+          className={`note-toolbar absolute -top-9 right-0 flex justify-end px-2 py-1 bg-white/90 backdrop-blur-sm rounded-xl border border-stone-100 shadow-sm transition-opacity duration-150 ${isDragging ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+          onClick={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          <button onClick={() => onDelete(note.id)} className="p-1 hover:bg-red-50 text-red-400 hover:text-red-500 rounded transition-colors" title="Remove route">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /></svg>
+          </button>
+        </div>
+        {m.thumbnail && <img src={m.thumbnail} alt="" draggable={false} className="w-full h-16 object-cover shrink-0" />}
+        <div className="p-2.5 flex-1 min-h-0">
+          <div className="text-[9px] font-bold uppercase tracking-wide text-emerald-600">🥾 Trail</div>
+          <div className="font-bold text-[13px] text-slate-800 leading-tight truncate">{m.title || note.content}</div>
+          {m.location && <div className="text-[10px] text-slate-500 truncate">{m.location}</div>}
+          <div className="flex items-center gap-2 mt-1 text-[10px] font-semibold text-slate-500">
+            {m.distanceKm != null && <span>{m.distanceKm} km</span>}
+            {m.elevationGainM != null && <span>{m.elevationGainM} m</span>}
+            {m.difficulty && <span className="capitalize">{m.difficulty}</span>}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const cardStyle: React.CSSProperties = {
     left: note.x,
     top: note.y,

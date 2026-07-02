@@ -9,6 +9,7 @@ const {
   listComments,
   addComment,
   addToPlan,
+  routeSnap,
 } = require('../controllers/piko.controller');
 const { protect } = require('../middleware/auth.middleware');
 
@@ -17,6 +18,7 @@ const router = express.Router();
 router.use(protect);
 
 router.get('/saved', getSaved);
+router.post('/route', routeSnap); // draw/record snapping (GraphHopper proxy)
 router.route('/routes').get(listRoutes).post(createRoute);
 router.get('/routes/:id', getRoute);
 router.post('/routes/:id/save', toggleSave);
