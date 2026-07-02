@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import { Compass, SearchX, Sparkles, MapPin, ChevronDown } from 'lucide-react';
 import { Route, RouteFilter } from '../types';
@@ -18,6 +18,8 @@ interface DiscoverPageProps {
   onBack: () => void;
   savedIds: Set<string>;
   onToggleSave: (id: string) => void;
+  /** Open the interactive Map tab (map-preview "Open"/layers buttons). */
+  onOpenMap?: () => void;
 }
 
 const FILTER_HEADINGS: Record<RouteFilter, string> = {
@@ -43,12 +45,13 @@ function matchesFilter(route: Route, filter: RouteFilter): boolean {
   }
 }
 
-export function DiscoverPage({ routes, embedded = false, onOpenRoute, onBack, savedIds, onToggleSave }: DiscoverPageProps) {
+export function DiscoverPage({ routes, embedded = false, onOpenRoute, onBack, savedIds, onToggleSave, onOpenMap }: DiscoverPageProps) {
   const [filter, setFilter] = useState<RouteFilter>('all');
   const [query, setQuery] = useState('');
   const [country, setCountry] = useState<string>('all');
   const [locationOpen, setLocationOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const filtersRef = useRef<HTMLDivElement>(null);
 
   // Countries with route counts for the location picker.
   const countries = useMemo<CountryOption[]>(() => {
@@ -118,13 +121,17 @@ export function DiscoverPage({ routes, embedded = false, onOpenRoute, onBack, sa
           <br />
           trail to explore
         </h1>
-        <SearchBar value={query} onChange={setQuery} />
+        <SearchBar
+          value={query}
+          onChange={setQuery}
+          onOpenFilters={() => filtersRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
+        />
       </div>
 
       {/* Map preview */}
       {!isSearching && (
         <div className="px-4 pb-2">
-          <MapPreview nearbyCount={inCountry.length} locationLabel={locationLabel} />
+          <MapPreview nearbyCount={inCountry.length} locationLabel={locationLabel} onOpen={onOpenMap} />
         </div>
       )}
 
@@ -143,7 +150,9 @@ export function DiscoverPage({ routes, embedded = false, onOpenRoute, onBack, sa
       )}
 
       {/* Filter chips */}
-      <FilterChips active={filter} onChange={setFilter} />
+      <div ref={filtersRef}>
+        <FilterChips active={filter} onChange={setFilter} />
+      </div>
 
       {/* Results list */}
       <section className="px-4 pt-1">

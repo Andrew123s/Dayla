@@ -4,9 +4,11 @@ import { motion } from 'motion/react';
 interface MapPreviewProps {
   nearbyCount: number;
   locationLabel: string;
+  /** Open the interactive Map tab. */
+  onOpen?: () => void;
 }
 
-export function MapPreview({ nearbyCount, locationLabel }: MapPreviewProps) {
+export function MapPreview({ nearbyCount, locationLabel, onOpen }: MapPreviewProps) {
   return (
     <div className="relative h-40 rounded-3xl overflow-hidden shadow-sm ring-1 ring-black/5">
       <img
@@ -31,6 +33,7 @@ export function MapPreview({ nearbyCount, locationLabel }: MapPreviewProps) {
 
       <button
         type="button"
+        onClick={onOpen}
         className="absolute top-3 right-3 grid place-items-center w-9 h-9 rounded-xl bg-white/90 backdrop-blur-sm text-slate-700 shadow-sm hover:bg-white active:scale-95 transition-all"
         aria-label="Map layers"
       >
@@ -47,6 +50,7 @@ export function MapPreview({ nearbyCount, locationLabel }: MapPreviewProps) {
         </div>
         <button
           type="button"
+          onClick={onOpen}
           className="flex items-center gap-1.5 bg-white text-slate-800 text-xs font-bold pl-3 pr-3.5 py-2 rounded-full shadow-lg active:scale-95 transition-transform"
         >
           <Navigation size={14} className="text-emerald-600" />

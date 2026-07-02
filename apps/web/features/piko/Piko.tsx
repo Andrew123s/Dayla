@@ -365,6 +365,7 @@ export function Piko({ onExit, dataSource, embedded = false, onAddToPlan, onNavi
                 onBack={handleExit}
                 savedIds={savedIds}
                 onToggleSave={toggleSave}
+                onOpenMap={() => setTab('map')}
               />
             )}
             {tab === 'saved' && (

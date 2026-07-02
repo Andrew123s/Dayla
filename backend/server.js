@@ -49,6 +49,14 @@ const startServer = async () => {
       }
     } catch (_) { /* index cleanup is best-effort */ }
 
+    // Self-populate the Piko curated trail catalogue on a fresh database.
+    // Best-effort + non-blocking: an empty catalogue means the Trails feature
+    // shows "0 routes", so seed it once; no-op when routes already exist.
+    require('./scripts/seed-routes')
+      .ensureCuratedRoutes()
+      .then((n) => { if (n > 0) logger.info(`🥾 Seeded ${n} curated Piko routes`); })
+      .catch((err) => logger.error('Curated route seed failed (non-fatal):', err));
+
     // Start server
     server.listen(PORT, () => {
       logger.info(`🚀 Server running on port ${PORT}`);

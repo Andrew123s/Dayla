@@ -85,8 +85,8 @@ const SEEDS = [
   { id: 'nevado-toluca', title: 'Nevado de Toluca', country: 'Mexico', location: 'Toluca · Mexico', description: 'A high-altitude trek into the crater of an extinct volcano, ringed by jagged peaks and two sacred crater lakes — the Sun and the Moon. Acclimatise first.', difficulty: 'hard', distanceKm: 8.0, elevationGainM: 700, estimatedDurationMins: 240, tags: ['Volcano', 'Crater Lakes', 'Alpine'], ecoScore: 82, weatherScore: 68, accessibilityScore: 25, transport: 'Shared van from Toluca', co2: 1.3, greener: ['Group colectivo van'] },
 ];
 
-async function seed() {
-  await connectDB();
+/** Upsert every curated route (assumes an open mongoose connection). */
+async function upsertCuratedRoutes() {
   let upserts = 0;
   for (let i = 0; i < SEEDS.length; i++) {
     const s = SEEDS[i];
@@ -118,12 +118,33 @@ async function seed() {
     await Route.findOneAndUpdate({ slug: s.id }, { $set: doc }, { upsert: true, new: true, setDefaultsOnInsert: true });
     upserts += 1;
   }
-  console.log(`Seeded/updated ${upserts} curated routes.`);
-  await mongoose.connection.close();
-  process.exit(0);
+  return upserts;
 }
 
-seed().catch((err) => {
-  console.error('Seed failed:', err);
-  process.exit(1);
-});
+/**
+ * Boot-time guard: seed the curated catalogue only when it's missing, so a fresh
+ * production database self-populates without shell access. Fast no-op otherwise.
+ */
+async function ensureCuratedRoutes() {
+  const count = await Route.countDocuments({ type: 'curated' });
+  if (count > 0) return 0;
+  return upsertCuratedRoutes();
+}
+
+module.exports = { upsertCuratedRoutes, ensureCuratedRoutes };
+
+// CLI: node backend/scripts/seed-routes.js  (forces a full upsert)
+if (require.main === module) {
+  (async () => {
+    try {
+      await connectDB();
+      const upserts = await upsertCuratedRoutes();
+      console.log(`Seeded/updated ${upserts} curated routes.`);
+      await mongoose.connection.close();
+      process.exit(0);
+    } catch (err) {
+      console.error('Seed failed:', err);
+      process.exit(1);
+    }
+  })();
+}

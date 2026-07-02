@@ -323,9 +323,11 @@ export function TrailMap({
           <div className="flex flex-col items-center gap-2">
             <MapIcon size={24} />
             <p className="text-sm font-bold">Map couldn’t load</p>
-            <p className="max-w-[16rem] text-xs text-emerald-600/80">
-              The map tile key was rejected (403). Add this origin to the key’s allowed origins in your MapTiler
-              dashboard.
+            <p className="max-w-[17rem] text-xs text-emerald-600/80">
+              The map tile key was rejected (403). Add{' '}
+              <code className="font-mono font-bold">{typeof window !== 'undefined' ? window.location.hostname : 'this origin'}</code>{' '}
+              to the key’s allowed origins (HTTP referrers) in your MapTiler dashboard — entries are hostname-only, no
+              protocol or trailing slash.
             </p>
           </div>
         </div>

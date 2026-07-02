@@ -3,9 +3,11 @@ import { Search, SlidersHorizontal } from 'lucide-react';
 interface SearchBarProps {
   value: string;
   onChange: (value: string) => void;
+  /** Open/reveal the filter controls (scrolls to the filter chips). */
+  onOpenFilters?: () => void;
 }
 
-export function SearchBar({ value, onChange }: SearchBarProps) {
+export function SearchBar({ value, onChange, onOpenFilters }: SearchBarProps) {
   return (
     <div className="flex items-center gap-2.5">
       <div className="relative flex-1">
@@ -25,6 +27,7 @@ export function SearchBar({ value, onChange }: SearchBarProps) {
       <button
         type="button"
         aria-label="Filters"
+        onClick={onOpenFilters}
         className="shrink-0 w-[52px] h-[52px] grid place-items-center rounded-2xl bg-slate-900 text-white shadow-sm hover:bg-slate-800 active:scale-95 transition-all"
       >
         <SlidersHorizontal size={20} />
