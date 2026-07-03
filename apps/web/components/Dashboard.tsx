@@ -1724,7 +1724,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
       {/* Feature Modals */}
       {showBudget && (
         <div className="absolute inset-0 z-[100] flex items-end justify-center bg-black/40 backdrop-blur-sm">
-          <div className="relative bg-[#f4f1ea] w-full max-w-md h-[92vh] rounded-t-[2rem] shadow-2xl overflow-hidden animate-slide-up">
+          <div className="relative bg-[#f4f1ea] w-full max-w-md h-[94%] rounded-t-[2rem] shadow-2xl overflow-hidden animate-slide-up">
             <button
               onClick={() => setShowBudget(false)}
               aria-label="Close budget"
@@ -1781,7 +1781,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
 
         return (
         <div className="absolute inset-0 z-[100] flex items-end justify-center bg-black/40 backdrop-blur-sm">
-          <div className="bg-[#f7f3ee] w-full max-w-md h-[92vh] rounded-t-[3rem] shadow-2xl overflow-hidden flex flex-col animate-slide-up">
+          <div className="bg-[#f7f3ee] w-full max-w-md h-[94%] rounded-t-[3rem] shadow-2xl overflow-hidden flex flex-col animate-slide-up">
             <div className="p-6 bg-white border-b border-stone-100">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-2xl font-black text-[#3a5a40] flex items-center gap-2"><Calendar size={24} /> Planner</h2>
@@ -1970,7 +1970,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
 
       {showWeather && (
         <div className="absolute inset-0 z-[100] flex items-end justify-center bg-black/40 backdrop-blur-sm">
-          <div className="bg-[#f7f3ee] w-full max-w-md h-[70vh] rounded-t-[3rem] shadow-2xl overflow-hidden flex flex-col animate-slide-up">
+          <div className="bg-[#f7f3ee] w-full max-w-md h-[72%] rounded-t-[3rem] shadow-2xl overflow-hidden flex flex-col animate-slide-up">
             <div className="p-6 bg-white border-b border-stone-100 flex justify-between items-center">
                 <div className="flex flex-col">
                   <h2 className="text-2xl font-black text-[#3a5a40] flex items-center gap-2"><CloudSun size={24} /> Forecast</h2>
@@ -2079,7 +2079,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
 
       {showSusCal && (
         <div className="absolute inset-0 z-[100] flex items-end justify-center bg-black/40 backdrop-blur-sm">
-          <div className="bg-[#f7f3ee] w-full max-w-md h-[92vh] rounded-t-[3rem] shadow-2xl overflow-hidden flex flex-col border-t border-stone-200 animate-slide-up">
+          <div className="bg-[#f7f3ee] w-full max-w-md h-[94%] rounded-t-[3rem] shadow-2xl overflow-hidden flex flex-col border-t border-stone-200 animate-slide-up">
             <div className="p-6 bg-white border-b border-stone-100">
               <div className="flex justify-between items-center">
                 <h2 className="text-2xl font-bold text-[#3a5a40] flex items-center gap-2"><Leaf size={28} className="text-[#a3b18a]" /> Eco-Tracker</h2>
@@ -2270,7 +2270,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
 
         return (
         <div className="absolute inset-0 z-[100] flex items-end justify-center bg-black/40 backdrop-blur-sm">
-          <div className="bg-[#f7f3ee] w-full max-w-md h-[92vh] rounded-t-[3rem] shadow-2xl overflow-hidden flex flex-col animate-slide-up">
+          <div className="bg-[#f7f3ee] w-full max-w-md h-[94%] rounded-t-[3rem] shadow-2xl overflow-hidden flex flex-col animate-slide-up">
             {/* Header */}
             <div className="p-6 bg-white border-b border-stone-100">
               <div className="flex justify-between items-center mb-4">
@@ -2300,7 +2300,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
               </div>
 
               {/* Status Filter */}
-              <div className="flex gap-1.5 overflow-x-auto scrollbar-hide pb-2">
+              <div className="flex gap-1.5 overflow-x-auto scrollbar-hide pb-2 pr-4">
                 {([
                   { value: 'all', label: 'All' },
                   { value: 'draft', label: 'Draft' },
@@ -2325,7 +2325,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
               </div>
 
               {/* Category Filter */}
-              <div className="flex gap-1.5 overflow-x-auto scrollbar-hide pb-1">
+              <div className="flex gap-1.5 overflow-x-auto scrollbar-hide pb-1 pr-4">
                 {CATEGORIES.map(cat => (
                   <button
                     key={cat.value}

@@ -104,6 +104,9 @@ export function TrailMap({
   const recenteredOnceRef = useRef(false);
   const [ready, setReady] = useState(false);
   const [loadError, setLoadError] = useState(false);
+  // Bumped by the error card's Retry button → tears down and re-creates the map
+  // (fresh style/tile fetch) without requiring a full app reload.
+  const [retryNonce, setRetryNonce] = useState(0);
   const configured = isMapConfigured();
 
   const lines = useMemo(() => routesToLines(routes, selectedId), [routes, selectedId]);
@@ -227,7 +230,7 @@ export function TrailMap({
     };
     // Init once; data is pushed via the effects below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [configured]);
+  }, [configured, retryNonce]);
 
   // ── push route data + fit ───────────────────────────────────────────────────
   useEffect(() => {
@@ -329,6 +332,16 @@ export function TrailMap({
               to the key’s allowed origins (HTTP referrers) in your MapTiler dashboard — entries are hostname-only, no
               protocol or trailing slash.
             </p>
+            <button
+              type="button"
+              onClick={() => {
+                setLoadError(false);
+                setRetryNonce((n) => n + 1);
+              }}
+              className="mt-1 rounded-full bg-emerald-600 px-5 py-2 text-xs font-bold text-white active:scale-95 transition-transform"
+            >
+              Retry
+            </button>
           </div>
         </div>
       )}
