@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowLeft } from 'lucide-react';
-import { Piko, createApiDataSource } from '../features/piko';
-import type { GroupMember, GroupTask, Route } from '../features/piko';
+import { ArrowLeft, ShieldCheck } from 'lucide-react';
+import { Piko, createApiDataSource, ModerationPage } from '../features/piko';
+import type { GroupMember, GroupTask, Route, ModerationItem } from '../features/piko';
 import { DEFAULT_TASKS } from '../features/piko/group';
 import { fetchLiveWeather } from '../features/piko/weather';
 import { API_BASE_URL, authFetch } from '../lib/api';
@@ -64,6 +64,37 @@ export function PikoPanel({ dashboardId, tripId, user, collaborators = [], onClo
   const [toast, setToast] = useState<string | null>(null);
   const [snap, setSnap] = useState<GroupSnapshot>({ candidates: [], selectedId: null, serverTasks: [] });
   const source = useMemo(() => createApiDataSource(authFetch, API_BASE_URL), []);
+
+  // Moderation (Phase 4): probe once — the queue endpoint 403s for non-admins
+  // (ADMIN_EMAILS on the server), so the shield button only appears for admins.
+  const [isModerator, setIsModerator] = useState(false);
+  const [modOpen, setModOpen] = useState(false);
+  useEffect(() => {
+    let active = true;
+    authFetch(`${API_BASE_URL}/api/piko/moderation`)
+      .then((r) => active && setIsModerator(r.ok))
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const fetchModerationQueue = useCallback(async (): Promise<ModerationItem[]> => {
+    const res = await authFetch(`${API_BASE_URL}/api/piko/moderation`);
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok || body.success === false) throw new Error(body.message || 'Could not load the queue');
+    return (body.data || []) as ModerationItem[];
+  }, []);
+
+  const moderateRoute = useCallback(async (id: string, action: 'approve' | 'remove') => {
+    const res = await authFetch(`${API_BASE_URL}/api/piko/routes/${id}/moderate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok || body.success === false) throw new Error(body.message || 'Moderation failed');
+  }, []);
 
   // Real group = current user + trip collaborators.
   const members = useMemo<GroupMember[]>(() => {
@@ -302,7 +333,17 @@ export function PikoPanel({ dashboardId, tripId, user, collaborators = [], onClo
         >
           <ArrowLeft size={20} />
         </button>
-        <span className="font-bold text-slate-900">Trails</span>
+        <span className="font-bold text-slate-900 flex-1">Trails</span>
+        {isModerator && (
+          <button
+            type="button"
+            onClick={() => setModOpen(true)}
+            aria-label="Open moderation queue"
+            className="grid place-items-center w-9 h-9 rounded-full text-emerald-600 hover:bg-emerald-50 transition-colors"
+          >
+            <ShieldCheck size={19} />
+          </button>
+        )}
       </div>
       <div className="flex-1 relative">
         <Piko
@@ -320,6 +361,11 @@ export function PikoPanel({ dashboardId, tripId, user, collaborators = [], onClo
             {toast}
           </div>
         </div>
+      )}
+
+      {/* Admin moderation queue */}
+      {modOpen && (
+        <ModerationPage onClose={() => setModOpen(false)} fetchQueue={fetchModerationQueue} onModerate={moderateRoute} />
       )}
     </div>
   );

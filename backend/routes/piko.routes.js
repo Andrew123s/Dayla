@@ -10,6 +10,10 @@ const {
   addComment,
   addToPlan,
   routeSnap,
+  reportRoute,
+  getModerationQueue,
+  moderateRoute,
+  addRoutePhoto,
 } = require('../controllers/piko.controller');
 const { protect } = require('../middleware/auth.middleware');
 
@@ -25,5 +29,11 @@ router.post('/routes/:id/save', toggleSave);
 router.post('/routes/:id/vote', vote);
 router.route('/routes/:id/comments').get(listComments).post(addComment);
 router.post('/routes/:id/add-to-plan', addToPlan);
+
+// Moderation & UGC safety (Phase 4)
+router.get('/moderation', getModerationQueue); // admins (ADMIN_EMAILS)
+router.post('/routes/:id/report', reportRoute);
+router.post('/routes/:id/moderate', moderateRoute); // admins
+router.post('/routes/:id/photos', addRoutePhoto); // creator/admin
 
 module.exports = router;

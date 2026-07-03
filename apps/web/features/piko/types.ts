@@ -57,6 +57,8 @@ export interface Route {
   creatorName?: string;
   /** Set on user-generated routes awaiting / failing moderation. */
   moderationStatus?: ModerationStatus;
+  /** True when the viewer created this route (API source only). */
+  isMine?: boolean;
 
   /** Group engagement (present when backed by the API). */
   isSaved?: boolean;

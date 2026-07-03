@@ -121,6 +121,7 @@ routeSchema.methods.toClient = function toClient(userId) {
     startPoint: hasStart ? this.startPoint.coordinates : null,
     creatorName: this.creatorName,
     moderationStatus: this.moderation ? this.moderation.status : 'approved',
+    isMine: !!(uid && this.creator && this.creator.toString() === uid),
     isSaved,
     saveCount: (this.savedBy || []).length,
     voteScore,

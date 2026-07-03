@@ -2,6 +2,7 @@ import { Leaf, MapPin } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Route } from '../types';
 import { difficultyStyles, formatDuration } from '../utils';
+import { RoutePhoto } from './RoutePhoto';
 
 interface CuratedCarouselProps {
   routes: Route[];
@@ -24,12 +25,7 @@ export function CuratedCarousel({ routes, onOpen }: CuratedCarouselProps) {
             className="snap-start shrink-0 w-64 text-left rounded-3xl overflow-hidden shadow-sm ring-1 ring-gray-100 bg-white"
           >
             <div className="relative h-36 w-full">
-              <img
-                src={route.photos[0]}
-                alt={route.title}
-                loading="lazy"
-                className="w-full h-full object-cover"
-              />
+              <RoutePhoto src={route.photos[0]} alt={route.title} className="w-full h-full object-cover" />
               <div className="absolute inset-0 bg-gradient-to-t from-black/55 to-transparent" />
               <span className="absolute top-3 left-3 bg-emerald-500/95 backdrop-blur text-white text-[11px] font-bold px-2.5 py-1 rounded-full shadow-sm flex items-center gap-1">
                 <Leaf size={11} />

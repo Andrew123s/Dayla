@@ -20,6 +20,17 @@ async function findRoute(idOrSlug) {
   return Route.findOne({ $or: or });
 }
 
+// Moderators are configured via ADMIN_EMAILS (comma-separated) — no schema
+// change, no hardcoded accounts. Unset → nobody is admin (safe default).
+function isAdmin(user) {
+  const admins = (process.env.ADMIN_EMAILS || '')
+    .toLowerCase()
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return admins.includes(((user && user.email) || '').toLowerCase());
+}
+
 // @desc  List routes (filter / search / geo / sort / paginate)
 // @route GET /api/piko/routes
 const listRoutes = async (req, res) => {
@@ -28,16 +39,24 @@ const listRoutes = async (req, res) => {
     const limit = Math.min(parseInt(req.query.limit, 10) || 50, 100);
     const skip = parseInt(req.query.skip, 10) || 0;
 
-    const query = { 'moderation.status': 'approved' };
+    // Visibility: approved content for everyone, PLUS the caller's own routes
+    // (so creators see their submissions while they're pending moderation).
+    const query = {};
+    const and = [
+      { $or: [{ 'moderation.status': 'approved' }, { creator: req.user._id, 'moderation.status': { $ne: 'removed' } }] },
+    ];
     if (country && country !== 'all') query.country = country;
     if (difficulty && difficulty !== 'all') query.difficulty = difficulty;
     if (filter === 'eco') query.ecoScore = { $gte: 85 };
     if (filter === 'group') query.tags = { $in: ['Group Friendly', 'Family', 'Public Transport'] };
-    if (q) query.$or = [
-      { title: { $regex: q, $options: 'i' } },
-      { location: { $regex: q, $options: 'i' } },
-      { tags: { $regex: q, $options: 'i' } },
-    ];
+    if (q) and.push({
+      $or: [
+        { title: { $regex: q, $options: 'i' } },
+        { location: { $regex: q, $options: 'i' } },
+        { tags: { $regex: q, $options: 'i' } },
+      ],
+    });
+    query.$and = and;
     if (lat && lng) {
       query.startPoint = {
         $near: {
@@ -305,6 +324,105 @@ const addToPlan = async (req, res) => {
   }
 };
 
+// @desc  Report a route (auto-flags at 3 distinct reporters)
+// @route POST /api/piko/routes/:id/report   body { reason? }
+const reportRoute = async (req, res) => {
+  try {
+    const route = await findRoute(req.params.id);
+    if (!route) return res.status(404).json({ success: false, message: 'Route not found' });
+
+    const uid = req.user._id.toString();
+    if (!route.moderation) route.moderation = { status: 'approved', reports: [] };
+    const already = (route.moderation.reports || []).some((r) => r.user && r.user.toString() === uid);
+    if (!already) {
+      route.moderation.reports.push({ user: req.user._id, reason: (req.body.reason || '').slice(0, 300) });
+      if (route.moderation.reports.length >= 3 && route.moderation.status === 'approved') {
+        route.moderation.status = 'flagged';
+      }
+      await route.save();
+    }
+    res.status(200).json({ success: true, message: 'Thanks — this route has been reported for review.' });
+  } catch (error) {
+    logger.error('Piko reportRoute error:', error);
+    res.status(500).json({ success: false, message: 'Failed to report route', error: error.message });
+  }
+};
+
+// @desc  Moderation queue (pending + flagged), oldest first — admins only
+// @route GET /api/piko/moderation
+const getModerationQueue = async (req, res) => {
+  try {
+    if (!isAdmin(req.user)) return res.status(403).json({ success: false, message: 'Not authorized' });
+    const routes = await Route.find({ 'moderation.status': { $in: ['pending', 'flagged'] } })
+      .sort({ createdAt: 1 })
+      .limit(100);
+    const data = routes.map((r) => ({
+      ...r.toClient(req.user._id),
+      reportCount: (r.moderation && r.moderation.reports ? r.moderation.reports.length : 0),
+      reportReasons: (r.moderation && r.moderation.reports ? r.moderation.reports.map((x) => x.reason).filter(Boolean).slice(0, 5) : []),
+      createdAt: r.createdAt,
+    }));
+    res.status(200).json({ success: true, data });
+  } catch (error) {
+    logger.error('Piko getModerationQueue error:', error);
+    res.status(500).json({ success: false, message: 'Failed to load moderation queue', error: error.message });
+  }
+};
+
+// @desc  Approve / remove a route — admins only
+// @route POST /api/piko/routes/:id/moderate   body { action: 'approve' | 'remove' }
+const moderateRoute = async (req, res) => {
+  try {
+    if (!isAdmin(req.user)) return res.status(403).json({ success: false, message: 'Not authorized' });
+    const { action } = req.body;
+    if (!['approve', 'remove'].includes(action)) {
+      return res.status(400).json({ success: false, message: 'Invalid action' });
+    }
+    const route = await findRoute(req.params.id);
+    if (!route) return res.status(404).json({ success: false, message: 'Route not found' });
+
+    if (!route.moderation) route.moderation = { status: 'approved', reports: [] };
+    route.moderation.status = action === 'approve' ? 'approved' : 'removed';
+    if (action === 'approve') route.moderation.reports = [];
+    await route.save();
+    res.status(200).json({ success: true, data: { id: route.slug || route._id.toString(), status: route.moderation.status } });
+  } catch (error) {
+    logger.error('Piko moderateRoute error:', error);
+    res.status(500).json({ success: false, message: 'Failed to moderate route', error: error.message });
+  }
+};
+
+// @desc  Attach a photo (Cloudinary URL from Dayla's own upload pipeline — the
+//        uploader owns the image, which keeps imagery properly licensed) to a
+//        user-generated route. Creator or admin only; capped at 6 photos.
+// @route POST /api/piko/routes/:id/photos   body { url }
+const addRoutePhoto = async (req, res) => {
+  try {
+    const url = typeof req.body.url === 'string' ? req.body.url.trim() : '';
+    if (!/^https:\/\//.test(url) || url.length > 500) {
+      return res.status(400).json({ success: false, message: 'A valid https photo URL is required' });
+    }
+    const route = await findRoute(req.params.id);
+    if (!route) return res.status(404).json({ success: false, message: 'Route not found' });
+
+    const uid = req.user._id.toString();
+    const mine = route.creator && route.creator.toString() === uid;
+    if (!mine && !isAdmin(req.user)) {
+      return res.status(403).json({ success: false, message: 'Only the route creator can add photos' });
+    }
+    if ((route.photos || []).length >= 6) {
+      return res.status(400).json({ success: false, message: 'Photo limit reached (6)' });
+    }
+    // The creator's own photo replaces any placeholder/stock as the hero shot.
+    route.photos = [...(route.photos || []), url];
+    await route.save();
+    res.status(201).json({ success: true, data: route.toClient(req.user._id) });
+  } catch (error) {
+    logger.error('Piko addRoutePhoto error:', error);
+    res.status(500).json({ success: false, message: 'Failed to add photo', error: error.message });
+  }
+};
+
 // @desc  Snap drawn/recorded waypoints to real trails (Draw + Record flows)
 // @route POST /api/piko/route   body: { points, profile, elevation }
 const routeSnap = async (req, res) => {
@@ -327,4 +445,8 @@ module.exports = {
   listComments,
   addComment,
   addToPlan,
+  reportRoute,
+  getModerationQueue,
+  moderateRoute,
+  addRoutePhoto,
 };

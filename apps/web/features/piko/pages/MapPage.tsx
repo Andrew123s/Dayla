@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { Crosshair, Route as RouteIcon, Mountain, Leaf, ChevronRight, MapPinned } from 'lucide-react';
 import { Route } from '../types';
 import { TrailMap } from '../components/TrailMapLazy';
+import { RoutePhoto } from '../components/RoutePhoto';
 import { isMapConfigured } from '../map/mapConfig';
 import { difficultyStyles } from '../utils';
 
@@ -86,11 +87,7 @@ export function MapPage({ routes, onOpenRoute }: MapPageProps) {
             transition={{ type: 'spring', damping: 30, stiffness: 320 }}
             className="absolute bottom-4 inset-x-4 z-10 flex items-center gap-3 bg-white rounded-2xl p-3 shadow-2xl ring-1 ring-black/5 text-left active:scale-[0.99] transition-transform"
           >
-            <img
-              src={selected.photos[0]}
-              alt={selected.title}
-              className="w-16 h-16 rounded-xl object-cover shrink-0"
-            />
+            <RoutePhoto src={selected.photos[0]} alt={selected.title} className="w-16 h-16 rounded-xl object-cover shrink-0" />
             <div className="flex-1 min-w-0">
               <p className="font-bold text-slate-900 truncate">{selected.title}</p>
               <p className="text-xs text-slate-500 truncate">{selected.location}</p>

@@ -44,11 +44,6 @@ export function parseGpx(xml: string): ParsedGpx {
   };
 }
 
-const FALLBACK_PHOTOS = [
-  'https://images.unsplash.com/photo-1454496522488-7a8e488e8606?auto=format&fit=crop&q=80&w=1200',
-  'https://images.unsplash.com/photo-1486870591958-9b9d0d1dda99?auto=format&fit=crop&q=80&w=1200',
-];
-
 /** Turn a parsed GPX file into a ready-to-save user route with derived metadata. */
 export function gpxToRouteInput(parsed: ParsedGpx): NewRouteInput {
   const difficulty = scoreDifficulty(parsed.distanceKm, parsed.elevationGainM);
@@ -60,7 +55,9 @@ export function gpxToRouteInput(parsed: ParsedGpx): NewRouteInput {
     elevationGainM: parsed.elevationGainM,
     estimatedDurationMins: estimateDurationMins(parsed.distanceKm, parsed.elevationGainM),
     geometry: { type: 'LineString', coordinates: parsed.coordinates },
-    photos: FALLBACK_PHOTOS,
+    // No stock photos — the creator uploads their own shot (licensed imagery);
+    // the UI shows a branded placeholder until then.
+    photos: [],
     tags: ['User route', 'GPX'],
     ecoScore: 75,
     weatherScore: 70,

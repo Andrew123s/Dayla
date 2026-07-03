@@ -59,6 +59,9 @@ export function CreateSheet({ open, onClose, onUploadGpx, onDraw, onRecord }: Cr
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ type: 'spring', damping: 32, stiffness: 320 }}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Create a route"
             className="absolute bottom-0 inset-x-0 z-50 bg-white rounded-t-3xl pb-safe shadow-2xl"
           >
             <div className="flex justify-center pt-3">

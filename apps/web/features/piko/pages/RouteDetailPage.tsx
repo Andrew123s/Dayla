@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import {
   ArrowLeft,
@@ -17,10 +17,15 @@ import {
   MapPin,
   Wind,
   Droplets,
+  Flag,
+  Camera,
+  Loader2,
+  Hourglass,
 } from 'lucide-react';
 import { Route, RouteComment } from '../types';
 import { difficultyStyles, formatDuration } from '../utils';
 import { EcoImpactCard } from '../components/EcoImpactCard';
+import { RoutePhoto } from '../components/RoutePhoto';
 import { RouteCommunity } from '../components/RouteCommunity';
 import { RouteMiniMap } from '../components/RouteMiniMap';
 import { TrailMap } from '../components/TrailMapLazy';
@@ -43,6 +48,10 @@ interface RouteDetailPageProps {
   commentsLoading: boolean;
   onAddComment: (content: string) => void;
   addingComment: boolean;
+  /** Report this route for moderation (hidden when unsupported or own route). */
+  onReport?: (route: Route) => void;
+  /** Upload the creator's own photo (shown only on the viewer's own routes). */
+  onAddPhoto?: (route: Route, file: File) => Promise<void> | void;
 }
 
 export function RouteDetailPage({
@@ -60,10 +69,28 @@ export function RouteDetailPage({
   commentsLoading,
   onAddComment,
   addingComment,
+  onReport,
+  onAddPhoto,
 }: RouteDetailPageProps) {
   const [activePhoto, setActivePhoto] = useState(0);
   const [weather, setWeather] = useState<LiveWeather | null>(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const photoInputRef = useRef<HTMLInputElement>(null);
   const diff = difficultyStyles(route.difficulty);
+  const canReport = !!onReport && route.type === 'user_generated' && !route.isMine;
+  const canAddPhoto = !!onAddPhoto && !!route.isMine && (route.photos?.length ?? 0) < 6;
+
+  const handlePhotoFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file || !onAddPhoto) return;
+    setUploadingPhoto(true);
+    try {
+      await onAddPhoto(route, file);
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
 
   // Live trailhead weather via Open-Meteo (free, no key). startPoint is [lng, lat].
   useEffect(() => {
@@ -96,21 +123,28 @@ export function RouteDetailPage({
       animate={{ x: 0 }}
       exit={{ x: '100%' }}
       transition={{ type: 'spring', damping: 30, stiffness: 280 }}
+      role="dialog"
+      aria-modal="true"
+      aria-label={route.title}
       className="absolute inset-0 z-50 bg-white flex flex-col"
     >
       {/* Scroll area */}
       <div className="flex-1 overflow-y-auto no-scrollbar scroll-smooth pb-28">
         {/* Hero */}
         <div className="relative h-[19rem] w-full shrink-0">
-          <motion.img
-            key={activePhoto}
-            initial={{ opacity: 0.4, scale: 1.04 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.4 }}
-            src={route.photos[activePhoto]}
-            alt={route.title}
-            className="w-full h-full object-cover"
-          />
+          {route.photos.length > 0 ? (
+            <motion.img
+              key={activePhoto}
+              initial={{ opacity: 0.4, scale: 1.04 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.4 }}
+              src={route.photos[activePhoto]}
+              alt={route.title}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <RoutePhoto alt={route.title} className="w-full h-full" />
+          )}
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-black/30" />
 
           {/* Top nav */}
@@ -127,6 +161,32 @@ export function RouteDetailPage({
               </motion.button>
             </div>
             <div className="h-14 flex items-center gap-2.5">
+              {canAddPhoto && (
+                <>
+                  <input ref={photoInputRef} type="file" accept="image/*" onChange={handlePhotoFile} className="hidden" />
+                  <motion.button
+                    type="button"
+                    onClick={() => photoInputRef.current?.click()}
+                    whileTap={{ scale: 0.9 }}
+                    disabled={uploadingPhoto}
+                    aria-label="Add your photo of this route"
+                    className="grid place-items-center w-10 h-10 rounded-full bg-white/20 backdrop-blur-md text-white hover:bg-white/30 transition-colors disabled:opacity-60"
+                  >
+                    {uploadingPhoto ? <Loader2 size={18} className="animate-spin" /> : <Camera size={18} />}
+                  </motion.button>
+                </>
+              )}
+              {canReport && (
+                <motion.button
+                  type="button"
+                  onClick={() => onReport?.(route)}
+                  whileTap={{ scale: 0.9 }}
+                  aria-label="Report this route"
+                  className="grid place-items-center w-10 h-10 rounded-full bg-white/20 backdrop-blur-md text-white hover:bg-white/30 transition-colors"
+                >
+                  <Flag size={17} />
+                </motion.button>
+              )}
               <motion.button
                 type="button"
                 onClick={handleShare}
@@ -159,6 +219,12 @@ export function RouteDetailPage({
                 <Leaf size={11} />
                 {route.ecoScore} Eco
               </span>
+              {route.moderationStatus === 'pending' && (
+                <span className="bg-amber-400/95 backdrop-blur-md text-amber-950 text-[11px] font-bold px-2.5 py-1 rounded-full flex items-center gap-1">
+                  <Hourglass size={11} />
+                  In review
+                </span>
+              )}
             </div>
             <h1 className="text-[26px] font-black text-white leading-tight drop-shadow">{route.title}</h1>
             <p className="flex items-center gap-1 text-white/85 text-sm font-medium drop-shadow">

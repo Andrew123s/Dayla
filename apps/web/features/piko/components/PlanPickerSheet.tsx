@@ -46,6 +46,9 @@ export function PlanPickerSheet({
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ type: 'spring', damping: 32, stiffness: 320 }}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Add to a plan"
             className="absolute bottom-0 inset-x-0 z-[65] bg-white rounded-t-3xl pb-safe shadow-2xl max-h-[80%] flex flex-col"
           >
             <div className="flex justify-center pt-3 shrink-0">

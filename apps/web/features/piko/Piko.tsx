@@ -119,6 +119,52 @@ export function Piko({ onExit, dataSource, embedded = false, onAddToPlan, onNavi
     return () => clearTimeout(t);
   }, [toast]);
 
+  // A11y: Escape closes the topmost overlay (sheet → create flows → group →
+  // plan picker → route detail), matching dialog conventions.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (createOpen) setCreateOpen(false);
+      else if (drawOpen) setDrawOpen(false);
+      else if (recordOpen) setRecordOpen(false);
+      else if (groupOpen) setGroupOpen(false);
+      else if (planRoute) setPlanRoute(null);
+      else if (selectedRoute) setSelectedRoute(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [createOpen, drawOpen, recordOpen, groupOpen, planRoute, selectedRoute]);
+
+  // Moderation: report a route (API source only; hidden otherwise).
+  const handleReport = useCallback(
+    async (route: Route) => {
+      if (!source.reportRoute) return;
+      try {
+        await source.reportRoute(route.id);
+        setToast('Reported — our team will review this route.');
+      } catch {
+        setToast('Could not send the report');
+      }
+    },
+    [source]
+  );
+
+  // Licensed imagery: the creator uploads their OWN photo for their route.
+  const handleAddPhoto = useCallback(
+    async (route: Route, file: File) => {
+      if (!source.addRoutePhoto) return;
+      try {
+        const updated = await source.addRoutePhoto(route.id, file);
+        setRoutes((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
+        setSelectedRoute((prev) => (prev && prev.id === updated.id ? updated : prev));
+        setToast('Photo added to your route');
+      } catch (e) {
+        setToast(e instanceof Error ? e.message : 'Could not upload the photo');
+      }
+    },
+    [source]
+  );
+
   const toggleSave = useCallback(
     async (id: string) => {
       const willSave = !savedIds.has(id);
@@ -406,6 +452,8 @@ export function Piko({ onExit, dataSource, embedded = false, onAddToPlan, onNavi
             commentsLoading={commentsLoading}
             onAddComment={handleAddComment}
             addingComment={addingComment}
+            onReport={source.reportRoute ? handleReport : undefined}
+            onAddPhoto={source.addRoutePhoto ? handleAddPhoto : undefined}
           />
         )}
       </AnimatePresence>

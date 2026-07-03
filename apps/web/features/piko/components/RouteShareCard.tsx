@@ -1,6 +1,7 @@
 import { MapPin, Route as RouteIcon, Mountain, Leaf } from 'lucide-react';
 import { Route } from '../types';
 import { difficultyStyles, formatDuration } from '../utils';
+import { RoutePhoto } from './RoutePhoto';
 
 interface RouteShareCardProps {
   route: Route;
@@ -23,7 +24,7 @@ export function RouteShareCard({ route, onOpen, className = '' }: RouteShareCard
       className={`group flex w-full max-w-sm items-stretch gap-0 overflow-hidden rounded-2xl border border-gray-100 bg-white text-left shadow-sm active:scale-[0.99] transition-transform ${className}`}
     >
       <div className="relative w-24 shrink-0">
-        <img src={route.photos[0]} alt={route.title} className="h-full w-full object-cover" />
+        <RoutePhoto src={route.photos[0]} alt={route.title} className="h-full w-full object-cover" />
         <span className="absolute left-1.5 top-1.5 flex items-center gap-0.5 rounded-full bg-emerald-500/90 px-1.5 py-0.5 text-[10px] font-bold text-white backdrop-blur">
           <Leaf size={9} />
           {route.ecoScore}

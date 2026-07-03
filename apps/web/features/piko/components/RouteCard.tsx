@@ -2,6 +2,7 @@ import { Bookmark, Clock, Leaf, Mountain, MapPin } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Route } from '../types';
 import { difficultyStyles, formatDuration } from '../utils';
+import { RoutePhoto } from './RoutePhoto';
 
 interface RouteCardProps {
   route: Route;
@@ -24,10 +25,9 @@ export function RouteCard({ route, index, isSaved, onOpen, onToggleSave }: Route
       className="group bg-white rounded-3xl overflow-hidden shadow-sm ring-1 ring-gray-100 cursor-pointer transition-shadow hover:shadow-xl hover:shadow-slate-900/5"
     >
       <div className="relative h-52 w-full overflow-hidden">
-        <img
+        <RoutePhoto
           src={route.photos[0]}
           alt={route.title}
-          loading="lazy"
           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-transparent to-black/15" />

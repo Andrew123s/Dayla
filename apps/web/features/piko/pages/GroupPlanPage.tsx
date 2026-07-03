@@ -13,6 +13,7 @@ import {
   Leaf,
 } from 'lucide-react';
 import { GroupMember, GroupTask, Route } from '../types';
+import { RoutePhoto } from '../components/RoutePhoto';
 import { rankForGroup } from '../ranking';
 import { loadTasks, saveTasks } from '../group';
 import { difficultyStyles } from '../utils';
@@ -154,7 +155,7 @@ export function GroupPlanPage({
                     className="block w-full text-left active:scale-[0.99] transition-transform"
                   >
                     <div className="relative h-32">
-                      <img src={selected.route.photos[0]} alt={selected.route.title} className="w-full h-full object-cover" />
+                      <RoutePhoto src={selected.route.photos[0]} alt={selected.route.title} className="w-full h-full object-cover" />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
                       <span className="absolute top-3 left-3 flex items-center gap-1 rounded-full bg-emerald-500 px-2.5 py-1 text-[11px] font-bold text-white">
                         <Award size={12} /> {isLocked ? 'Group pick' : 'Top pick'} · {selected.score}
@@ -199,7 +200,7 @@ export function GroupPlanPage({
                         {i + 2}
                       </span>
                       <button type="button" onClick={() => onOpenRoute(fit.route)} className="flex items-center gap-3 min-w-0 flex-1 text-left">
-                        <img src={fit.route.photos[0]} alt={fit.route.title} className="w-12 h-12 rounded-xl object-cover shrink-0" />
+                        <RoutePhoto src={fit.route.photos[0]} alt={fit.route.title} className="w-12 h-12 rounded-xl object-cover shrink-0" />
                         <div className="min-w-0">
                           <p className="truncate text-sm font-bold text-slate-800">{fit.route.title}</p>
                           <div className="flex items-center gap-2 text-[11px] font-semibold text-slate-400">

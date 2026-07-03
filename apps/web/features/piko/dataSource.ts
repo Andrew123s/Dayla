@@ -21,6 +21,13 @@ export interface PikoDataSource {
   listPlans?(): Promise<PikoPlan[]>;
   /** Optional — attach a route to a Dayla plan (dashboard). */
   addToPlan?(id: string, planId: string): Promise<void>;
+  /** Optional — report a route for moderation review. */
+  reportRoute?(id: string, reason?: string): Promise<void>;
+  /**
+   * Optional — upload the creator's OWN photo (keeps imagery licensed: the
+   * uploader owns it) and attach it to their route. Returns the updated route.
+   */
+  addRoutePhoto?(id: string, file: File): Promise<Route>;
 }
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -276,6 +283,32 @@ export function createApiDataSource(
           body: JSON.stringify({ dashboardId: planId }),
         })
       );
+    },
+    async reportRoute(id, reason) {
+      await json(
+        await fetcher(`${base}/routes/${id}/report`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ reason: reason || '' }),
+        })
+      );
+    },
+    async addRoutePhoto(id, file) {
+      // 1) Upload through Dayla's existing Cloudinary pipeline (the uploader
+      //    owns the photo — licensed imagery), 2) attach the URL to the route.
+      const fd = new FormData();
+      fd.append('image', file);
+      const up = await json(await fetcher(`${apiBase}/api/upload/images`, { method: 'POST', body: fd }));
+      const url = up.data?.url as string | undefined;
+      if (!url) throw new Error('Photo upload failed');
+      const body = await json(
+        await fetcher(`${base}/routes/${id}/photos`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url }),
+        })
+      );
+      return body.data as Route;
     },
   };
 }
