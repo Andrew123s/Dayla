@@ -2,7 +2,7 @@ import React, { useRef, useState } from 'react';
 import { Heart } from 'lucide-react';
 
 interface MediaCarouselProps {
-  images: { url: string; caption?: string }[];
+  images: { url: string; type?: 'image' | 'video'; caption?: string }[];
   alt: string;
   /** Double-tap (or double-click) anywhere on the media likes the post. */
   onDoubleTapLike?: () => void;
@@ -66,13 +66,27 @@ export const MediaCarousel: React.FC<MediaCarouselProps> = ({ images, alt, onDou
       >
         {images.map((img, i) => (
           <div key={`${img.url}-${i}`} className="w-full shrink-0 snap-center aspect-[4/5] max-h-[520px]">
-            <img
-              src={img.url}
-              alt={img.caption || `${alt}${multi ? ` (${i + 1} of ${images.length})` : ''}`}
-              loading="lazy"
-              draggable={false}
-              className="w-full h-full object-cover"
-            />
+            {img.type === 'video' ? (
+              // Native controls own taps/clicks; stop propagation so the
+              // carousel's tap-to-open / double-tap-to-like doesn't fight them.
+              <video
+                src={img.url}
+                controls
+                playsInline
+                preload="metadata"
+                className="w-full h-full object-cover bg-black"
+                onClick={(e) => e.stopPropagation()}
+                aria-label={img.caption || `${alt} (video)`}
+              />
+            ) : (
+              <img
+                src={img.url}
+                alt={img.caption || `${alt}${multi ? ` (${i + 1} of ${images.length})` : ''}`}
+                loading="lazy"
+                draggable={false}
+                className="w-full h-full object-cover"
+              />
+            )}
           </div>
         ))}
       </div>

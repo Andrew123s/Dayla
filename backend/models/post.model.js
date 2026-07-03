@@ -79,10 +79,17 @@ const postSchema = new mongoose.Schema({
     required: true,
     maxlength: [5000, 'Content cannot exceed 5000 characters']
   },
+  // Media attachments — images and videos share one ordered array so the feed
+  // carousel renders them uniformly. `type` defaults to image for back-compat.
   images: [{
     url: {
       type: String,
       required: true
+    },
+    type: {
+      type: String,
+      enum: ['image', 'video'],
+      default: 'image'
     },
     caption: String,
     alt: String,
@@ -91,6 +98,17 @@ const postSchema = new mongoose.Schema({
       default: Date.now
     }
   }],
+  // Trail reference — a denormalized snapshot of a Piko route tagged on the
+  // post, so the feed renders the trail card without a join. `routeId` is the
+  // route slug/id for future deep-linking into Trails.
+  routeRef: {
+    routeId: String,
+    title: String,
+    location: String,
+    distanceKm: Number,
+    difficulty: String,
+    thumbnail: String
+  },
   location: {
     name: {
       type: String,

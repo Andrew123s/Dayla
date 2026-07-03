@@ -7,6 +7,7 @@ import { API_BASE_URL, authFetch } from '../lib/api';
 import CommentModal from './CommentModal';
 import { PostCard } from './community/PostCard';
 import { PostSkeleton } from './community/PostSkeleton';
+import { UserProfileView } from './community/UserProfileView';
 
 const PAGE_SIZE = 10;
 
@@ -34,7 +35,15 @@ const Community: React.FC<CommunityProps> = ({ user, onFriendRequestSent }) => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
   const [editingPostId, setEditingPostId] = useState<string | null>(null);
   const [existingImageUrl, setExistingImageUrl] = useState<string | null>(null);
+  const [existingMediaType, setExistingMediaType] = useState<'image' | 'video'>('image');
   const [deleting, setDeleting] = useState(false);
+  // User profile overlay
+  const [profileAuthor, setProfileAuthor] = useState<any | null>(null);
+  // Trail tagging (Piko route snapshot attached to a post)
+  const [taggedRoute, setTaggedRoute] = useState<any | null>(null);
+  const [showTrailPicker, setShowTrailPicker] = useState(false);
+  const [trailOptions, setTrailOptions] = useState<any[]>([]);
+  const [loadingTrails, setLoadingTrails] = useState(false);
   // Infinite scroll
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -334,30 +343,34 @@ const Community: React.FC<CommunityProps> = ({ user, onFriendRequestSent }) => {
 
     try {
       let imageUrl: string | null = null;
+      const isVideoFile = !!newPost.image && newPost.image.type.startsWith('video/');
 
       if (newPost.image) {
         try {
+          // Photos and videos route through the matching Cloudinary pipeline.
+          const field = isVideoFile ? 'video' : 'image';
+          const endpoint = isVideoFile ? '/api/upload/videos' : '/api/upload/images';
           const formData = new FormData();
-          formData.append('image', newPost.image);
+          formData.append(field, newPost.image);
 
-          const uploadResponse = await authFetch(`${API_BASE_URL}/api/upload/images`, {
+          const uploadResponse = await authFetch(`${API_BASE_URL}${endpoint}`, {
             method: 'POST',
             body: formData,
           });
 
           const uploadContentType = uploadResponse.headers.get('content-type') || '';
           if (!uploadContentType.includes('application/json')) {
-            console.error('Image upload returned non-JSON:', uploadResponse.status);
+            console.error('Media upload returned non-JSON:', uploadResponse.status);
           } else {
             const uploadData = await uploadResponse.json();
             if (uploadData.success && uploadData.data?.url) {
               imageUrl = uploadData.data.url;
             } else {
-              console.warn('Image upload failed:', uploadData.message);
+              console.warn('Media upload failed:', uploadData.message);
             }
           }
         } catch (uploadErr) {
-          console.warn('Image upload error (proceeding without image):', uploadErr);
+          console.warn('Media upload error (proceeding without media):', uploadErr);
         }
       }
 
@@ -373,12 +386,26 @@ const Community: React.FC<CommunityProps> = ({ user, onFriendRequestSent }) => {
       }
 
       if (imageUrl) {
-        postData.images = [{ url: imageUrl }];
+        postData.images = [{ url: imageUrl, type: isVideoFile ? 'video' : 'image' }];
       }
 
-      // If editing and no new image was uploaded, keep the existing one
+      // If editing and no new media was uploaded, keep the existing one
       if (editingPostId && !imageUrl && existingImageUrl) {
-        postData.images = [{ url: existingImageUrl }];
+        postData.images = [{ url: existingImageUrl, type: existingMediaType }];
+      }
+
+      // Tagged trail — denormalised Piko route snapshot
+      if (taggedRoute) {
+        postData.routeRef = {
+          routeId: String(taggedRoute.id),
+          title: taggedRoute.title,
+          location: taggedRoute.location || '',
+          distanceKm: taggedRoute.distanceKm ?? undefined,
+          difficulty: taggedRoute.difficulty ?? undefined,
+          thumbnail: (taggedRoute.photos && taggedRoute.photos[0]) || taggedRoute.thumbnail || '',
+        };
+      } else if (editingPostId) {
+        postData.routeRef = null; // clearing the tag on edit removes it
       }
 
       const isEditing = !!editingPostId;
@@ -407,6 +434,8 @@ const Community: React.FC<CommunityProps> = ({ user, onFriendRequestSent }) => {
         setShowPostModal(false);
         setEditingPostId(null);
         setExistingImageUrl(null);
+        setExistingMediaType('image');
+        setTaggedRoute(null);
         setNewPost({ content: '', location: '', title: '', image: null, imagePreview: null });
         setSuccessMessage(isEditing ? 'Post updated!' : 'Post created successfully!');
         setTimeout(() => setSuccessMessage(''), 3000);
@@ -459,19 +488,49 @@ const Community: React.FC<CommunityProps> = ({ user, onFriendRequestSent }) => {
   const handleEditPost = (post: any) => {
     const postId = post._id || post.id;
     const images = post.images || [];
-    const firstImageUrl = images.length > 0 ? images[0].url : null;
+    const firstMedia = images.length > 0 ? images[0] : null;
 
     setEditingPostId(postId);
-    setExistingImageUrl(firstImageUrl);
+    setExistingImageUrl(firstMedia?.url || null);
+    setExistingMediaType(firstMedia?.type === 'video' ? 'video' : 'image');
+    // Restore the tagged trail so editing preserves it (or lets the user clear it).
+    setTaggedRoute(
+      post.routeRef?.title
+        ? {
+            id: post.routeRef.routeId,
+            title: post.routeRef.title,
+            location: post.routeRef.location,
+            distanceKm: post.routeRef.distanceKm,
+            difficulty: post.routeRef.difficulty,
+            thumbnail: post.routeRef.thumbnail,
+          }
+        : null
+    );
     setNewPost({
       content: post.content || '',
       location: post.location?.name || '',
       title: post.title || '',
       image: null,
-      imagePreview: firstImageUrl,
+      imagePreview: firstMedia?.url || null,
     });
     setShowPostModal(true);
     setError('');
+  };
+
+  // Lazy-load the trail options (Piko routes) the first time the picker opens.
+  const openTrailPicker = async () => {
+    setShowTrailPicker(true);
+    if (trailOptions.length > 0 || loadingTrails) return;
+    setLoadingTrails(true);
+    try {
+      const res = await authFetch(`${API_BASE_URL}/api/piko/routes?limit=100`);
+      const data = await res.json();
+      if (data.success) setTrailOptions(data.data || []);
+    } catch (err) {
+      console.error('Failed to load trails:', err);
+    } finally {
+      setLoadingTrails(false);
+    }
   };
 
   const handleRepost = async (post: any) => {
@@ -521,6 +580,9 @@ const Community: React.FC<CommunityProps> = ({ user, onFriendRequestSent }) => {
     if (newPost.imagePreview) {
       URL.revokeObjectURL(newPost.imagePreview);
     }
+    // Also drop the existing media when editing — otherwise the submit path
+    // silently re-attaches what the user just removed.
+    setExistingImageUrl(null);
     setNewPost(prev => ({ ...prev, image: null, imagePreview: null }));
   };
 
@@ -587,6 +649,7 @@ const Community: React.FC<CommunityProps> = ({ user, onFriendRequestSent }) => {
                 onEdit={handleEditPost}
                 onDelete={handleDeletePost}
                 onRepost={handleRepost}
+                onOpenProfile={setProfileAuthor}
                 reposting={posting}
               />
             ))}
@@ -610,10 +673,13 @@ const Community: React.FC<CommunityProps> = ({ user, onFriendRequestSent }) => {
         onClick={() => {
           setEditingPostId(null);
           setExistingImageUrl(null);
+          setExistingMediaType('image');
+          setTaggedRoute(null);
           setNewPost({ content: '', location: '', title: '', image: null, imagePreview: null });
           setShowPostModal(true);
           setError('');
         }}
+        aria-label="Create a post"
         className="absolute bottom-20 right-4 w-14 h-14 bg-[#3a5a40] text-white rounded-full shadow-lg hover:bg-[#588157] transition-all duration-200 flex items-center justify-center z-20 hover:scale-105"
       >
         <Plus size={24} />
@@ -631,6 +697,9 @@ const Community: React.FC<CommunityProps> = ({ user, onFriendRequestSent }) => {
                     setShowPostModal(false);
                     setEditingPostId(null);
                     setExistingImageUrl(null);
+                    setExistingMediaType('image');
+                    setTaggedRoute(null);
+                    setShowTrailPicker(false);
                     setNewPost({ content: '', location: '', title: '', image: null, imagePreview: null });
                   }}
                   disabled={posting}
@@ -650,17 +719,29 @@ const Community: React.FC<CommunityProps> = ({ user, onFriendRequestSent }) => {
                   >
                     {newPost.imagePreview ? (
                       <div className="relative w-full">
-                        <img
-                          src={newPost.imagePreview}
-                          alt="Preview"
-                          className="w-full max-h-48 object-contain rounded-xl"
-                        />
+                        {(newPost.image ? newPost.image.type.startsWith('video/') : existingMediaType === 'video') ? (
+                          <video
+                            src={newPost.imagePreview}
+                            controls
+                            playsInline
+                            preload="metadata"
+                            className="w-full max-h-48 object-contain rounded-xl bg-black"
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        ) : (
+                          <img
+                            src={newPost.imagePreview}
+                            alt="Preview"
+                            className="w-full max-h-48 object-contain rounded-xl"
+                          />
+                        )}
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             removeImage();
                           }}
                           disabled={posting}
+                          aria-label="Remove media"
                           className="absolute top-2 right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 disabled:opacity-50"
                         >
                           <X size={12} />
@@ -669,14 +750,14 @@ const Community: React.FC<CommunityProps> = ({ user, onFriendRequestSent }) => {
                     ) : (
                       <>
                         <ImageIcon size={32} className="text-stone-400" />
-                        <span className="text-sm text-stone-500">Add image from your travels</span>
+                        <span className="text-sm text-stone-500">Add a photo or video from your travels</span>
                       </>
                     )}
                   </button>
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept="image/*"
+                    accept="image/*,video/*"
                     onChange={handleImageSelect}
                     disabled={posting}
                     className="hidden"
@@ -703,6 +784,71 @@ const Community: React.FC<CommunityProps> = ({ user, onFriendRequestSent }) => {
                   required
                   className="w-full p-3 bg-stone-50 border-none rounded-xl text-sm focus:ring-1 focus:ring-[#3a5a40] disabled:opacity-50 disabled:cursor-not-allowed"
                 />
+
+                {/* Tag a trail (optional Piko route reference) */}
+                {taggedRoute ? (
+                  <div className="flex items-center gap-3 rounded-xl border border-emerald-100 bg-emerald-50/60 p-2.5">
+                    {taggedRoute.thumbnail || (taggedRoute.photos && taggedRoute.photos[0]) ? (
+                      <img src={taggedRoute.thumbnail || taggedRoute.photos[0]} alt="" className="w-9 h-9 rounded-lg object-cover shrink-0" />
+                    ) : (
+                      <div className="w-9 h-9 rounded-lg bg-emerald-100 shrink-0" />
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[10px] font-bold uppercase tracking-wide text-emerald-600">Tagged trail</p>
+                      <p className="text-sm font-bold text-stone-800 truncate">{taggedRoute.title}</p>
+                    </div>
+                    <button
+                      onClick={() => setTaggedRoute(null)}
+                      disabled={posting}
+                      aria-label="Remove tagged trail"
+                      className="p-1.5 rounded-full text-stone-400 hover:bg-stone-100 disabled:opacity-50"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={openTrailPicker}
+                    disabled={posting}
+                    className="w-full p-3 bg-stone-50 rounded-xl text-sm text-left text-stone-500 hover:bg-stone-100 transition-colors disabled:opacity-50"
+                  >
+                    ⛰️ Tag a trail (optional)
+                  </button>
+                )}
+
+                {/* Trail picker */}
+                {showTrailPicker && !taggedRoute && (
+                  <div className="border border-stone-200 rounded-xl max-h-48 overflow-y-auto divide-y divide-stone-100">
+                    {loadingTrails ? (
+                      <div className="flex items-center justify-center gap-2 py-6 text-stone-400 text-sm">
+                        <Loader size={15} className="animate-spin" /> Loading trails…
+                      </div>
+                    ) : trailOptions.length === 0 ? (
+                      <p className="py-5 text-center text-sm text-stone-400">No trails available yet</p>
+                    ) : (
+                      trailOptions.map((r: any) => (
+                        <button
+                          key={r.id}
+                          onClick={() => {
+                            setTaggedRoute(r);
+                            setShowTrailPicker(false);
+                          }}
+                          className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-stone-50 transition-colors"
+                        >
+                          {r.photos && r.photos[0] ? (
+                            <img src={r.photos[0]} alt="" className="w-8 h-8 rounded-lg object-cover shrink-0" />
+                          ) : (
+                            <div className="w-8 h-8 rounded-lg bg-emerald-100 shrink-0" />
+                          )}
+                          <span className="min-w-0">
+                            <span className="block text-sm font-semibold text-stone-800 truncate">{r.title}</span>
+                            <span className="block text-[11px] text-stone-400 truncate">{r.location}</span>
+                          </span>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
 
                 {/* Content Input */}
                 <textarea
@@ -737,6 +883,16 @@ const Community: React.FC<CommunityProps> = ({ user, onFriendRequestSent }) => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* User profile overlay */}
+      {profileAuthor && (
+        <UserProfileView
+          author={profileAuthor}
+          user={user}
+          onClose={() => setProfileAuthor(null)}
+          onAddFriend={handleSendFriendRequest}
+        />
       )}
 
       {/* Comment Modal */}

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Heart, MessageCircle, Share2, Bookmark, MapPin, MoreVertical,
-  Pencil, Trash2, Repeat2, UserPlus,
+  Pencil, Trash2, Repeat2, UserPlus, Mountain, ChevronRight,
 } from 'lucide-react';
 import { MediaCarousel } from './MediaCarousel';
 import { pid, timeAgo, formatCount } from './utils';
@@ -19,6 +19,8 @@ interface PostCardProps {
   onEdit: (post: any) => void;
   onDelete: (postId: string) => void;
   onRepost: (post: any) => void;
+  /** Tap the author's avatar/name → open their profile. */
+  onOpenProfile?: (author: any) => void;
   reposting: boolean;
 }
 
@@ -41,6 +43,7 @@ const PostCardInner: React.FC<PostCardProps> = ({
   onEdit,
   onDelete,
   onRepost,
+  onOpenProfile,
   reposting,
 }) => {
   const postId = pid(post);
@@ -80,16 +83,27 @@ const PostCardInner: React.FC<PostCardProps> = ({
     <article className="bg-white rounded-3xl overflow-hidden shadow-sm border border-stone-100">
       {/* ── Identity row ─────────────────────────────────────────────── */}
       <div className="pl-4 pr-2 py-3 flex items-center gap-3">
-        {authorAvatar ? (
-          <img src={authorAvatar} className="w-9 h-9 rounded-full object-cover" alt="" />
-        ) : (
-          <div className="w-9 h-9 rounded-full bg-[#a3b18a] grid place-items-center">
-            <span className="text-sm font-bold text-white">{authorName.charAt(0).toUpperCase()}</span>
-          </div>
-        )}
+        <button
+          onClick={() => onOpenProfile?.(author)}
+          aria-label={`View ${authorName}'s profile`}
+          className="shrink-0 rounded-full active:scale-95 transition-transform"
+        >
+          {authorAvatar ? (
+            <img src={authorAvatar} className="w-9 h-9 rounded-full object-cover" alt="" />
+          ) : (
+            <div className="w-9 h-9 rounded-full bg-[#a3b18a] grid place-items-center">
+              <span className="text-sm font-bold text-white">{authorName.charAt(0).toUpperCase()}</span>
+            </div>
+          )}
+        </button>
         <div className="min-w-0 flex-1 leading-tight">
           <div className="flex items-center gap-1.5">
-            <h3 className="text-sm font-bold text-stone-800 truncate">{authorName}</h3>
+            <button
+              onClick={() => onOpenProfile?.(author)}
+              className="text-sm font-bold text-stone-800 truncate text-left"
+            >
+              {authorName}
+            </button>
             <span className="text-[11px] text-stone-400 shrink-0">· {timeAgo(created)}{edited ? ' · edited' : ''}</span>
           </div>
           {locationName && (
@@ -168,6 +182,29 @@ const PostCardInner: React.FC<PostCardProps> = ({
         onDoubleTapLike={() => onDoubleTapLike(postId)}
         onOpen={() => onOpenComments(postId)}
       />
+
+      {/* ── Tagged trail (denormalised Piko route snapshot) ──────────── */}
+      {post.routeRef?.title && (
+        <div className="mx-4 mt-3 flex items-center gap-3 rounded-2xl border border-emerald-100 bg-emerald-50/60 p-2.5">
+          {post.routeRef.thumbnail ? (
+            <img src={post.routeRef.thumbnail} alt="" className="w-11 h-11 rounded-xl object-cover shrink-0" />
+          ) : (
+            <div className="w-11 h-11 rounded-xl bg-emerald-100 grid place-items-center shrink-0">
+              <Mountain size={19} className="text-emerald-600" />
+            </div>
+          )}
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-emerald-600">Trail</p>
+            <p className="text-[13px] font-bold text-stone-800 truncate">{post.routeRef.title}</p>
+            <p className="text-[11px] text-stone-500 truncate">
+              {[post.routeRef.location, post.routeRef.distanceKm ? `${post.routeRef.distanceKm} km` : null, post.routeRef.difficulty]
+                .filter(Boolean)
+                .join(' · ')}
+            </p>
+          </div>
+          <ChevronRight size={16} className="text-emerald-300 shrink-0" />
+        </div>
+      )}
 
       {/* ── Actions + engagement + caption + conversation ────────────── */}
       <div className="px-4 pt-2.5 pb-4">

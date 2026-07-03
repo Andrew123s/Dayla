@@ -276,10 +276,19 @@ const communitySchemas = {
     images: Joi.array().items(
       Joi.object({
         url: Joi.string().required(),
+        type: Joi.string().valid('image', 'video').default('image'),
         caption: Joi.string().max(200).allow('', null).optional(),
         alt: Joi.string().max(100).allow('', null).optional()
       })
     ).max(10).default([]),
+    routeRef: Joi.object({
+      routeId: Joi.string().max(120).required(),
+      title: Joi.string().max(160).required(),
+      location: Joi.string().max(160).allow('', null).optional(),
+      distanceKm: Joi.number().min(0).optional(),
+      difficulty: Joi.string().valid('easy', 'moderate', 'hard').optional(),
+      thumbnail: Joi.string().allow('', null).optional()
+    }).optional(),
     visibility: Joi.string().valid('public', 'friends', 'private').default('public'),
     tripId: Joi.string().allow('', null).optional(),
     repostedFrom: Joi.object({
@@ -290,7 +299,7 @@ const communitySchemas = {
   }),
 
   updatePost: Joi.object({
-    title: Joi.string().max(200).optional(),
+    title: Joi.string().max(200).allow('', null).optional(),
     content: Joi.string().max(5000).optional(),
     location: Joi.object({
       name: Joi.string().max(100).optional(),
@@ -308,6 +317,24 @@ const communitySchemas = {
         ).required()
       })
     ).max(10).optional(),
+    // NOTE: images was missing here, so `stripUnknown` silently DROPPED media on
+    // every edit (the client re-sends the existing image to keep it). Fixed.
+    images: Joi.array().items(
+      Joi.object({
+        url: Joi.string().required(),
+        type: Joi.string().valid('image', 'video').default('image'),
+        caption: Joi.string().max(200).allow('', null).optional(),
+        alt: Joi.string().max(100).allow('', null).optional()
+      })
+    ).max(10).optional(),
+    routeRef: Joi.object({
+      routeId: Joi.string().max(120).required(),
+      title: Joi.string().max(160).required(),
+      location: Joi.string().max(160).allow('', null).optional(),
+      distanceKm: Joi.number().min(0).optional(),
+      difficulty: Joi.string().valid('easy', 'moderate', 'hard').optional(),
+      thumbnail: Joi.string().allow('', null).optional()
+    }).allow(null).optional(),
     visibility: Joi.string().valid('public', 'friends', 'private').optional()
   }),
 
