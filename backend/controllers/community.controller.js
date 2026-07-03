@@ -828,6 +828,113 @@ const getSavedPosts = async (req, res) => {
   }
 };
 
+// @desc    Toggle a like on a comment
+// @route   POST /api/community/posts/:postId/comments/:commentId/like
+// @access  Private
+const toggleCommentLike = async (req, res) => {
+  try {
+    const post = await Post.findById(req.params.postId);
+    if (!post) {
+      return res.status(404).json({ success: false, message: 'Post not found' });
+    }
+    const comment = post.comments.find(c => c.id === req.params.commentId);
+    if (!comment) {
+      return res.status(404).json({ success: false, message: 'Comment not found' });
+    }
+
+    const uid = req.user._id.toString();
+    const already = (comment.likes || []).some(l => l.user && l.user.toString() === uid);
+    if (already) {
+      comment.likes = comment.likes.filter(l => l.user && l.user.toString() !== uid);
+    } else {
+      comment.likes.push({ user: req.user._id, createdAt: new Date() });
+    }
+    await post.save();
+
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('comment:liked', {
+        postId: post._id,
+        commentId: comment.id,
+        likeCount: comment.likes.length,
+        timestamp: new Date()
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: { commentId: comment.id, liked: !already, likeCount: comment.likes.length }
+    });
+  } catch (error) {
+    logger.error('Toggle comment like error:', error);
+    res.status(500).json({ success: false, message: 'Failed to like comment', error: error.message });
+  }
+};
+
+// @desc    Reply to a comment (threaded)
+// @route   POST /api/community/posts/:postId/comments/:commentId/replies
+// @access  Private
+const addCommentReply = async (req, res) => {
+  try {
+    const content = (req.body.content || '').trim();
+    if (!content || content.length > 1000) {
+      return res.status(400).json({ success: false, message: 'Reply must be 1–1000 characters' });
+    }
+
+    const post = await Post.findById(req.params.postId);
+    if (!post) {
+      return res.status(404).json({ success: false, message: 'Post not found' });
+    }
+    const comment = post.comments.find(c => c.id === req.params.commentId);
+    if (!comment) {
+      return res.status(404).json({ success: false, message: 'Comment not found' });
+    }
+
+    const reply = {
+      id: `reply_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      author: req.user._id,
+      content,
+      createdAt: new Date()
+    };
+    comment.replies.push(reply);
+    await post.save();
+
+    // Notify the comment author (not for self-replies).
+    const commentAuthorId = comment.author && comment.author.toString();
+    if (commentAuthorId && commentAuthorId !== req.user._id.toString()) {
+      try {
+        await Notification.create({
+          recipient: comment.author,
+          sender: req.user._id,
+          type: 'comment',
+          post: post._id,
+          message: `${req.user.name} replied to your comment`
+        });
+      } catch (notifErr) {
+        logger.error('Failed to create reply notification:', notifErr);
+      }
+    }
+
+    // Return the reply with a populated author so clients can render it directly.
+    const populated = { ...reply, author: { _id: req.user._id, name: req.user.name, avatar: req.user.avatar } };
+
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('comment:replied', {
+        postId: post._id,
+        commentId: comment.id,
+        reply: populated,
+        timestamp: new Date()
+      });
+    }
+
+    res.status(201).json({ success: true, data: { commentId: comment.id, reply: populated } });
+  } catch (error) {
+    logger.error('Add comment reply error:', error);
+    res.status(500).json({ success: false, message: 'Failed to add reply', error: error.message });
+  }
+};
+
 module.exports = {
   createPost,
   getPosts,
@@ -839,6 +946,8 @@ module.exports = {
   addComment,
   updateComment,
   deleteComment,
+  toggleCommentLike,
+  addCommentReply,
   getTrendingPosts,
   getPostsByLocation,
   getUserPosts,

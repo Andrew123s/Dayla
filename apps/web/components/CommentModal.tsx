@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { X, Send, Loader, MessageCircle, Trash2 } from 'lucide-react';
+import { X, Send, Loader, MessageCircle, Trash2, Heart } from 'lucide-react';
 import { User } from '../types';
 import { API_BASE_URL, authFetch } from '../lib/api';
 
@@ -13,12 +13,22 @@ interface CommentAuthor {
   avatar?: string;
 }
 
+interface CommentReply {
+  id?: string;
+  _id?: string;
+  author?: CommentAuthor;
+  content: string;
+  createdAt?: string;
+}
+
 interface Comment {
   id?: string;
   _id?: string;
   author?: CommentAuthor;
   content: string;
   createdAt?: string;
+  likes?: { user?: any }[];
+  replies?: CommentReply[];
 }
 
 interface CommentModalProps {
@@ -51,56 +61,112 @@ interface CommentItemProps {
   comment: Comment;
   isOwn: boolean;
   isDeleting: boolean;
+  currentUserId: string;
   onLongPressStart: () => void;
   onLongPressEnd: () => void;
+  onToggleLike: () => void;
+  onReply: () => void;
 }
 
 const CommentItem: React.FC<CommentItemProps> = ({
-  comment, isOwn, isDeleting, onLongPressStart, onLongPressEnd,
-}) => (
-  <div
-    className={`flex items-start gap-3 py-2 select-none transition-opacity duration-200 ${
-      isDeleting ? 'opacity-30' : 'opacity-100'
-    }`}
-    onTouchStart={onLongPressStart}
-    onTouchEnd={onLongPressEnd}
-    onTouchCancel={onLongPressEnd}
-    onMouseDown={onLongPressStart}
-    onMouseUp={onLongPressEnd}
-    onMouseLeave={onLongPressEnd}
-  >
-    {/* Avatar */}
-    {comment.author?.avatar ? (
-      <img
-        src={comment.author.avatar}
-        className="w-8 h-8 rounded-full object-cover flex-shrink-0 mt-0.5"
-        alt=""
-      />
-    ) : (
-      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#588157] to-[#3a5a40] flex items-center justify-center text-white text-xs font-bold flex-shrink-0 mt-0.5">
-        {(comment.author?.name || '?')[0]?.toUpperCase()}
-      </div>
-    )}
+  comment, isOwn, isDeleting, currentUserId, onLongPressStart, onLongPressEnd, onToggleLike, onReply,
+}) => {
+  const likes = comment.likes || [];
+  const likeCount = likes.length;
+  const likedByMe = likes.some(l => {
+    const uid = (l.user && ((l.user as any)._id || (l.user as any).id)) || l.user;
+    return uid?.toString?.() === currentUserId;
+  });
+  const replies = comment.replies || [];
 
-    {/* Body */}
-    <div className="flex-1 min-w-0">
-      <div className="flex items-baseline gap-1.5 flex-wrap">
-        <span className="text-[13px] font-semibold text-stone-800 leading-none">
-          {comment.author?.name || 'Unknown'}
-        </span>
-        {comment.createdAt && (
-          <span className="text-[11px] text-stone-400">{timeAgo(comment.createdAt)}</span>
+  return (
+    <div className={`py-2 transition-opacity duration-200 ${isDeleting ? 'opacity-30' : 'opacity-100'}`}>
+      <div
+        className="flex items-start gap-3 select-none"
+        onTouchStart={onLongPressStart}
+        onTouchEnd={onLongPressEnd}
+        onTouchCancel={onLongPressEnd}
+        onMouseDown={onLongPressStart}
+        onMouseUp={onLongPressEnd}
+        onMouseLeave={onLongPressEnd}
+      >
+        {/* Avatar */}
+        {comment.author?.avatar ? (
+          <img
+            src={comment.author.avatar}
+            className="w-8 h-8 rounded-full object-cover flex-shrink-0 mt-0.5"
+            alt=""
+          />
+        ) : (
+          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#588157] to-[#3a5a40] flex items-center justify-center text-white text-xs font-bold flex-shrink-0 mt-0.5">
+            {(comment.author?.name || '?')[0]?.toUpperCase()}
+          </div>
         )}
-        {isOwn && (
-          <span className="text-[10px] text-stone-300">· hold to delete</span>
-        )}
+
+        {/* Body */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-baseline gap-1.5 flex-wrap">
+            <span className="text-[13px] font-semibold text-stone-800 leading-none">
+              {comment.author?.name || 'Unknown'}
+            </span>
+            {comment.createdAt && (
+              <span className="text-[11px] text-stone-400">{timeAgo(comment.createdAt)}</span>
+            )}
+            {isOwn && (
+              <span className="text-[10px] text-stone-300">· hold to delete</span>
+            )}
+          </div>
+          <p className="text-sm text-stone-700 mt-0.5 break-words leading-snug">
+            {comment.content}
+          </p>
+          <button
+            onClick={(e) => { e.stopPropagation(); onReply(); }}
+            className="text-[11px] font-semibold text-stone-400 hover:text-[#3a5a40] mt-1 transition-colors"
+          >
+            Reply
+          </button>
+        </div>
+
+        {/* Like column */}
+        <button
+          onClick={(e) => { e.stopPropagation(); onToggleLike(); }}
+          onMouseDown={(e) => e.stopPropagation()}
+          onTouchStart={(e) => e.stopPropagation()}
+          aria-label={likedByMe ? 'Unlike comment' : 'Like comment'}
+          aria-pressed={likedByMe}
+          className="flex flex-col items-center gap-0.5 shrink-0 pt-1 px-1 active:scale-125 transition-transform"
+        >
+          <Heart size={14} className={likedByMe ? 'text-red-500 fill-red-500' : 'text-stone-400'} />
+          {likeCount > 0 && <span className="text-[10px] font-semibold text-stone-400">{likeCount}</span>}
+        </button>
       </div>
-      <p className="text-sm text-stone-700 mt-0.5 break-words leading-snug">
-        {comment.content}
-      </p>
+
+      {/* Threaded replies */}
+      {replies.length > 0 && (
+        <div className="ml-11 mt-1 space-y-2 border-l-2 border-stone-100 pl-3">
+          {replies.map((r) => (
+            <div key={r.id || r._id} className="flex items-start gap-2">
+              {r.author?.avatar ? (
+                <img src={r.author.avatar} className="w-6 h-6 rounded-full object-cover flex-shrink-0 mt-0.5" alt="" />
+              ) : (
+                <div className="w-6 h-6 rounded-full bg-stone-200 flex items-center justify-center text-stone-500 text-[10px] font-bold flex-shrink-0 mt-0.5">
+                  {(r.author?.name || '?')[0]?.toUpperCase()}
+                </div>
+              )}
+              <div className="min-w-0">
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-[12px] font-semibold text-stone-700 leading-none">{r.author?.name || 'Unknown'}</span>
+                  {r.createdAt && <span className="text-[10px] text-stone-400">{timeAgo(r.createdAt)}</span>}
+                </div>
+                <p className="text-[13px] text-stone-600 mt-0.5 break-words leading-snug">{r.content}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
-  </div>
-);
+  );
+};
 
 // ─── ActionSheet ──────────────────────────────────────────────────────────────
 
@@ -230,6 +296,7 @@ const CommentModal: React.FC<CommentModalProps> = ({ user, post, onClose, onPost
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [actionSheetId, setActionSheetId] = useState<string | null>(null);
   const [longPressTimer, setLongPressTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
+  const [replyTo, setReplyTo] = useState<{ cid: string; name: string } | null>(null);
 
   const listRef = useRef<HTMLDivElement>(null);
   const sheetRef = useRef<HTMLDivElement>(null);
@@ -277,7 +344,7 @@ const CommentModal: React.FC<CommentModalProps> = ({ user, post, onClose, onPost
 
   useEffect(() => { scrollToBottom(); }, [comments.length, scrollToBottom]);
 
-  // ── Post comment ──────────────────────────────────────────────────────────
+  // ── Post comment or threaded reply (both optimistic) ─────────────────────
   const handleSubmit = async () => {
     const trimmed = text.trim();
     if (!trimmed || posting) return;
@@ -285,10 +352,42 @@ const CommentModal: React.FC<CommentModalProps> = ({ user, post, onClose, onPost
     setText('');
 
     const tempId = `temp_${Date.now()}`;
+    const me: CommentAuthor = { _id: user.id, name: user.name, avatar: user.avatar };
+
+    if (replyTo) {
+      // ── Reply to an existing comment ──
+      const { cid } = replyTo;
+      setReplyTo(null);
+      const optimistic: CommentReply = { id: tempId, author: me, content: trimmed, createdAt: new Date().toISOString() };
+      const patchReplies = (fn: (replies: CommentReply[]) => CommentReply[]) =>
+        setComments(prev => prev.map(c => (commentId(c) === cid ? { ...c, replies: fn(c.replies || []) } : c)));
+
+      patchReplies(replies => [...replies, optimistic]);
+      try {
+        const res = await authFetch(`${API_BASE_URL}/api/community/posts/${postId}/comments/${cid}/replies`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: trimmed }),
+        });
+        const data = await res.json();
+        if (data.success && data.data?.reply) {
+          patchReplies(replies => replies.map(r => (r.id === tempId ? data.data.reply : r)));
+        } else {
+          patchReplies(replies => replies.filter(r => r.id !== tempId));
+        }
+      } catch {
+        patchReplies(replies => replies.filter(r => r.id !== tempId));
+      } finally {
+        setPosting(false);
+      }
+      return;
+    }
+
+    // ── Top-level comment ──
     const optimistic: Comment = {
       id: tempId,
       _id: tempId,
-      author: { _id: user.id, name: user.name, avatar: user.avatar },
+      author: me,
       content: trimmed,
       createdAt: new Date().toISOString(),
     };
@@ -313,6 +412,36 @@ const CommentModal: React.FC<CommentModalProps> = ({ user, post, onClose, onPost
       setComments(prev => prev.filter(c => c.id !== tempId && c._id !== tempId));
     } finally {
       setPosting(false);
+    }
+  };
+
+  // ── Like / unlike a comment (optimistic with rollback) ───────────────────
+  const handleToggleCommentLike = async (cid: string) => {
+    const flip = () =>
+      setComments(prev => prev.map(c => {
+        if (commentId(c) !== cid) return c;
+        const likes = c.likes || [];
+        const mine = likes.some(l => {
+          const uid = (l.user && ((l.user as any)._id || (l.user as any).id)) || l.user;
+          return uid?.toString?.() === user.id;
+        });
+        return { ...c, likes: mine ? likes.filter(l => {
+          const uid = (l.user && ((l.user as any)._id || (l.user as any).id)) || l.user;
+          return uid?.toString?.() !== user.id;
+        }) : [...likes, { user: user.id }] };
+      }));
+
+    flip();
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) navigator.vibrate?.(10);
+    try {
+      const res = await authFetch(`${API_BASE_URL}/api/community/posts/${postId}/comments/${cid}/like`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const data = await res.json();
+      if (!data.success) flip(); // roll back
+    } catch {
+      flip(); // roll back
     }
   };
 
@@ -410,14 +539,33 @@ const CommentModal: React.FC<CommentModalProps> = ({ user, post, onClose, onPost
                     comment={c}
                     isOwn={isOwn}
                     isDeleting={deletingId === cid}
+                    currentUserId={user.id}
                     onLongPressStart={() => handleLongPressStart(cid, authorId)}
                     onLongPressEnd={handleLongPressEnd}
+                    onToggleLike={() => handleToggleCommentLike(cid)}
+                    onReply={() => setReplyTo({ cid, name: c.author?.name || 'comment' })}
                   />
                 );
               })}
             </div>
           )}
         </div>
+
+        {/* Replying-to chip */}
+        {replyTo && (
+          <div className="flex items-center justify-between px-4 py-2 bg-stone-50 border-t border-stone-100 flex-shrink-0">
+            <span className="text-xs text-stone-500">
+              Replying to <span className="font-semibold text-stone-700">{replyTo.name}</span>
+            </span>
+            <button
+              onClick={() => setReplyTo(null)}
+              aria-label="Cancel reply"
+              className="p-1 rounded-full hover:bg-stone-200 transition-colors"
+            >
+              <X size={14} className="text-stone-500" />
+            </button>
+          </div>
+        )}
 
         {/* Input bar — stays above keyboard */}
         <CommentInputBar

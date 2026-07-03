@@ -1,10 +1,14 @@
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { User, Post } from '../types';
-import { Heart, MessageCircle, MapPin, Share, Save, Plus, Image as ImageIcon, X, Send, Loader, UserPlus, MoreVertical, Trash2, Pencil, Repeat2 } from 'lucide-react';
+import { Plus, Image as ImageIcon, X, Send, Loader, Trash2 } from 'lucide-react';
 import { initializeSocket, getSocket } from '../lib/socket';
 import { API_BASE_URL, authFetch } from '../lib/api';
 import CommentModal from './CommentModal';
+import { PostCard } from './community/PostCard';
+import { PostSkeleton } from './community/PostSkeleton';
+
+const PAGE_SIZE = 10;
 
 interface CommunityProps {
   user: User;
@@ -27,13 +31,16 @@ const Community: React.FC<CommunityProps> = ({ user, onFriendRequestSent }) => {
     image: null as File | null,
     imagePreview: null as string | null
   });
-  const [openMenuPostId, setOpenMenuPostId] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
   const [editingPostId, setEditingPostId] = useState<string | null>(null);
   const [existingImageUrl, setExistingImageUrl] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  // Infinite scroll
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const pageRef = useRef(1);
+  const sentinelRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
 
   // Initialize socket connection
   useEffect(() => {
@@ -123,10 +130,12 @@ const Community: React.FC<CommunityProps> = ({ user, onFriendRequestSent }) => {
     fetchPosts();
   }, []);
 
-  const fetchPosts = async () => {
-    setError('');
+  // Paginated fetch. page 1 replaces the feed; later pages append (dedup by id).
+  const fetchPosts = useCallback(async (page = 1) => {
+    if (page === 1) setError('');
+    else setLoadingMore(true);
     try {
-      const response = await authFetch(`${API_BASE_URL}/api/community/posts`);
+      const response = await authFetch(`${API_BASE_URL}/api/community/posts?page=${page}&limit=${PAGE_SIZE}`);
 
       const contentType = response.headers.get('content-type') || '';
       if (!contentType.includes('application/json')) {
@@ -136,37 +145,101 @@ const Community: React.FC<CommunityProps> = ({ user, onFriendRequestSent }) => {
       const data = await response.json();
 
       if (data.success) {
-        setPosts(Array.isArray(data.data?.posts) ? data.data.posts : []);
+        const list: any[] = Array.isArray(data.data?.posts) ? data.data.posts : [];
+        setHasMore(list.length === PAGE_SIZE);
+        pageRef.current = page;
+        if (page === 1) {
+          setPosts(list);
+        } else {
+          setPosts(prev => {
+            const seen = new Set(prev.map(p => (p as any)._id || p.id));
+            return [...prev, ...list.filter(p => !seen.has((p as any)._id || p.id))];
+          });
+        }
       } else {
         throw new Error(data.message || 'Failed to load posts');
       }
     } catch (err) {
       console.error('Error fetching posts:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load posts');
+      if (page === 1) setError(err instanceof Error ? err.message : 'Failed to load posts');
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
-  };
+  }, []);
 
+  // Infinite scroll: load the next page when the sentinel scrolls into view.
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !loading && !loadingMore) {
+          fetchPosts(pageRef.current + 1);
+        }
+      },
+      { rootMargin: '600px' } // prefetch well before the user reaches the end
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [hasMore, loading, loadingMore, fetchPosts]);
+
+  // Optimistic like: flip instantly, reconcile with the server, roll back on failure.
   const handleLike = async (postId: string) => {
+    const target = posts.find(p => ((p as any)._id || p.id) === postId) as any;
+    if (!target) return;
+    const wasLiked = !!target.liked;
+    const prevCount = target.likeCount ?? (Array.isArray(target.likes) ? target.likes.length : 0);
+    const patch = (liked: boolean, likeCount: number) =>
+      setPosts(prev => prev.map(post =>
+        ((post as any)._id || post.id) === postId ? { ...post, liked, likeCount } as any : post
+      ));
+
+    patch(!wasLiked, Math.max(0, prevCount + (wasLiked ? -1 : 1)));
+    if (!wasLiked && typeof navigator !== 'undefined' && 'vibrate' in navigator) navigator.vibrate?.(10);
+
     try {
       const response = await authFetch(`${API_BASE_URL}/api/community/posts/${postId}/likes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({})
       });
-
       const data = await response.json();
-
       if (data.success) {
-        setPosts(prev => prev.map(post =>
-          (post._id || post.id) === postId
-            ? { ...post, likeCount: data.data.likeCount, liked: data.data.liked }
-            : post
-        ));
+        patch(data.data.liked, data.data.likeCount); // reconcile with the truth
+      } else {
+        patch(wasLiked, prevCount); // roll back
       }
     } catch (error) {
       console.error('Error liking post:', error);
+      patch(wasLiked, prevCount);
+    }
+  };
+
+  // Double-tap on media likes but never unlikes (Instagram behaviour).
+  const handleDoubleTapLike = (postId: string) => {
+    const target = posts.find(p => ((p as any)._id || p.id) === postId) as any;
+    if (target && !target.liked) handleLike(postId);
+  };
+
+  // Share via the native sheet, falling back to the clipboard.
+  const handleShare = async (post: any) => {
+    const authorName = post.author?.name || 'a Dayla explorer';
+    const shareData = {
+      title: post.title || `Adventure by ${authorName}`,
+      text: `${post.content || ''}`.slice(0, 140),
+      url: window.location.origin,
+    };
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+      } else {
+        await navigator.clipboard.writeText(`${shareData.title} — ${shareData.text} ${shareData.url}`);
+        setSuccessMessage('Copied to clipboard');
+        setTimeout(() => setSuccessMessage(''), 2500);
+      }
+    } catch {
+      /* user cancelled the share sheet */
     }
   };
 
@@ -183,26 +256,28 @@ const Community: React.FC<CommunityProps> = ({ user, onFriendRequestSent }) => {
     }));
   };
 
+  // Optimistic save: the bookmark filling in IS the feedback; roll back on failure.
   const handleSaveTrip = async (postId: string) => {
+    const target = posts.find(p => ((p as any)._id || p.id) === postId) as any;
+    if (!target) return;
+    const wasSaved = !!target.saved;
+    const patch = (saved: boolean) =>
+      setPosts(prev => prev.map(post =>
+        ((post as any)._id || post.id) === postId ? { ...post, saved } as any : post
+      ));
+
+    patch(!wasSaved);
     try {
       const response = await authFetch(`${API_BASE_URL}/api/community/posts/${postId}/save`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
-
       const data = await response.json();
-
-      if (data.success) {
-        setSuccessMessage(data.message);
-        setTimeout(() => setSuccessMessage(''), 3000);
-        setPosts(prev => prev.map(post =>
-          (post._id || post.id) === postId
-            ? { ...post, saved: data.data.saved }
-            : post
-        ));
-      }
+      if (data.success) patch(!!data.data.saved);
+      else patch(wasSaved);
     } catch (error) {
       console.error('Error saving trip:', error);
+      patch(wasSaved);
     }
   };
 
@@ -351,20 +426,7 @@ const Community: React.FC<CommunityProps> = ({ user, onFriendRequestSent }) => {
     }
   };
 
-  // Close menu when clicking outside
-  useEffect(() => {
-    if (!openMenuPostId) return;
-    const handleClick = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setOpenMenuPostId(null);
-      }
-    };
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, [openMenuPostId]);
-
   const handleDeletePost = (postId: string) => {
-    setOpenMenuPostId(null);
     setShowDeleteConfirm(postId);
   };
 
@@ -395,7 +457,6 @@ const Community: React.FC<CommunityProps> = ({ user, onFriendRequestSent }) => {
   };
 
   const handleEditPost = (post: any) => {
-    setOpenMenuPostId(null);
     const postId = post._id || post.id;
     const images = post.images || [];
     const firstImageUrl = images.length > 0 ? images[0].url : null;
@@ -414,7 +475,6 @@ const Community: React.FC<CommunityProps> = ({ user, onFriendRequestSent }) => {
   };
 
   const handleRepost = async (post: any) => {
-    setOpenMenuPostId(null);
     const originalPostId = post._id || post.id;
     const originalAuthor = post.author;
     const originalAuthorId = originalAuthor?._id || originalAuthor?.id;
@@ -494,14 +554,13 @@ const Community: React.FC<CommunityProps> = ({ user, onFriendRequestSent }) => {
         <p className="text-sm text-stone-500">Discover new trails & experiences</p>
       </header>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-6 pb-24">
+      <div className="flex-1 overflow-y-auto p-4 space-y-5 pb-24">
         {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="flex items-center gap-3 text-stone-500">
-              <div className="w-6 h-6 border-2 border-stone-300 border-t-[#3a5a40] rounded-full animate-spin"></div>
-              <span>Loading posts...</span>
-            </div>
-          </div>
+          <>
+            <PostSkeleton />
+            <PostSkeleton />
+            <PostSkeleton />
+          </>
         ) : posts.length === 0 ? (
           <div className="flex items-center justify-center py-12">
             <div className="text-center">
@@ -513,146 +572,36 @@ const Community: React.FC<CommunityProps> = ({ user, onFriendRequestSent }) => {
             </div>
           </div>
         ) : (
-          posts.map((post) => {
-            const postId = (post as any)._id || post.id;
-            const author = (post as any).author;
-            const authorId = author?._id || author?.id;
-            const authorName = author?.name || 'Unknown User';
-            const authorAvatar = author?.avatar || '';
-            const locationName = (post as any).location?.name || 'Unknown Location';
-            const postImages = (post as any).images || [];
-            const mainImage = postImages.length > 0 ? postImages[0].url : '';
-            const likeCount = (post as any).likeCount ?? (Array.isArray((post as any).likes) ? (post as any).likes.length : 0);
-            const comments = (post as any).comments || [];
-            const isLiked = (post as any).liked || false;
-            const isSaved = (post as any).saved || false;
-            const isFriend = false; // TODO: Check from user's friends list
-            const isOwnPost = authorId === user.id;
+          <>
+            {posts.map((post) => (
+              <PostCard
+                key={(post as any)._id || post.id}
+                post={post}
+                currentUserId={user.id}
+                onLike={handleLike}
+                onDoubleTapLike={handleDoubleTapLike}
+                onOpenComments={handleComment}
+                onShare={handleShare}
+                onSave={handleSaveTrip}
+                onAddFriend={handleSendFriendRequest}
+                onEdit={handleEditPost}
+                onDelete={handleDeletePost}
+                onRepost={handleRepost}
+                reposting={posting}
+              />
+            ))}
 
-            return (
-              <div key={postId} className="bg-white rounded-3xl overflow-hidden shadow-sm border border-stone-100">
-                {/* Post Header */}
-                <div className="p-4 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    {authorAvatar ? (
-                      <img src={authorAvatar} className="w-10 h-10 rounded-full object-cover" alt={authorName} />
-                    ) : (
-                      <div className="w-10 h-10 rounded-full bg-[#a3b18a] flex items-center justify-center">
-                        <span className="text-sm font-bold text-white">{authorName?.charAt(0)?.toUpperCase() || '?'}</span>
-                      </div>
-                    )}
-                    <div>
-                      <h3 className="text-sm font-bold text-stone-800">{authorName}</h3>
-                      <div className="flex items-center gap-1 text-[#588157]">
-                        <MapPin size={12} />
-                        <span className="text-[10px] font-medium">{locationName}</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button 
-                      onClick={() => handleSaveTrip(postId)}
-                      className={`p-2 rounded-xl transition-colors ${
-                        isSaved 
-                          ? 'bg-[#3a5a40] text-white' 
-                          : 'bg-[#fefae0] text-[#3a5a40] hover:bg-[#faedcd]'
-                      }`}
-                    >
-                      <Save size={18} fill={isSaved ? 'currentColor' : 'none'} />
-                    </button>
-                    {!isOwnPost && !isFriend && (
-                      <button
-                        onClick={() => handleSendFriendRequest(authorId)}
-                        className="p-2 bg-[#fefae0] text-[#3a5a40] rounded-xl hover:bg-[#3a5a40] hover:text-white transition-colors"
-                      >
-                        <UserPlus size={18} />
-                      </button>
-                    )}
-
-                    {/* 3-dot menu */}
-                    <div className="relative" ref={openMenuPostId === postId ? menuRef : undefined}>
-                      <button
-                        onClick={() => setOpenMenuPostId(openMenuPostId === postId ? null : postId)}
-                        className="p-2 text-stone-400 hover:text-stone-600 rounded-xl hover:bg-stone-50 transition-colors"
-                      >
-                        <MoreVertical size={18} />
-                      </button>
-                      {openMenuPostId === postId && (
-                        <div className="absolute right-0 top-full mt-1 w-44 bg-white rounded-2xl shadow-xl border border-stone-100 py-1 z-30 overflow-hidden">
-                          {isOwnPost && (
-                            <>
-                              <button
-                                onClick={() => handleEditPost(post)}
-                                className="w-full px-4 py-2.5 text-left text-sm text-stone-700 hover:bg-stone-50 flex items-center gap-3 transition-colors"
-                              >
-                                <Pencil size={15} className="text-stone-500" />
-                                Edit Post
-                              </button>
-                              <button
-                                onClick={() => handleDeletePost(postId)}
-                                className="w-full px-4 py-2.5 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-3 transition-colors"
-                              >
-                                <Trash2 size={15} />
-                                Delete Post
-                              </button>
-                            </>
-                          )}
-                          <button
-                            onClick={() => handleRepost(post)}
-                            disabled={posting}
-                            className="w-full px-4 py-2.5 text-left text-sm text-stone-700 hover:bg-stone-50 flex items-center gap-3 transition-colors disabled:opacity-50"
-                          >
-                            <Repeat2 size={15} className="text-stone-500" />
-                            Repost
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Repost attribution */}
-                {(post as any).repostedFrom?.authorName && (
-                  <div className="px-4 py-2 bg-stone-50 border-y border-stone-100 flex items-center gap-2 text-xs text-stone-500">
-                    <Repeat2 size={13} />
-                    <span>Reposted from <span className="font-bold text-stone-700">{(post as any).repostedFrom.authorName}</span></span>
-                  </div>
-                )}
-
-                {/* Post Image */}
-                {mainImage && (
-                  <img src={mainImage} className="w-full max-h-[500px] object-contain bg-stone-100" alt="Post content" />
-                )}
-
-                {/* Content */}
-                <div className="p-4">
-                  <p className="text-sm text-stone-700 leading-relaxed mb-4">{post.content}</p>
-                  
-                  <div className="flex items-center gap-6 text-stone-500">
-                    <button 
-                      onClick={() => handleLike(postId)}
-                      className={`flex items-center gap-1 transition-colors ${
-                        isLiked ? 'text-red-500' : 'hover:text-red-500'
-                      }`}
-                    >
-                      <Heart size={20} fill={isLiked ? 'currentColor' : 'none'} />
-                      <span className="text-xs font-bold">{likeCount}</span>
-                    </button>
-                    <button 
-                      onClick={() => handleComment(postId)}
-                      className="flex items-center gap-1 hover:text-[#3a5a40] transition-colors"
-                    >
-                      <MessageCircle size={20} />
-                      <span className="text-xs font-bold">{comments.length}</span>
-                    </button>
-                    <button className="flex items-center gap-1 hover:text-[#3a5a40] ml-auto">
-                      <Share size={20} />
-                    </button>
-                  </div>
-                </div>
+            {/* Infinite-scroll sentinel + tail states */}
+            <div ref={sentinelRef} aria-hidden="true" />
+            {loadingMore && (
+              <div className="flex justify-center py-4" role="status" aria-label="Loading more posts">
+                <div className="w-6 h-6 border-2 border-stone-300 border-t-[#3a5a40] rounded-full animate-spin" />
               </div>
-            );
-          })
+            )}
+            {!hasMore && posts.length > 3 && (
+              <p className="text-center text-xs text-stone-400 py-4">You're all caught up ✨</p>
+            )}
+          </>
         )}
       </div>
 

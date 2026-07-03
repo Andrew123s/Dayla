@@ -10,6 +10,8 @@ const {
   addComment,
   updateComment,
   deleteComment,
+  toggleCommentLike,
+  addCommentReply,
   getTrendingPosts,
   getPostsByLocation,
   getUserPosts,
@@ -99,5 +101,9 @@ router.post('/posts/:id/comments', (req, res, next) => {
 
 router.put('/posts/:postId/comments/:commentId', updateComment);
 router.delete('/posts/:postId/comments/:commentId', deleteComment);
+
+// Comment engagement (threaded replies + likes)
+router.post('/posts/:postId/comments/:commentId/like', toggleCommentLike);
+router.post('/posts/:postId/comments/:commentId/replies', addCommentReply);
 
 module.exports = router;
