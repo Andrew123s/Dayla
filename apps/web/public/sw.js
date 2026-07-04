@@ -1,8 +1,8 @@
 // Dayla Service Worker - Offline-First Strategy
 // Bump these versions on every deploy that ships new assets so returning
 // visitors purge stale caches (the activate handler deletes non-matching caches).
-const CACHE_NAME = 'dayla-v2';
-const RUNTIME_CACHE = 'dayla-runtime-v2';
+const CACHE_NAME = 'dayla-v3';
+const RUNTIME_CACHE = 'dayla-runtime-v3';
 
 // App shell files to pre-cache on install
 const APP_SHELL = [

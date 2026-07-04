@@ -10,12 +10,17 @@ const StaticPage: React.FC<StaticPageProps> = ({ title, children }) => {
   return (
     <div
       style={{
-        minHeight: 'var(--app-height, 100dvh)',
+        // The app shell (index.html) locks body to the viewport with
+        // overflow:hidden, so this container must own its scrolling —
+        // a fixed height (not minHeight) keeps the footer from being
+        // cropped when the content is taller than the viewport.
+        height: 'var(--app-height, 100dvh)',
         width: '100%',
         background: '#f7f3ee',
         fontFamily: "'Quicksand', sans-serif",
         color: '#3d3d3d',
         overflowY: 'auto',
+        WebkitOverflowScrolling: 'touch',
         display: 'flex',
         flexDirection: 'column',
       }}
