@@ -1,11 +1,39 @@
 
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import ReactDOM from 'react-dom/client';
-import App from './App';
-import Landing from './components/Landing';
-import PrivacyPage from './app/privacy/page';
-import TermsPage from './app/terms/page';
-import ContactPage from './app/contact/page';
+
+// Route-level code splitting: visitors on the public landing/legal pages never
+// download the (much larger) authenticated app bundle, and vice versa.
+const App = lazy(() => import('./App'));
+const Landing = lazy(() => import('./components/Landing'));
+const PrivacyPage = lazy(() => import('./app/privacy/page'));
+const TermsPage = lazy(() => import('./app/terms/page'));
+const ContactPage = lazy(() => import('./app/contact/page'));
+
+const RouteFallback: React.FC = () => (
+  <div
+    style={{
+      height: 'var(--app-height, 100dvh)',
+      width: '100%',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      background: '#f7f3ee',
+    }}
+  >
+    <div
+      style={{
+        width: 44,
+        height: 44,
+        border: '4px solid rgba(58,90,64,0.25)',
+        borderTopColor: '#3a5a40',
+        borderRadius: '50%',
+        animation: 'spin 0.8s linear infinite',
+      }}
+    />
+    <style>{'@keyframes spin { to { transform: rotate(360deg); } }'}</style>
+  </div>
+);
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -44,7 +72,9 @@ function resolveRoute(): React.ReactElement {
 const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
-    {resolveRoute()}
+    <Suspense fallback={<RouteFallback />}>
+      {resolveRoute()}
+    </Suspense>
   </React.StrictMode>
 );
 

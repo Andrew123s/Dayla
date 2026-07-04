@@ -1,10 +1,6 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, Suspense, lazy } from 'react';
 import { ViewType, User } from './types';
-import Dashboard from './components/Dashboard';
-import Community from './components/Community';
-import ChatView from './components/ChatView';
-import ProfileView from './components/ProfileView';
 import AuthView from './components/AuthView';
 import Onboarding from './components/Onboarding';
 import VerifyEmail from './components/VerifyEmail';
@@ -14,6 +10,19 @@ import { Loader, X, Check, UserPlus, Bell, Heart, MessageCircle, Layout, UserChe
 import { initializeSocket, getSocket, disconnectSocket } from './lib/socket';
 
 import { API_BASE_URL, authFetch, clearAuthToken, getAuthToken } from './lib/api';
+
+// The main authenticated views are code-split so the initial /auth load stays
+// small; each chunk is fetched on first navigation to that view.
+const Dashboard = lazy(() => import('./components/Dashboard'));
+const Community = lazy(() => import('./components/Community'));
+const ChatView = lazy(() => import('./components/ChatView'));
+const ProfileView = lazy(() => import('./components/ProfileView'));
+
+const ViewFallback: React.FC = () => (
+  <div className="w-full h-full flex items-center justify-center">
+    <div className="w-10 h-10 border-4 border-[#3a5a40]/25 border-t-[#3a5a40] rounded-full animate-spin" />
+  </div>
+);
 
 interface FriendRequest {
   _id: string;
@@ -385,10 +394,12 @@ const App: React.FC = () => {
   return (
     <div className="flex flex-col w-full bg-[#f7f3ee] max-w-md mx-auto shadow-2xl relative overflow-hidden border-x border-stone-200" style={{ height: 'var(--app-height, 100dvh)' }}>
       <main className="flex-1 overflow-hidden relative">
-        {view === 'dashboard' && <Dashboard user={currentUser!} />}
-        {view === 'community' && <Community user={currentUser!} onFriendRequestSent={fetchPendingFriendRequests} />}
-        {view === 'chat' && <ChatView user={currentUser!} />}
-        {view === 'profile' && <ProfileView user={currentUser!} onLogout={handleLogout} />}
+        <Suspense fallback={<ViewFallback />}>
+          {view === 'dashboard' && <Dashboard user={currentUser!} />}
+          {view === 'community' && <Community user={currentUser!} onFriendRequestSent={fetchPendingFriendRequests} />}
+          {view === 'chat' && <ChatView user={currentUser!} />}
+          {view === 'profile' && <ProfileView user={currentUser!} onLogout={handleLogout} />}
+        </Suspense>
       </main>
 
       <Navigation

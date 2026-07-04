@@ -16,8 +16,8 @@
 [build.environment]
   NODE_VERSION = "20"
 
-# SPA fallback: serve index.html for client-side routes (/auth, /privacy, ...).
-# Real static files (e.g. /landing.html) are served before this rule applies.
+# SPA fallback: serve index.html for client-side routes (/, /auth, /privacy, ...).
+# Real static files (e.g. /og-image.png, /icons/*) are served before this rule.
 [[redirects]]
   from = "/*"
   to = "/index.html"
