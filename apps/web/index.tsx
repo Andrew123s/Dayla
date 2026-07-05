@@ -48,8 +48,15 @@ function resolveRoute(): React.ReactElement {
   const params = new URLSearchParams(window.location.search);
 
   // Email verification / board invitation links must always reach <App />,
-  // even when they arrive on the root path with a query token.
-  if (params.get('token') || params.get('invitationId') || path === '/verify-email') {
+  // even when they arrive on the root path with a query token. Same for the
+  // return from Stripe checkout / the billing portal (?billing=success|cancel),
+  // which Stripe sends back to the site root.
+  if (
+    params.get('token') ||
+    params.get('invitationId') ||
+    params.get('billing') ||
+    path === '/verify-email'
+  ) {
     return <App />;
   }
 

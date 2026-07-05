@@ -17,6 +17,61 @@ function notConfigured(res) {
   });
 }
 
+/**
+ * Translate a Stripe SDK error into an actionable client response instead of a
+ * blanket 500. These are configuration/availability categories (never secrets):
+ * without them, a bad key or a test-mode price ID in a live deploy is
+ * indistinguishable from a code bug.
+ */
+function describeStripeError(error) {
+  if (!error || !error.type) return null;
+  switch (error.type) {
+    case 'StripeAuthenticationError':
+      return {
+        status: 503,
+        code: 'STRIPE_AUTH_FAILED',
+        message: 'Billing is misconfigured: Stripe rejected the API key. (Check STRIPE_SECRET_KEY.)',
+      };
+    case 'StripePermissionError':
+      return {
+        status: 503,
+        code: 'STRIPE_KEY_RESTRICTED',
+        message: 'Billing is misconfigured: the Stripe API key lacks the required permissions.',
+      };
+    case 'StripeInvalidRequestError':
+      if (error.code === 'resource_missing' && /price/.test(String(error.param || '') + String(error.message || ''))) {
+        return {
+          status: 503,
+          code: 'STRIPE_PRICE_MISMATCH',
+          message: 'Billing is misconfigured: the configured Stripe price was not found. (Test-mode price ID with a live key, or vice versa?)',
+        };
+      }
+      return {
+        status: 502,
+        code: 'STRIPE_INVALID_REQUEST',
+        message: `Stripe rejected the request: ${error.message}`,
+      };
+    case 'StripeRateLimitError':
+      return { status: 503, code: 'STRIPE_RATE_LIMITED', message: 'Billing is busy right now — please try again in a moment.' };
+    case 'StripeConnectionError':
+    case 'StripeAPIError':
+      return { status: 503, code: 'STRIPE_UNAVAILABLE', message: 'Stripe is temporarily unreachable — please try again.' };
+    default:
+      return null;
+  }
+}
+
+/** Log full Stripe error detail and respond with the mapped category (or null). */
+function respondStripeError(res, error, action) {
+  logger.error(
+    `${action} stripe error — type=${error && error.type} code=${error && error.code} param=${error && error.param} message=${error && error.message}`
+  );
+  const mapped = describeStripeError(error);
+  if (!mapped) return false;
+  res.status(mapped.status).json({ success: false, code: mapped.code, message: mapped.message });
+  return true;
+}
+
 // Billing metrics are for admins only (reuses the ADMIN_EMAILS list).
 function isAdmin(user) {
   return config.adminEmails.includes(((user && user.email) || '').toLowerCase());
@@ -73,8 +128,12 @@ async function applySubscription(sub, eventCreatedAt) {
   }
 
   const status = mapStatus(sub.status);
-  const periodStart = toDate(sub.current_period_start);
-  const periodEnd = toDate(sub.current_period_end);
+  // Newer Stripe API versions (2025-03-31 "basil" and later — the default for
+  // freshly created webhook endpoints) moved the period dates off the
+  // subscription root onto its items. Read both shapes.
+  const item0 = sub.items && sub.items.data && sub.items.data[0];
+  const periodStart = toDate(sub.current_period_start || (item0 && item0.current_period_start));
+  const periodEnd = toDate(sub.current_period_end || (item0 && item0.current_period_end));
   const cancelAtPeriodEnd = !!sub.cancel_at_period_end;
   const billingCycle = plan ? plan.billingCycle : null;
 
@@ -208,6 +267,7 @@ const createCheckoutSession = async (req, res) => {
 
     res.status(200).json({ success: true, data: { url: session.url, sessionId: session.id } });
   } catch (error) {
+    if (respondStripeError(res, error, 'createCheckoutSession')) return;
     logger.error('createCheckoutSession error:', error);
     res.status(500).json({ success: false, message: 'Could not start checkout' });
   }
@@ -228,6 +288,7 @@ const createCustomerPortal = async (req, res) => {
     });
     res.status(200).json({ success: true, data: { url: session.url } });
   } catch (error) {
+    if (respondStripeError(res, error, 'createCustomerPortal')) return;
     logger.error('createCustomerPortal error:', error);
     res.status(500).json({ success: false, message: 'Could not open the billing portal' });
   }
@@ -279,7 +340,12 @@ const handleWebhook = async (req, res) => {
       }
       case 'invoice.paid':
       case 'invoice.payment_failed': {
-        const subId = obj.subscription;
+        // `invoice.subscription` exists on pre-2025 API versions; basil moved it
+        // to `invoice.parent.subscription_details.subscription`.
+        const parentSub =
+          obj.parent && obj.parent.subscription_details && obj.parent.subscription_details.subscription;
+        const rawSubRef = obj.subscription || parentSub;
+        const subId = typeof rawSubRef === 'string' ? rawSubRef : rawSubRef && rawSubRef.id;
         if (subId) {
           const sub = await stripeService.retrieveSubscription(subId);
           user = await applySubscription(sub, event.created);
