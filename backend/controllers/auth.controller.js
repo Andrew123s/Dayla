@@ -119,7 +119,8 @@ const register = async (req, res) => {
       ecoScore: user.ecoScore,
       badges: user.badges,
       emailVerified: user.emailVerified,
-      onboardingCompleted: user.onboardingCompleted
+      onboardingCompleted: user.onboardingCompleted,
+      subscription: user.subscriptionSnapshot
     };
 
     res.status(201).json({
@@ -210,7 +211,8 @@ const login = async (req, res) => {
       ecoScore: user.ecoScore,
       badges: user.badges,
       emailVerified: user.emailVerified,
-      onboardingCompleted: user.onboardingCompleted
+      onboardingCompleted: user.onboardingCompleted,
+      subscription: user.subscriptionSnapshot
     };
 
     logger.info(`User logged in: ${user.email}`);
@@ -617,7 +619,8 @@ const checkAuth = async (req, res) => {
       ecoScore: user.ecoScore,
       badges: user.badges,
       emailVerified: user.emailVerified,
-      onboardingCompleted: user.onboardingCompleted
+      onboardingCompleted: user.onboardingCompleted,
+      subscription: user.subscriptionSnapshot
     };
 
     res.status(200).json({

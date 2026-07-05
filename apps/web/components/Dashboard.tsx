@@ -21,6 +21,8 @@ import SmartPacking from './SmartPacking';
 import StickyNoteCard from './StickyNoteCard';
 import { BudgetPanel } from './budget/BudgetPanel';
 import PikoPanel from './PikoPanel';
+import { useProGate } from './billing/ProGateContext';
+import { Lock } from 'lucide-react';
 
 interface DashboardProps {
   user: User;
@@ -177,6 +179,8 @@ const VoiceNote: React.FC<{ note: StickyNote }> = ({ note }) => {
 };
 
 const Dashboard: React.FC<DashboardProps> = ({ user }) => {
+  // Pro gating (Footprint / Trails / collaborators)
+  const { canUse, openPricing } = useProGate();
   // Dashboard ID and Trip ID
   const [dashboardId, setDashboardId] = useState<string>('');
   const [tripId, setTripId] = useState<string>('');
@@ -1255,6 +1259,13 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
       const data = await response.json();
 
       if (!response.ok) {
+        // Free collaborator limit hit → send them to the pricing overlay.
+        if (data.code === 'UPGRADE_REQUIRED') {
+          setShowInviteModal(false);
+          setInviteError('');
+          openPricing('collaborators');
+          return;
+        }
         throw new Error(data.message || 'Failed to send invitation');
       }
 
@@ -1492,7 +1503,18 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
           </button>
 
           <button onClick={() => setShowWeather(true)} className="p-2 bg-white text-[#3a5a40] rounded-full shadow-sm hover:bg-stone-50 transition-all active:scale-95"><CloudSun size={20} /></button>
-          <button onClick={() => setShowSusCal(true)} className="p-2 bg-[#3a5a40] text-white rounded-full shadow-lg hover:bg-[#588157] transition-all active:scale-95"><Leaf size={20} /></button>
+          <button
+            onClick={() => (canUse('footprint') ? setShowSusCal(true) : openPricing('footprint'))}
+            title={canUse('footprint') ? 'Eco-Tracker' : 'Eco-Tracker (Pro)'}
+            className="relative p-2 bg-[#3a5a40] text-white rounded-full shadow-lg hover:bg-[#588157] transition-all active:scale-95"
+          >
+            <Leaf size={20} />
+            {!canUse('footprint') && (
+              <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-amber-400 text-amber-950 grid place-items-center ring-2 ring-white">
+                <Lock size={9} />
+              </span>
+            )}
+          </button>
         </div>
       </div>
 
@@ -1744,6 +1766,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
           user={{ id: user.id, name: user.name, avatar: user.avatar }}
           collaborators={activeUsers}
           onClose={() => setShowPiko(false)}
+          onUpgradeRequired={() => openPricing('trails')}
         />
       )}
 

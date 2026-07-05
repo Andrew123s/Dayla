@@ -3,6 +3,29 @@ const User = require('../models/user.model');
 const Notification = require('../models/notification.model');
 const { sendInvitationEmail } = require('../services/email.service');
 const logger = require('../utils/logger');
+const { collaboratorLimit, UNLIMITED } = require('../utils/permissions');
+
+/**
+ * Collaborator-limit gate, evaluated against the DASHBOARD OWNER's plan (not the
+ * inviter/invitee). Existing collaborators are never removed on downgrade — we
+ * only block adding NEW ones beyond the limit.
+ *
+ * @param includePending  count pending invitations toward the limit (invite
+ *                         time) so a Free owner can't queue 10 invites at once.
+ */
+async function ownerCanAddCollaborator(dashboard, { includePending }) {
+  const owner = await User.findById(dashboard.owner)
+    .select('subscriptionType subscriptionStatus currentPeriodEnd cancelAtPeriodEnd billingCycle');
+  const limit = collaboratorLimit(owner);
+  if (limit === UNLIMITED) return { ok: true, limit };
+
+  const ownerId = dashboard.owner.toString();
+  const external = (dashboard.collaborators || []).filter(c => c.user.toString() !== ownerId).length;
+  const pending = includePending
+    ? (dashboard.invitations || []).filter(inv => inv.status === 'pending').length
+    : 0;
+  return { ok: external + pending < limit, limit, used: external + pending };
+}
 
 // @desc    Get active users for a dashboard
 // @route   GET /api/boards/:boardId/active-users
@@ -248,6 +271,19 @@ const inviteUser = async (req, res) => {
       });
     }
 
+    // Enforce the owner's collaborator limit (Free = 2). Pending invites count
+    // so the cap can't be bypassed by queueing invitations.
+    const gate = await ownerCanAddCollaborator(dashboard, { includePending: true });
+    if (!gate.ok) {
+      return res.status(403).json({
+        success: false,
+        code: 'UPGRADE_REQUIRED',
+        feature: 'collaborators',
+        requiredPlan: 'pro',
+        message: `Free plans can have up to ${gate.limit} collaborators. Upgrade to Pro for unlimited collaborators.`
+      });
+    }
+
     // Check if user is already a collaborator (by looking up their email)
     const targetUser = await User.findOne({ email }).select('_id');
     if (targetUser) {
@@ -353,6 +389,17 @@ const acceptInvitation = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: 'Invitation has expired'
+      });
+    }
+
+    // Re-check the owner's limit at accept time (the owner may have downgraded,
+    // or several pending invites could otherwise be accepted past the cap).
+    const gate = await ownerCanAddCollaborator(dashboard, { includePending: false });
+    if (!gate.ok) {
+      return res.status(403).json({
+        success: false,
+        code: 'PLAN_LIMIT_REACHED',
+        message: `This plan is currently full (up to ${gate.limit} collaborators). Ask the owner to upgrade to Pro.`
       });
     }
 

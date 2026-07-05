@@ -32,6 +32,8 @@ interface PikoPanelProps {
   user: { id: string; name: string; avatar?: string };
   collaborators?: Collaborator[];
   onClose: () => void;
+  /** Called when a Pro-only trail action is blocked by the server (403). */
+  onUpgradeRequired?: () => void;
 }
 
 // Group-date weather is computed ONCE per route per session (Layer 4) — a
@@ -60,7 +62,7 @@ interface GroupSnapshot {
   serverTasks: GroupTask[];
 }
 
-export function PikoPanel({ dashboardId, tripId, user, collaborators = [], onClose }: PikoPanelProps) {
+export function PikoPanel({ dashboardId, tripId, user, collaborators = [], onClose, onUpgradeRequired }: PikoPanelProps) {
   const [toast, setToast] = useState<string | null>(null);
   const [snap, setSnap] = useState<GroupSnapshot>({ candidates: [], selectedId: null, serverTasks: [] });
   const source = useMemo(() => createApiDataSource(authFetch, API_BASE_URL), []);
@@ -314,6 +316,14 @@ export function PikoPanel({ dashboardId, tripId, user, collaborators = [], onClo
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ dashboardId }),
       });
+      // Adding a trail to a plan is a Pro action — surface the upgrade prompt.
+      if (res.status === 403 && onUpgradeRequired) {
+        const body = await res.json().catch(() => ({}));
+        if (body.code === 'UPGRADE_REQUIRED') {
+          onUpgradeRequired();
+          return;
+        }
+      }
       setToast(res.ok ? `Added “${route.title}” to your plan` : 'Could not add to plan');
       if (res.ok) fetchGroup();
     } catch {

@@ -10,6 +10,7 @@ import { Loader, X, Check, UserPlus, Bell, Heart, MessageCircle, Layout, UserChe
 import { initializeSocket, getSocket, disconnectSocket } from './lib/socket';
 
 import { API_BASE_URL, authFetch, clearAuthToken, getAuthToken } from './lib/api';
+import { ProGateProvider } from './components/billing/ProGateContext';
 
 // The main authenticated views are code-split so the initial /auth load stays
 // small; each chunk is fetched on first navigation to that view.
@@ -97,8 +98,9 @@ const App: React.FC = () => {
               avatar: user.avatar || '',
               bio: user.bio || '',
               interests: user.interests || [],
+              subscription: user.subscription,
             };
-            
+
             setCurrentUser(normalizedUser);
             localStorage.setItem('dayla_user', JSON.stringify(normalizedUser));
 
@@ -124,6 +126,58 @@ const App: React.FC = () => {
     checkAuthStatus();
   }, []);
 
+  // Toast shown after returning from Stripe checkout / billing portal.
+  const [billingToast, setBillingToast] = useState<string | null>(null);
+
+  // Re-fetch the current user (e.g. after returning from Stripe) so the plan
+  // snapshot is fresh and Pro features unlock without a manual reload.
+  const refreshUser = useCallback(async () => {
+    try {
+      const response = await authFetch(`${API_BASE_URL}/api/auth/check`);
+      if (!response.ok) return;
+      const data = await response.json();
+      if (data.success && data.data.user) {
+        const u = data.data.user;
+        setCurrentUser((prev) =>
+          prev
+            ? { ...prev, subscription: u.subscription }
+            : {
+                id: u.id || u._id || '',
+                name: u.name || '',
+                avatar: u.avatar || '',
+                bio: u.bio || '',
+                interests: u.interests || [],
+                subscription: u.subscription,
+              }
+        );
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  // Handle the ?billing= return from Stripe: toast + refresh + clean the URL.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const billing = params.get('billing');
+    if (!billing) return;
+    if (billing === 'success') {
+      setBillingToast('🎉 Welcome to Dayla Pro! Everything is unlocked.');
+      refreshUser();
+    } else if (billing === 'cancel') {
+      setBillingToast('Checkout canceled — no changes were made.');
+    } else if (billing === 'portal_return') {
+      refreshUser();
+    }
+    // Strip billing params from the URL without a reload.
+    params.delete('billing');
+    params.delete('session_id');
+    const qs = params.toString();
+    window.history.replaceState({}, '', window.location.pathname + (qs ? `?${qs}` : ''));
+    const t = setTimeout(() => setBillingToast(null), 5000);
+    return () => clearTimeout(t);
+  }, [refreshUser]);
+
   const handleLogin = (user: User) => {
     // Ensure user has an id (map from _id if needed from backend)
     const normalizedUser: User = {
@@ -132,6 +186,7 @@ const App: React.FC = () => {
       avatar: user.avatar || '',
       bio: user.bio || '',
       interests: user.interests || [],
+      subscription: (user as any).subscription,
     };
 
     setCurrentUser(normalizedUser);
@@ -392,6 +447,7 @@ const App: React.FC = () => {
   }
 
   return (
+    <ProGateProvider subscription={currentUser?.subscription}>
     <div className="flex flex-col w-full bg-[#f7f3ee] max-w-md mx-auto shadow-2xl relative overflow-hidden border-x border-stone-200" style={{ height: 'var(--app-height, 100dvh)' }}>
       <main className="flex-1 overflow-hidden relative">
         <Suspense fallback={<ViewFallback />}>
@@ -401,6 +457,13 @@ const App: React.FC = () => {
           {view === 'profile' && <ProfileView user={currentUser!} onLogout={handleLogout} />}
         </Suspense>
       </main>
+
+      {/* Post-checkout / portal-return toast */}
+      {billingToast && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[110] bg-[#3a5a40] text-white px-5 py-3 rounded-2xl shadow-xl max-w-[90%] text-center text-sm font-semibold">
+          {billingToast}
+        </div>
+      )}
 
       <Navigation
         currentView={view}
@@ -587,6 +650,7 @@ const App: React.FC = () => {
         </div>
       )}
     </div>
+    </ProGateProvider>
   );
 };
 

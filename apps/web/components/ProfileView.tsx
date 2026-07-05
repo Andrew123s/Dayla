@@ -2,6 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { User } from '../types';
 import { API_BASE_URL, authFetch } from '../lib/api';
+import { BillingSection } from './billing/BillingSection';
 import {
   Settings, LogOut, Edit3, Camera, Map, Award, Users, X, Save,
   Bell, Shield, Moon, Globe, ChevronRight, Loader, Check, AlertCircle,
@@ -410,9 +411,12 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onLogout }) => {
           </div>
         </div>
 
+        {/* Subscription / billing */}
+        <BillingSection />
+
         {/* Menu Options */}
         <div className="bg-white p-4 rounded-3xl border border-stone-100 shadow-sm space-y-1">
-          <button 
+          <button
             onClick={() => {
               setEditForm({
                 name: user.name || '',

@@ -1,12 +1,22 @@
 
 export type ViewType = 'auth' | 'dashboard' | 'community' | 'chat' | 'profile';
 
+export interface SubscriptionSnapshot {
+  type: 'free' | 'pro';
+  status: 'active' | 'trialing' | 'past_due' | 'canceled' | 'inactive' | string;
+  billingCycle: 'monthly' | 'annual' | null;
+  cancelAtPeriodEnd: boolean;
+  currentPeriodEnd: string | null;
+}
+
 export interface User {
   id: string;
   name: string;
   avatar: string;
   bio: string;
   interests: string[];
+  /** Billing snapshot from the server; absent → treated as Free. */
+  subscription?: SubscriptionSnapshot;
 }
 
 export interface NoteAuthor {
