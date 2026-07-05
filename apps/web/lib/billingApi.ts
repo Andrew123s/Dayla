@@ -62,6 +62,23 @@ export async function startCheckout(cycle: 'monthly' | 'annual'): Promise<void> 
   else throw new Error('Could not start checkout');
 }
 
+export interface AdminMetrics {
+  currency: string;
+  subscribers: { total: number; active: number; trialing: number; pastDue: number; canceled: number };
+  revenue: { mrr: number; arr: number };
+  growth: { newLast30Days: number };
+  churn: { last30Days: number; rate: number };
+  renewals: { next7Days: number; items: { name: string | null; email: string | null; billingCycle: string | null; currentPeriodEnd: string; amount: number }[] };
+  checkout: { created: number; completed: number; conversionRate: number };
+  generatedAt: string;
+}
+
+/** Admin only — returns 403 for non-admins (used to detect admin status). */
+export async function fetchAdminMetrics(): Promise<AdminMetrics> {
+  const body = await json(await authFetch(`${API_BASE_URL}/api/billing/admin/metrics`));
+  return body.data as AdminMetrics;
+}
+
 /** Open the Stripe billing portal (manage / cancel) and redirect. */
 export async function openBillingPortal(): Promise<void> {
   const body = await json(

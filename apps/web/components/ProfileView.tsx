@@ -3,6 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { User } from '../types';
 import { API_BASE_URL, authFetch } from '../lib/api';
 import { BillingSection } from './billing/BillingSection';
+import { AdminMetricsPanel } from './billing/AdminMetricsPanel';
 import {
   Settings, LogOut, Edit3, Camera, Map, Award, Users, X, Save,
   Bell, Shield, Moon, Globe, ChevronRight, Loader, Check, AlertCircle,
@@ -413,6 +414,9 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onLogout }) => {
 
         {/* Subscription / billing */}
         <BillingSection />
+
+        {/* Admin analytics (renders only for ADMIN_EMAILS) */}
+        <AdminMetricsPanel />
 
         {/* Menu Options */}
         <div className="bg-white p-4 rounded-3xl border border-stone-100 shadow-sm space-y-1">

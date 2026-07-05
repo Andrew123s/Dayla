@@ -17,6 +17,11 @@ function notConfigured(res) {
   });
 }
 
+// Billing metrics are for admins only (reuses the ADMIN_EMAILS list).
+function isAdmin(user) {
+  return config.adminEmails.includes(((user && user.email) || '').toLowerCase());
+}
+
 // Stripe subscription.status → our status enum.
 function mapStatus(stripeStatus) {
   switch (stripeStatus) {
@@ -185,6 +190,22 @@ const createCheckoutSession = async (req, res) => {
       cancelUrl: `${base}/?billing=cancel`,
     });
 
+    // Record the session creation (best-effort) so admin analytics can compute
+    // checkout conversion = completed / created. The Stripe session id (cs_…) is
+    // unique, so it doubles as the idempotency key.
+    try {
+      await BillingEvent.create({
+        stripeEventId: session.id,
+        type: 'checkout.session.created',
+        stripeCustomerId: customerId,
+        user: req.user._id,
+        summary: `checkout session created (${cycle})`,
+        eventCreatedAt: Math.floor(Date.now() / 1000),
+      });
+    } catch (e) {
+      /* never block checkout on analytics */
+    }
+
     res.status(200).json({ success: true, data: { url: session.url, sessionId: session.id } });
   } catch (error) {
     logger.error('createCheckoutSession error:', error);
@@ -295,10 +316,91 @@ const handleWebhook = async (req, res) => {
   }
 };
 
+// @desc  Admin subscription/revenue analytics
+// @route GET /api/billing/admin/metrics   (ADMIN_EMAILS only)
+const getAdminMetrics = async (req, res) => {
+  try {
+    if (!isAdmin(req.user)) {
+      return res.status(403).json({ success: false, message: 'Not authorized' });
+    }
+
+    const now = new Date();
+    const in7 = new Date(now.getTime() + 7 * 86400000);
+    const ago30 = new Date(now.getTime() - 30 * 86400000);
+
+    const [total, active, trialing, pastDue, canceled, newLast30, churnedLast30, createdCheckouts, completedCheckouts] =
+      await Promise.all([
+        Subscription.countDocuments({}),
+        Subscription.countDocuments({ status: 'active' }),
+        Subscription.countDocuments({ status: 'trialing' }),
+        Subscription.countDocuments({ status: 'past_due' }),
+        Subscription.countDocuments({ status: 'canceled' }),
+        Subscription.countDocuments({ createdAt: { $gte: ago30 } }),
+        Subscription.countDocuments({ status: 'canceled', canceledAt: { $gte: ago30 } }),
+        BillingEvent.countDocuments({ type: 'checkout.session.created' }),
+        BillingEvent.countDocuments({ type: 'checkout.session.completed' }),
+      ]);
+
+    // MRR: normalize each active/trialing subscription to a monthly figure.
+    const revenueSubs = await Subscription.find({ status: { $in: ['active', 'trialing'] } }).select('amount billingCycle');
+    let mrrCents = 0;
+    for (const s of revenueSubs) {
+      mrrCents += s.billingCycle === 'annual' ? (s.amount || 0) / 12 : (s.amount || 0);
+    }
+    const mrr = Math.round(mrrCents) / 100;
+    const arr = Math.round(mrrCents * 12) / 100;
+
+    // 30-day churn: canceled in the window over (currently active + those churned).
+    const churnRate = active + churnedLast30 > 0 ? churnedLast30 / (active + churnedLast30) : 0;
+
+    // Upcoming renewals (next 7 days, not scheduled to cancel).
+    const renewalDocs = await Subscription.find({
+      status: { $in: ['active', 'trialing'] },
+      cancelAtPeriodEnd: false,
+      currentPeriodEnd: { $gte: now, $lte: in7 },
+    })
+      .populate('user', 'name email')
+      .sort({ currentPeriodEnd: 1 })
+      .limit(50);
+
+    const renewals = renewalDocs.map((s) => ({
+      name: s.user ? s.user.name : null,
+      email: s.user ? s.user.email : null,
+      billingCycle: s.billingCycle,
+      currentPeriodEnd: s.currentPeriodEnd,
+      amount: (s.amount || 0) / 100,
+    }));
+
+    const conversionRate = createdCheckouts > 0 ? completedCheckouts / createdCheckouts : 0;
+
+    res.status(200).json({
+      success: true,
+      data: {
+        currency: 'eur',
+        subscribers: { total, active, trialing, pastDue, canceled },
+        revenue: { mrr, arr },
+        growth: { newLast30Days: newLast30 },
+        churn: { last30Days: churnedLast30, rate: Math.round(churnRate * 1000) / 1000 },
+        renewals: { next7Days: renewals.length, items: renewals },
+        checkout: {
+          created: createdCheckouts,
+          completed: completedCheckouts,
+          conversionRate: Math.round(conversionRate * 1000) / 1000,
+        },
+        generatedAt: now,
+      },
+    });
+  } catch (error) {
+    logger.error('getAdminMetrics error:', error);
+    res.status(500).json({ success: false, message: 'Failed to load metrics' });
+  }
+};
+
 module.exports = {
   getPlans,
   getSubscription,
   createCheckoutSession,
   createCustomerPortal,
   handleWebhook,
+  getAdminMetrics,
 };
