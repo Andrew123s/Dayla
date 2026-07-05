@@ -31,6 +31,17 @@ const envSchema = Joi.object({
   WEATHER_API_KEY: Joi.string().optional(),
   MAPS_API_KEY: Joi.string().optional(),
 
+  // Stripe billing — all OPTIONAL so the app boots and runs exactly as before
+  // when they are unset. Billing endpoints return 503 "not configured" until
+  // all four are present.
+  STRIPE_SECRET_KEY: Joi.string().optional(),
+  STRIPE_WEBHOOK_SECRET: Joi.string().optional(),
+  STRIPE_MONTHLY_PRICE_ID: Joi.string().optional(),
+  STRIPE_ANNUAL_PRICE_ID: Joi.string().optional(),
+
+  // Comma-separated admin emails (reused by Piko moderation + billing metrics)
+  ADMIN_EMAILS: Joi.string().optional(),
+
 }).unknown(true);
 
 // Validate environment variables
@@ -66,6 +77,18 @@ const config = {
     weather: value.WEATHER_API_KEY,
     maps: value.MAPS_API_KEY,
   },
+  stripe: {
+    secretKey: value.STRIPE_SECRET_KEY,
+    webhookSecret: value.STRIPE_WEBHOOK_SECRET,
+    monthlyPriceId: value.STRIPE_MONTHLY_PRICE_ID,
+    annualPriceId: value.STRIPE_ANNUAL_PRICE_ID,
+    // Billing is only "on" when the essentials are present.
+    isConfigured: !!(value.STRIPE_SECRET_KEY && value.STRIPE_MONTHLY_PRICE_ID && value.STRIPE_ANNUAL_PRICE_ID),
+  },
+  adminEmails: (value.ADMIN_EMAILS || '')
+    .split(',')
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean),
 };
 
 module.exports = config;

@@ -104,6 +104,46 @@ const userSchema = new mongoose.Schema({
   emailVerificationExpires: {
     type: Date,
     select: false
+  },
+
+  // ── Billing snapshot ──────────────────────────────────────────────────────
+  // Denormalized copy of the user's current plan so permission checks (which run
+  // on every request via `protect`) need no extra query. The Subscription
+  // collection is the source-of-truth ledger; webhooks keep this in sync.
+  subscriptionType: {
+    type: String,
+    enum: ['free', 'pro'],
+    default: 'free'
+  },
+  subscriptionStatus: {
+    type: String,
+    enum: ['active', 'trialing', 'past_due', 'canceled', 'inactive'],
+    default: 'inactive'
+  },
+  billingCycle: {
+    type: String,
+    enum: ['monthly', 'annual', null],
+    default: null
+  },
+  cancelAtPeriodEnd: {
+    type: Boolean,
+    default: false
+  },
+  stripeCustomerId: {
+    type: String,
+    default: null
+  },
+  stripeSubscriptionId: {
+    type: String,
+    default: null
+  },
+  currentPeriodStart: {
+    type: Date,
+    default: null
+  },
+  currentPeriodEnd: {
+    type: Date,
+    default: null
   }
 }, {
   timestamps: true,
@@ -130,7 +170,19 @@ userSchema.virtual('profile').get(function() {
     badges: this.badges,
     friendCount: (this.friends || []).length,
     notificationsEnabled: this.notificationsEnabled,
-    createdAt: this.createdAt
+    createdAt: this.createdAt,
+    subscription: this.subscriptionSnapshot
+  };
+});
+
+// Compact subscription snapshot for the frontend (no Stripe ids leaked).
+userSchema.virtual('subscriptionSnapshot').get(function() {
+  return {
+    type: this.subscriptionType || 'free',
+    status: this.subscriptionStatus || 'inactive',
+    billingCycle: this.billingCycle || null,
+    cancelAtPeriodEnd: !!this.cancelAtPeriodEnd,
+    currentPeriodEnd: this.currentPeriodEnd || null
   };
 });
 

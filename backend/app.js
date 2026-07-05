@@ -27,6 +27,8 @@ const climatiqRoutes = require('./routes/climatiq.routes');
 const weatherRoutes = require('./routes/weather.routes');
 const packingRoutes = require('./routes/packing.routes');
 const pikoRoutes = require('./routes/piko.routes');
+const billingRoutes = require('./routes/billing.routes');
+const billingController = require('./controllers/billing.controller');
 
 // Create Express app
 const app = express();
@@ -59,6 +61,13 @@ app.use(cors({
 app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
+
+// Stripe webhook — MUST be registered BEFORE the JSON body parser and the rate
+// limiter. Signature verification needs the raw request bytes (express.json
+// would consume them), and Stripe retries aggressively (the general limiter
+// would drop legitimate retries). Unauthenticated by design — Stripe is not a
+// logged-in user; the handler verifies the signature instead.
+app.post('/api/billing/webhook', express.raw({ type: 'application/json' }), billingController.handleWebhook);
 
 // General API rate limit — high enough for normal SPA use (background polling,
 // note saves, dashboard init) while still blocking abusive scripts.
@@ -152,6 +161,7 @@ app.use('/api/climatiq', climatiqRoutes);
 app.use('/api/weather', weatherRoutes);
 app.use('/api/packing', packingRoutes);
 app.use('/api/piko', pikoRoutes);
+app.use('/api/billing', billingRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {
