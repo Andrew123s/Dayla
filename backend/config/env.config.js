@@ -77,14 +77,23 @@ const config = {
     weather: value.WEATHER_API_KEY,
     maps: value.MAPS_API_KEY,
   },
-  stripe: {
-    secretKey: value.STRIPE_SECRET_KEY,
-    webhookSecret: value.STRIPE_WEBHOOK_SECRET,
-    monthlyPriceId: value.STRIPE_MONTHLY_PRICE_ID,
-    annualPriceId: value.STRIPE_ANNUAL_PRICE_ID,
-    // Billing is only "on" when the essentials are present.
-    isConfigured: !!(value.STRIPE_SECRET_KEY && value.STRIPE_MONTHLY_PRICE_ID && value.STRIPE_ANNUAL_PRICE_ID),
-  },
+  stripe: (() => {
+    // Trim every value: pasting keys/price IDs into a hosting dashboard often
+    // sneaks in a trailing space or newline, which makes Stripe reject the key
+    // or report "No such price" for an otherwise-correct id.
+    const secretKey = (value.STRIPE_SECRET_KEY || '').trim() || undefined;
+    const webhookSecret = (value.STRIPE_WEBHOOK_SECRET || '').trim() || undefined;
+    const monthlyPriceId = (value.STRIPE_MONTHLY_PRICE_ID || '').trim() || undefined;
+    const annualPriceId = (value.STRIPE_ANNUAL_PRICE_ID || '').trim() || undefined;
+    return {
+      secretKey,
+      webhookSecret,
+      monthlyPriceId,
+      annualPriceId,
+      // Billing is only "on" when the essentials are present.
+      isConfigured: !!(secretKey && monthlyPriceId && annualPriceId),
+    };
+  })(),
   adminEmails: (value.ADMIN_EMAILS || '')
     .split(',')
     .map((s) => s.trim().toLowerCase())

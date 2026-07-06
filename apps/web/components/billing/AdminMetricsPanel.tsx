@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { BarChart3, ChevronRight, X, Loader, Users, TrendingUp, RefreshCw, Calendar } from 'lucide-react';
-import { fetchAdminMetrics, AdminMetrics } from '../../lib/billingApi';
+import { BarChart3, ChevronRight, X, Loader, Users, TrendingUp, RefreshCw, Calendar, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { fetchAdminMetrics, AdminMetrics, fetchStripeCheck, StripeCheck } from '../../lib/billingApi';
 
 /**
  * Admin-only revenue & subscriber analytics. Self-probing: on mount it tries the
@@ -11,6 +11,7 @@ import { fetchAdminMetrics, AdminMetrics } from '../../lib/billingApi';
 export const AdminMetricsPanel: React.FC = () => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [metrics, setMetrics] = useState<AdminMetrics | null>(null);
+  const [stripeCheck, setStripeCheck] = useState<StripeCheck | null>(null);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -20,6 +21,8 @@ export const AdminMetricsPanel: React.FC = () => {
       const m = await fetchAdminMetrics();
       setMetrics(m);
       setIsAdmin(true);
+      // Best-effort config diagnostic (same admin gate).
+      fetchStripeCheck().then(setStripeCheck).catch(() => {});
     } catch {
       /* non-admin (403) or error → stay hidden */
     } finally {
@@ -76,6 +79,47 @@ export const AdminMetricsPanel: React.FC = () => {
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {/* Billing configuration diagnostic */}
+              {stripeCheck && (
+                <div className={`rounded-2xl p-4 ring-1 ${stripeCheck.allOk ? 'bg-white ring-stone-100' : 'bg-amber-50 ring-amber-200'}`}>
+                  <p className="text-[11px] font-bold uppercase tracking-wide text-stone-400 mb-2 flex items-center gap-1.5">
+                    {stripeCheck.allOk ? <CheckCircle2 size={13} className="text-[#3a5a40]" /> : <AlertTriangle size={13} className="text-amber-600" />}
+                    Billing configuration
+                  </p>
+                  <div className="flex items-center gap-2 text-xs text-stone-500 mb-2">
+                    <span className={`px-2 py-0.5 rounded-full font-bold ${stripeCheck.keyMode === 'live' ? 'bg-[#3a5a40]/10 text-[#3a5a40]' : 'bg-stone-100 text-stone-600'}`}>
+                      {stripeCheck.keyMode} key
+                    </span>
+                    <span className={`px-2 py-0.5 rounded-full font-bold ${stripeCheck.webhookConfigured ? 'bg-[#3a5a40]/10 text-[#3a5a40]' : 'bg-amber-100 text-amber-700'}`}>
+                      webhook {stripeCheck.webhookConfigured ? 'set' : 'missing'}
+                    </span>
+                  </div>
+                  <div className="space-y-1.5">
+                    {stripeCheck.prices.map((p) => (
+                      <div key={p.label} className="flex items-start gap-2 text-[13px]">
+                        {p.ok ? (
+                          <CheckCircle2 size={15} className="text-[#3a5a40] shrink-0 mt-0.5" />
+                        ) : (
+                          <AlertTriangle size={15} className="text-amber-600 shrink-0 mt-0.5" />
+                        )}
+                        <div className="min-w-0">
+                          <span className="font-semibold text-stone-700 capitalize">{p.label}</span>{' '}
+                          {p.configured ? (
+                            p.ok ? (
+                              <span className="text-stone-500">€{p.amount}/{p.interval} · {p.id}</span>
+                            ) : (
+                              <span className="text-amber-700">{p.reason || 'problem'}</span>
+                            )
+                          ) : (
+                            <span className="text-amber-700">not configured</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {!metrics ? (
                 <div className="flex justify-center py-16 text-[#3a5a40]"><Loader className="animate-spin" /></div>
               ) : (

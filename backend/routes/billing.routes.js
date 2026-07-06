@@ -6,6 +6,7 @@ const {
   createCheckoutSession,
   createCustomerPortal,
   getAdminMetrics,
+  getStripeConfigCheck,
 } = require('../controllers/billing.controller');
 
 const router = express.Router();
@@ -22,5 +23,6 @@ router.post('/customer-portal', createCustomerPortal);
 
 // Admin analytics (gated inside the controller via ADMIN_EMAILS)
 router.get('/admin/metrics', getAdminMetrics);
+router.get('/admin/stripe-check', getStripeConfigCheck);
 
 module.exports = router;

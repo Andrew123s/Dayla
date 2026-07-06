@@ -225,6 +225,19 @@ const createCheckoutSession = async (req, res) => {
     const priceId = plans.priceIdForCycle(cycle);
     if (!priceId) return notConfigured(res);
 
+    // Common misconfig: a PRODUCT id (prod_…) was pasted where a PRICE id
+    // (price_…) belongs. Stripe checkout needs the price id, so catch this with
+    // a precise message instead of a vague "resource not found".
+    if (/^prod_/.test(priceId)) {
+      return res.status(503).json({
+        success: false,
+        code: 'STRIPE_PRICE_IS_PRODUCT',
+        message:
+          'Billing is misconfigured: a Product ID (prod_…) is set instead of a Price ID (price_…). ' +
+          'In Stripe, open the product and copy the Price ID from its pricing section.',
+      });
+    }
+
     // Already Pro? Send them to the portal instead of a second subscription.
     if (permissions.isPro(req.user)) {
       return res.status(400).json({
@@ -462,6 +475,69 @@ const getAdminMetrics = async (req, res) => {
   }
 };
 
+// @desc  Admin: verify the live Stripe config (key mode + each price) so a
+//        misconfiguration is self-diagnosable without reading server logs.
+// @route GET /api/billing/admin/stripe-check   (ADMIN_EMAILS only)
+const getStripeConfigCheck = async (req, res) => {
+  try {
+    if (!isAdmin(req.user)) {
+      return res.status(403).json({ success: false, message: 'Not authorized' });
+    }
+    if (!stripeService.isConfigured()) return notConfigured(res);
+
+    const secret = config.stripe.secretKey || '';
+    const keyMode = secret.startsWith('sk_live_') ? 'live' : secret.startsWith('sk_test_') ? 'test' : 'unknown';
+    const stripe = stripeService.getClient();
+
+    const mask = (id) => (id ? `${id.slice(0, 10)}…${id.slice(-4)}` : null);
+
+    const checkPrice = async (id, label) => {
+      if (!id) return { label, configured: false };
+      if (/^prod_/.test(id)) {
+        return { label, configured: true, id: mask(id), ok: false, reason: 'This is a Product ID (prod_…). Use the Price ID (price_…).' };
+      }
+      if (!/^price_/.test(id)) {
+        return { label, configured: true, id: mask(id), ok: false, reason: 'Does not look like a Price ID (should start with price_).' };
+      }
+      try {
+        const p = await stripe.prices.retrieve(id);
+        const modeMismatch = (keyMode === 'live' && p.livemode === false) || (keyMode === 'test' && p.livemode === true);
+        return {
+          label,
+          configured: true,
+          id: mask(id),
+          ok: !modeMismatch,
+          livemode: p.livemode,
+          amount: (p.unit_amount || 0) / 100,
+          currency: p.currency,
+          interval: p.recurring ? p.recurring.interval : null,
+          reason: modeMismatch ? `Price is ${p.livemode ? 'live' : 'test'} mode but the key is ${keyMode} mode.` : undefined,
+        };
+      } catch (e) {
+        return { label, configured: true, id: mask(id), ok: false, reason: e.message, code: e.code };
+      }
+    };
+
+    const [monthly, annual] = await Promise.all([
+      checkPrice(config.stripe.monthlyPriceId, 'monthly'),
+      checkPrice(config.stripe.annualPriceId, 'annual'),
+    ]);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        keyMode,
+        webhookConfigured: !!config.stripe.webhookSecret,
+        prices: [monthly, annual],
+        allOk: monthly.ok === true && annual.ok === true,
+      },
+    });
+  } catch (error) {
+    logger.error('getStripeConfigCheck error:', error);
+    res.status(500).json({ success: false, message: 'Failed to check billing config' });
+  }
+};
+
 module.exports = {
   getPlans,
   getSubscription,
@@ -469,4 +545,5 @@ module.exports = {
   createCustomerPortal,
   handleWebhook,
   getAdminMetrics,
+  getStripeConfigCheck,
 };

@@ -79,6 +79,30 @@ export async function fetchAdminMetrics(): Promise<AdminMetrics> {
   return body.data as AdminMetrics;
 }
 
+export interface StripeCheck {
+  keyMode: 'live' | 'test' | 'unknown';
+  webhookConfigured: boolean;
+  allOk: boolean;
+  prices: {
+    label: string;
+    configured: boolean;
+    id?: string;
+    ok?: boolean;
+    livemode?: boolean;
+    amount?: number;
+    currency?: string;
+    interval?: string | null;
+    reason?: string;
+    code?: string;
+  }[];
+}
+
+/** Admin only — live Stripe config diagnostic. */
+export async function fetchStripeCheck(): Promise<StripeCheck> {
+  const body = await json(await authFetch(`${API_BASE_URL}/api/billing/admin/stripe-check`));
+  return body.data as StripeCheck;
+}
+
 /** Open the Stripe billing portal (manage / cancel) and redirect. */
 export async function openBillingPortal(): Promise<void> {
   const body = await json(
