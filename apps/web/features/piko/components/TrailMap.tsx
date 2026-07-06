@@ -99,12 +99,14 @@ export function TrailMap({
   drawGeometry = null,
   recenterTo = null,
 }: TrailMapProps) {
+  const rootRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MlMap | null>(null);
   const recenteredOnceRef = useRef(false);
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
   const [ready, setReady] = useState(false);
   const [loadError, setLoadError] = useState(false);
+  const [initError, setInitError] = useState<string | null>(null);
   // Bumped by the error card's Retry button → tears down and re-creates the map
   // (fresh style/tile fetch) without requiring a full app reload.
   const [retryNonce, setRetryNonce] = useState(0);
@@ -125,13 +127,23 @@ export function TrailMap({
   // ── init ──────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!configured || !containerRef.current || mapRef.current) return;
-    const map = new maplibregl.Map({
-      container: containerRef.current,
-      style: MAP_STYLE_URL,
-      center: [10, 47],
-      zoom: 3,
-      attributionControl: { compact: true },
-    });
+    let map: MlMap;
+    try {
+      map = new maplibregl.Map({
+        container: containerRef.current,
+        style: MAP_STYLE_URL,
+        center: [10, 47],
+        zoom: 3,
+        attributionControl: { compact: true },
+      });
+    } catch (e) {
+      // WebGL unavailable/blocked (some embedded browsers) — surface it instead
+      // of a silent blank area.
+      // eslint-disable-next-line no-console
+      console.error('[TrailMap] map init failed:', e);
+      setInitError(e instanceof Error ? e.message : 'Map could not start');
+      return;
+    }
     mapRef.current = map;
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
     // A rejected tile key (401/403) is fatal — surface a helpful message instead
@@ -151,6 +163,23 @@ export function TrailMap({
     resizeObserverRef.current = ro;
     requestAnimationFrame(() => map.resize());
     const resizeTimer = setTimeout(() => map.resize(), 250);
+
+    // Self-healing + diagnostics: if the container is still (near) zero-sized a
+    // moment after init, some ancestor collapsed — force a usable height on the
+    // root so the map paints anyway, and log decisive evidence either way.
+    const sizeCheckTimer = setTimeout(() => {
+      const el = containerRef.current;
+      if (!el) return;
+      const { clientWidth: w, clientHeight: h } = el;
+      // eslint-disable-next-line no-console
+      console.info(`[TrailMap] build 2026-07-06 container ${w}x${h}, canvas ${map.getCanvas().width}x${map.getCanvas().height}`);
+      if (h < 40 && rootRef.current) {
+        // eslint-disable-next-line no-console
+        console.warn('[TrailMap] container height collapsed — applying min-height fallback');
+        rootRef.current.style.minHeight = '60vh';
+        requestAnimationFrame(() => map.resize());
+      }
+    }, 600);
 
     map.on('load', () => {
       map.addSource(ROUTES_SRC, { type: 'geojson', data: emptyFC() });
@@ -238,6 +267,7 @@ export function TrailMap({
 
     return () => {
       clearTimeout(resizeTimer);
+      clearTimeout(sizeCheckTimer);
       resizeObserverRef.current?.disconnect();
       resizeObserverRef.current = null;
       map.remove();
@@ -335,8 +365,20 @@ export function TrailMap({
   }
 
   return (
-    <div className={`relative overflow-hidden rounded-3xl ${className}`}>
+    <div ref={rootRef} className={`relative overflow-hidden rounded-3xl ${className}`}>
       <div ref={containerRef} className="absolute inset-0" />
+      {initError && (
+        <div className="absolute inset-0 grid place-items-center bg-emerald-50/95 px-6 text-center text-emerald-700">
+          <div className="flex flex-col items-center gap-2">
+            <MapIcon size={24} />
+            <p className="text-sm font-bold">Map couldn’t start</p>
+            <p className="max-w-[17rem] text-xs text-emerald-600/80">
+              Your browser blocked the map renderer (WebGL). Try opening Dayla in Chrome or Safari directly.
+            </p>
+            <p className="max-w-[17rem] text-[10px] text-emerald-600/60 font-mono break-all">{initError}</p>
+          </div>
+        </div>
+      )}
       {loadError && (
         <div className="absolute inset-0 grid place-items-center bg-emerald-50/95 px-6 text-center text-emerald-700">
           <div className="flex flex-col items-center gap-2">
