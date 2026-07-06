@@ -102,6 +102,7 @@ export function TrailMap({
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MlMap | null>(null);
   const recenteredOnceRef = useRef(false);
+  const resizeObserverRef = useRef<ResizeObserver | null>(null);
   const [ready, setReady] = useState(false);
   const [loadError, setLoadError] = useState(false);
   // Bumped by the error card's Retry button → tears down and re-creates the map
@@ -140,6 +141,16 @@ export function TrailMap({
       if (status === 401 || status === 403) setLoadError(true);
     });
     if (draw) map.getCanvas().style.cursor = 'crosshair';
+
+    // Blank-map guard: MapLibre measures the container once at init. Inside an
+    // overlay/tab that animates in (or isn't laid out yet), that measurement can
+    // be 0×0, leaving the canvas blank even after the container gets real size.
+    // A ResizeObserver + a couple of nudges force a repaint at the true size.
+    const ro = new ResizeObserver(() => map.resize());
+    if (containerRef.current) ro.observe(containerRef.current);
+    resizeObserverRef.current = ro;
+    requestAnimationFrame(() => map.resize());
+    const resizeTimer = setTimeout(() => map.resize(), 250);
 
     map.on('load', () => {
       map.addSource(ROUTES_SRC, { type: 'geojson', data: emptyFC() });
@@ -220,10 +231,15 @@ export function TrailMap({
         onAddRef.current?.([e.lngLat.lng, e.lngLat.lat]);
       });
 
+      // Once the style is loaded, re-measure in case the container was 0×0 at init.
+      map.resize();
       setReady(true);
     });
 
     return () => {
+      clearTimeout(resizeTimer);
+      resizeObserverRef.current?.disconnect();
+      resizeObserverRef.current = null;
       map.remove();
       mapRef.current = null;
       setReady(false);
