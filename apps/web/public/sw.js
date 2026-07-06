@@ -1,8 +1,8 @@
 // Dayla Service Worker - Offline-First Strategy
 // Bump these versions on every deploy that ships new assets so returning
 // visitors purge stale caches (the activate handler deletes non-matching caches).
-const CACHE_NAME = 'dayla-v4';
-const RUNTIME_CACHE = 'dayla-runtime-v4';
+const CACHE_NAME = 'dayla-v5';
+const RUNTIME_CACHE = 'dayla-runtime-v5';
 
 // App shell files to pre-cache on install
 const APP_SHELL = [
@@ -52,6 +52,11 @@ self.addEventListener('fetch', (event) => {
 
   // Skip socket.io and chrome-extension requests
   if (url.pathname.startsWith('/socket.io') || url.protocol === 'chrome-extension:') return;
+
+  // Never intercept map tiles / glyphs / sprites — let MapLibre talk to MapTiler
+  // directly. Routing them through the SW cached thousands of tiles (storage
+  // bloat) and risked serving a bad/partial response that renders as a blank map.
+  if (url.hostname === 'api.maptiler.com') return;
 
   // API requests: network-first with cache fallback
   if (url.pathname.startsWith('/api/')) {
