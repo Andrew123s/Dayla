@@ -27,6 +27,7 @@ mixin _$PostModel {
   List<PostComment> get comments;
   int get views;
   String get visibility;
+  RepostInfo? get repostedFrom;
   String? get createdAt;
   String? get updatedAt;
 
@@ -60,6 +61,8 @@ mixin _$PostModel {
             (identical(other.views, views) || other.views == views) &&
             (identical(other.visibility, visibility) ||
                 other.visibility == visibility) &&
+            (identical(other.repostedFrom, repostedFrom) ||
+                other.repostedFrom == repostedFrom) &&
             (identical(other.createdAt, createdAt) ||
                 other.createdAt == createdAt) &&
             (identical(other.updatedAt, updatedAt) ||
@@ -82,12 +85,13 @@ mixin _$PostModel {
       const DeepCollectionEquality().hash(comments),
       views,
       visibility,
+      repostedFrom,
       createdAt,
       updatedAt);
 
   @override
   String toString() {
-    return 'PostModel(id: $id, author: $author, content: $content, images: $images, location: $location, tags: $tags, likeCount: $likeCount, liked: $liked, saved: $saved, comments: $comments, views: $views, visibility: $visibility, createdAt: $createdAt, updatedAt: $updatedAt)';
+    return 'PostModel(id: $id, author: $author, content: $content, images: $images, location: $location, tags: $tags, likeCount: $likeCount, liked: $liked, saved: $saved, comments: $comments, views: $views, visibility: $visibility, repostedFrom: $repostedFrom, createdAt: $createdAt, updatedAt: $updatedAt)';
   }
 }
 
@@ -109,11 +113,13 @@ abstract mixin class $PostModelCopyWith<$Res> {
       List<PostComment> comments,
       int views,
       String visibility,
+      RepostInfo? repostedFrom,
       String? createdAt,
       String? updatedAt});
 
   $PostAuthorCopyWith<$Res>? get author;
   $PostLocationCopyWith<$Res>? get location;
+  $RepostInfoCopyWith<$Res>? get repostedFrom;
 }
 
 /// @nodoc
@@ -140,6 +146,7 @@ class _$PostModelCopyWithImpl<$Res> implements $PostModelCopyWith<$Res> {
     Object? comments = null,
     Object? views = null,
     Object? visibility = null,
+    Object? repostedFrom = freezed,
     Object? createdAt = freezed,
     Object? updatedAt = freezed,
   }) {
@@ -192,6 +199,10 @@ class _$PostModelCopyWithImpl<$Res> implements $PostModelCopyWith<$Res> {
           ? _self.visibility
           : visibility // ignore: cast_nullable_to_non_nullable
               as String,
+      repostedFrom: freezed == repostedFrom
+          ? _self.repostedFrom
+          : repostedFrom // ignore: cast_nullable_to_non_nullable
+              as RepostInfo?,
       createdAt: freezed == createdAt
           ? _self.createdAt
           : createdAt // ignore: cast_nullable_to_non_nullable
@@ -230,6 +241,20 @@ class _$PostModelCopyWithImpl<$Res> implements $PostModelCopyWith<$Res> {
       return _then(_self.copyWith(location: value));
     });
   }
+
+  /// Create a copy of PostModel
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $RepostInfoCopyWith<$Res>? get repostedFrom {
+    if (_self.repostedFrom == null) {
+      return null;
+    }
+
+    return $RepostInfoCopyWith<$Res>(_self.repostedFrom!, (value) {
+      return _then(_self.copyWith(repostedFrom: value));
+    });
+  }
 }
 
 /// @nodoc
@@ -248,6 +273,7 @@ class _PostModel implements PostModel {
       final List<PostComment> comments = const [],
       this.views = 0,
       this.visibility = 'public',
+      this.repostedFrom,
       this.createdAt,
       this.updatedAt})
       : _images = images,
@@ -308,6 +334,8 @@ class _PostModel implements PostModel {
   @JsonKey()
   final String visibility;
   @override
+  final RepostInfo? repostedFrom;
+  @override
   final String? createdAt;
   @override
   final String? updatedAt;
@@ -347,6 +375,8 @@ class _PostModel implements PostModel {
             (identical(other.views, views) || other.views == views) &&
             (identical(other.visibility, visibility) ||
                 other.visibility == visibility) &&
+            (identical(other.repostedFrom, repostedFrom) ||
+                other.repostedFrom == repostedFrom) &&
             (identical(other.createdAt, createdAt) ||
                 other.createdAt == createdAt) &&
             (identical(other.updatedAt, updatedAt) ||
@@ -369,12 +399,13 @@ class _PostModel implements PostModel {
       const DeepCollectionEquality().hash(_comments),
       views,
       visibility,
+      repostedFrom,
       createdAt,
       updatedAt);
 
   @override
   String toString() {
-    return 'PostModel(id: $id, author: $author, content: $content, images: $images, location: $location, tags: $tags, likeCount: $likeCount, liked: $liked, saved: $saved, comments: $comments, views: $views, visibility: $visibility, createdAt: $createdAt, updatedAt: $updatedAt)';
+    return 'PostModel(id: $id, author: $author, content: $content, images: $images, location: $location, tags: $tags, likeCount: $likeCount, liked: $liked, saved: $saved, comments: $comments, views: $views, visibility: $visibility, repostedFrom: $repostedFrom, createdAt: $createdAt, updatedAt: $updatedAt)';
   }
 }
 
@@ -399,6 +430,7 @@ abstract mixin class _$PostModelCopyWith<$Res>
       List<PostComment> comments,
       int views,
       String visibility,
+      RepostInfo? repostedFrom,
       String? createdAt,
       String? updatedAt});
 
@@ -406,6 +438,8 @@ abstract mixin class _$PostModelCopyWith<$Res>
   $PostAuthorCopyWith<$Res>? get author;
   @override
   $PostLocationCopyWith<$Res>? get location;
+  @override
+  $RepostInfoCopyWith<$Res>? get repostedFrom;
 }
 
 /// @nodoc
@@ -432,6 +466,7 @@ class __$PostModelCopyWithImpl<$Res> implements _$PostModelCopyWith<$Res> {
     Object? comments = null,
     Object? views = null,
     Object? visibility = null,
+    Object? repostedFrom = freezed,
     Object? createdAt = freezed,
     Object? updatedAt = freezed,
   }) {
@@ -484,6 +519,10 @@ class __$PostModelCopyWithImpl<$Res> implements _$PostModelCopyWith<$Res> {
           ? _self.visibility
           : visibility // ignore: cast_nullable_to_non_nullable
               as String,
+      repostedFrom: freezed == repostedFrom
+          ? _self.repostedFrom
+          : repostedFrom // ignore: cast_nullable_to_non_nullable
+              as RepostInfo?,
       createdAt: freezed == createdAt
           ? _self.createdAt
           : createdAt // ignore: cast_nullable_to_non_nullable
@@ -521,6 +560,163 @@ class __$PostModelCopyWithImpl<$Res> implements _$PostModelCopyWith<$Res> {
     return $PostLocationCopyWith<$Res>(_self.location!, (value) {
       return _then(_self.copyWith(location: value));
     });
+  }
+
+  /// Create a copy of PostModel
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $RepostInfoCopyWith<$Res>? get repostedFrom {
+    if (_self.repostedFrom == null) {
+      return null;
+    }
+
+    return $RepostInfoCopyWith<$Res>(_self.repostedFrom!, (value) {
+      return _then(_self.copyWith(repostedFrom: value));
+    });
+  }
+}
+
+/// @nodoc
+mixin _$RepostInfo {
+  String? get authorName;
+
+  /// Create a copy of RepostInfo
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @pragma('vm:prefer-inline')
+  $RepostInfoCopyWith<RepostInfo> get copyWith =>
+      _$RepostInfoCopyWithImpl<RepostInfo>(this as RepostInfo, _$identity);
+
+  /// Serializes this RepostInfo to a JSON map.
+  Map<String, dynamic> toJson();
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is RepostInfo &&
+            (identical(other.authorName, authorName) ||
+                other.authorName == authorName));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hash(runtimeType, authorName);
+
+  @override
+  String toString() {
+    return 'RepostInfo(authorName: $authorName)';
+  }
+}
+
+/// @nodoc
+abstract mixin class $RepostInfoCopyWith<$Res> {
+  factory $RepostInfoCopyWith(
+          RepostInfo value, $Res Function(RepostInfo) _then) =
+      _$RepostInfoCopyWithImpl;
+  @useResult
+  $Res call({String? authorName});
+}
+
+/// @nodoc
+class _$RepostInfoCopyWithImpl<$Res> implements $RepostInfoCopyWith<$Res> {
+  _$RepostInfoCopyWithImpl(this._self, this._then);
+
+  final RepostInfo _self;
+  final $Res Function(RepostInfo) _then;
+
+  /// Create a copy of RepostInfo
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? authorName = freezed,
+  }) {
+    return _then(_self.copyWith(
+      authorName: freezed == authorName
+          ? _self.authorName
+          : authorName // ignore: cast_nullable_to_non_nullable
+              as String?,
+    ));
+  }
+}
+
+/// @nodoc
+@JsonSerializable()
+class _RepostInfo implements RepostInfo {
+  const _RepostInfo({this.authorName});
+  factory _RepostInfo.fromJson(Map<String, dynamic> json) =>
+      _$RepostInfoFromJson(json);
+
+  @override
+  final String? authorName;
+
+  /// Create a copy of RepostInfo
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @pragma('vm:prefer-inline')
+  _$RepostInfoCopyWith<_RepostInfo> get copyWith =>
+      __$RepostInfoCopyWithImpl<_RepostInfo>(this, _$identity);
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$RepostInfoToJson(
+      this,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _RepostInfo &&
+            (identical(other.authorName, authorName) ||
+                other.authorName == authorName));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hash(runtimeType, authorName);
+
+  @override
+  String toString() {
+    return 'RepostInfo(authorName: $authorName)';
+  }
+}
+
+/// @nodoc
+abstract mixin class _$RepostInfoCopyWith<$Res>
+    implements $RepostInfoCopyWith<$Res> {
+  factory _$RepostInfoCopyWith(
+          _RepostInfo value, $Res Function(_RepostInfo) _then) =
+      __$RepostInfoCopyWithImpl;
+  @override
+  @useResult
+  $Res call({String? authorName});
+}
+
+/// @nodoc
+class __$RepostInfoCopyWithImpl<$Res> implements _$RepostInfoCopyWith<$Res> {
+  __$RepostInfoCopyWithImpl(this._self, this._then);
+
+  final _RepostInfo _self;
+  final $Res Function(_RepostInfo) _then;
+
+  /// Create a copy of RepostInfo
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $Res call({
+    Object? authorName = freezed,
+  }) {
+    return _then(_RepostInfo(
+      authorName: freezed == authorName
+          ? _self.authorName
+          : authorName // ignore: cast_nullable_to_non_nullable
+              as String?,
+    ));
   }
 }
 

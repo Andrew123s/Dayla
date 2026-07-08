@@ -62,6 +62,27 @@ class CommunityRepository {
     }
   }
 
+  /// Repost: creates a new post carrying the original's content/images with
+  /// `repostedFrom` attribution (matches Community.tsx handleRepost).
+  Future<bool> repost(PostModel post) async {
+    try {
+      final data = <String, dynamic>{
+        'content': post.content,
+        'location': {'name': post.location?.name ?? 'Shared'},
+        'images': post.images.map((i) => {'url': i.url}).toList(),
+        'repostedFrom': {
+          'post': post.id,
+          'author': post.author?.id,
+          'authorName': post.author?.name ?? 'Unknown',
+        },
+      };
+      final json = await _remote.createPost(data);
+      return json['success'] == true;
+    } on DioException {
+      return false;
+    }
+  }
+
   Future<String?> uploadImage(String filePath) async {
     try {
       final json = await _remote.uploadImage(filePath);

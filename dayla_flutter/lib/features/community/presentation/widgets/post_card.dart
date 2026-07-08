@@ -39,6 +39,24 @@ class _PostCardState extends ConsumerState<PostCard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (post.repostedFrom != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+              child: Row(
+                children: [
+                  Icon(Icons.repeat, size: 14, color: Colors.grey.shade500),
+                  const SizedBox(width: 5),
+                  Text(
+                    'Reposted from ${post.repostedFrom!.authorName ?? 'someone'}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey.shade500,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
             child: Row(
@@ -196,6 +214,22 @@ class _PostCardState extends ConsumerState<PostCard> {
                 Text(
                   '${post.comments.length}',
                   style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+                ),
+                const SizedBox(width: 8),
+                IconButton(
+                  icon: const Icon(Icons.repeat, size: 20, color: Colors.grey),
+                  tooltip: 'Repost',
+                  onPressed: () async {
+                    final messenger = ScaffoldMessenger.of(context);
+                    final ok = await ref
+                        .read(postsProvider.notifier)
+                        .repost(post);
+                    messenger.showSnackBar(SnackBar(
+                      content: Text(ok
+                          ? 'Reposted to your feed'
+                          : 'Failed to repost'),
+                    ));
+                  },
                 ),
                 const Spacer(),
                 IconButton(

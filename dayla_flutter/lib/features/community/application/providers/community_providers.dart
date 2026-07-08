@@ -116,4 +116,22 @@ class PostsNotifier extends AsyncNotifier<List<PostModel>> {
     await repo.deletePost(postId);
     await refresh();
   }
+
+  Future<bool> repost(PostModel post) async {
+    final ok =
+        await ref.read(communityRepositoryProvider).repost(post);
+    if (ok) await refresh();
+    return ok;
+  }
 }
+
+/// Instagram-style extras: trending feed and the viewer's saved posts.
+final trendingPostsProvider =
+    FutureProvider.autoDispose<List<PostModel>>((ref) {
+  return ref.watch(communityRepositoryProvider).getTrending();
+});
+
+final savedPostsProvider =
+    FutureProvider.autoDispose<List<PostModel>>((ref) {
+  return ref.watch(communityRepositoryProvider).getSavedPosts();
+});

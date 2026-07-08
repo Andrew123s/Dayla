@@ -18,6 +18,7 @@ abstract class PostModel with _$PostModel {
     @Default([]) List<PostComment> comments,
     @Default(0) int views,
     @Default('public') String visibility,
+    RepostInfo? repostedFrom,
     String? createdAt,
     String? updatedAt,
   }) = _PostModel;
@@ -33,6 +34,17 @@ abstract class PostModel with _$PostModel {
     }
     return copy;
   }
+}
+
+/// Attribution when a post is a repost of someone else's.
+@freezed
+abstract class RepostInfo with _$RepostInfo {
+  const factory RepostInfo({
+    String? authorName,
+  }) = _RepostInfo;
+
+  factory RepostInfo.fromJson(Map<String, dynamic> json) =>
+      _$RepostInfoFromJson(json);
 }
 
 @freezed

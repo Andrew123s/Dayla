@@ -32,6 +32,9 @@ _PostModel _$PostModelFromJson(Map<String, dynamic> json) => _PostModel(
           const [],
       views: (json['views'] as num?)?.toInt() ?? 0,
       visibility: json['visibility'] as String? ?? 'public',
+      repostedFrom: json['repostedFrom'] == null
+          ? null
+          : RepostInfo.fromJson(json['repostedFrom'] as Map<String, dynamic>),
       createdAt: json['createdAt'] as String?,
       updatedAt: json['updatedAt'] as String?,
     );
@@ -50,8 +53,18 @@ Map<String, dynamic> _$PostModelToJson(_PostModel instance) =>
       'comments': instance.comments,
       'views': instance.views,
       'visibility': instance.visibility,
+      'repostedFrom': instance.repostedFrom,
       'createdAt': instance.createdAt,
       'updatedAt': instance.updatedAt,
+    };
+
+_RepostInfo _$RepostInfoFromJson(Map<String, dynamic> json) => _RepostInfo(
+      authorName: json['authorName'] as String?,
+    );
+
+Map<String, dynamic> _$RepostInfoToJson(_RepostInfo instance) =>
+    <String, dynamic>{
+      'authorName': instance.authorName,
     };
 
 _PostAuthor _$PostAuthorFromJson(Map<String, dynamic> json) => _PostAuthor(
