@@ -3,10 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import 'package:image_picker/image_picker.dart';
+
 import 'package:dayla_flutter/core/network/socket_service.dart';
 import 'package:dayla_flutter/core/theme/app_colors.dart';
 import 'package:dayla_flutter/features/dashboard/application/providers/dashboard_providers.dart';
 import 'package:dayla_flutter/features/dashboard/data/models/trip_model.dart';
+import 'package:dayla_flutter/features/dashboard/presentation/widgets/board_canvas.dart';
 
 class TripDetailScreen extends ConsumerStatefulWidget {
   const TripDetailScreen({super.key, required this.tripId});
@@ -23,6 +26,7 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen>
   TripModel? _trip;
   BoardModel? _board;
   bool _loading = true;
+  bool _boardAsList = false;
   // Live presence: who else has this board open right now (socket-driven).
   final Map<String, String> _activeUsers = {};
 
@@ -428,7 +432,15 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen>
 
     return Stack(
       children: [
-        ListView.separated(
+        if (!_boardAsList)
+          BoardCanvas(
+            notes: notes,
+            onMove: _moveNote,
+            onTap: _showEditNote,
+            onDelete: _confirmDeleteNote,
+          )
+        else
+          ListView.separated(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
       itemCount: notes.length,
       separatorBuilder: (_, __) => const SizedBox(height: 10),
@@ -485,15 +497,151 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen>
         Positioned(
           bottom: 16,
           right: 16,
-          child: FloatingActionButton(
-            mini: true,
-            backgroundColor: AppColors.primary,
-            foregroundColor: Colors.white,
-            onPressed: _showAddNote,
-            child: const Icon(Icons.add),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              FloatingActionButton(
+                mini: true,
+                heroTag: 'board-view-toggle',
+                backgroundColor: Colors.white,
+                foregroundColor: AppColors.primary,
+                tooltip: _boardAsList ? 'Canvas view' : 'List view',
+                onPressed: () =>
+                    setState(() => _boardAsList = !_boardAsList),
+                child: Icon(
+                    _boardAsList ? Icons.grid_view : Icons.view_list),
+              ),
+              const SizedBox(height: 10),
+              FloatingActionButton(
+                mini: true,
+                heroTag: 'board-add-note',
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                onPressed: _showAddNote,
+                child: const Icon(Icons.add),
+              ),
+            ],
           ),
         ),
       ],
+    );
+  }
+
+  Future<void> _moveNote(StickyNoteModel note, double x, double y) async {
+    await ref
+        .read(dashboardRepositoryProvider)
+        .updateStickyNote(widget.tripId, note.id, {'x': x, 'y': y});
+  }
+
+  void _confirmDeleteNote(StickyNoteModel note) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete note'),
+        content: const Text('Remove this sticky note from the board?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirm == true) {
+      await ref
+          .read(dashboardRepositoryProvider)
+          .deleteStickyNote(widget.tripId, note.id);
+      _loadData();
+    }
+  }
+
+  void _showEditNote(StickyNoteModel note) {
+    // Media and route notes have nothing to edit inline.
+    if (note.type == 'image' || note.type == 'voice' || note.type == 'route') {
+      return;
+    }
+    final contentCtrl = TextEditingController(text: note.content);
+    String color = note.color;
+    const palette = [
+      '#faedcd', '#e9edc9', '#ccd5ae', '#fefae0', '#f8edeb', '#d8e2dc',
+    ];
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        bool saving = false;
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) => AlertDialog(
+            title: const Text('Edit note'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: contentCtrl,
+                  maxLines: 4,
+                  autofocus: true,
+                  decoration: InputDecoration(
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14)),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    for (final c in palette)
+                      GestureDetector(
+                        onTap: () => setDialogState(() => color = c),
+                        child: Container(
+                          width: 28,
+                          height: 28,
+                          decoration: BoxDecoration(
+                            color: _parseColor(c),
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: color == c
+                                  ? AppColors.primary
+                                  : Colors.grey.shade300,
+                              width: color == c ? 2.5 : 1,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: saving
+                    ? null
+                    : () async {
+                        setDialogState(() => saving = true);
+                        await ref
+                            .read(dashboardRepositoryProvider)
+                            .updateStickyNote(widget.tripId, note.id, {
+                          'content': contentCtrl.text.trim(),
+                          'color': color,
+                        });
+                        _loadData();
+                        if (ctx.mounted) Navigator.pop(ctx);
+                      },
+                style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.primary),
+                child: Text(saving ? 'Saving...' : 'Save'),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -662,6 +810,40 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen>
     );
   }
 
+  Future<void> _addImageNote() async {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 1600,
+      imageQuality: 85,
+    );
+    if (picked == null || !mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Uploading image…')),
+    );
+    final repo = ref.read(dashboardRepositoryProvider);
+    final url = await repo.uploadImage(picked.path);
+    if (url == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+              const SnackBar(content: Text('Image upload failed')));
+      }
+      return;
+    }
+    await repo.createStickyNote(widget.tripId, {
+      'content': url,
+      'type': 'image',
+      'width': 220,
+      'height': 180,
+    });
+    if (mounted) {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    }
+    _loadData();
+  }
+
   void _showAddNote() {
     final contentCtrl = TextEditingController();
     String noteType = 'text';
@@ -688,6 +870,18 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen>
                             visualDensity: VisualDensity.compact,
                           ))
                       .toList(),
+                ),
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      _addImageNote();
+                    },
+                    icon: const Icon(Icons.image_outlined, size: 18),
+                    label: const Text('Add a photo note instead'),
+                  ),
                 ),
                 const SizedBox(height: 12),
                 TextField(

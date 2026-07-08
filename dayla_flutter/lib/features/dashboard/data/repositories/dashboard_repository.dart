@@ -121,12 +121,38 @@ class DashboardRepository {
     }
   }
 
+  Future<bool> updateStickyNote(
+    String tripId,
+    String noteId,
+    Map<String, dynamic> data,
+  ) async {
+    try {
+      final json = await _remote.updateStickyNote(tripId, noteId, data);
+      return json['success'] == true;
+    } on DioException {
+      return false;
+    }
+  }
+
   Future<bool> deleteStickyNote(String tripId, String noteId) async {
     try {
       final json = await _remote.deleteStickyNote(tripId, noteId);
       return json['success'] == true;
     } on DioException {
       return false;
+    }
+  }
+
+  /// Upload an image (Cloudinary via the backend); returns its URL.
+  Future<String?> uploadImage(String filePath) async {
+    try {
+      final json = await _remote.uploadImage(filePath);
+      if (json['success'] == true) {
+        return json['data']?['url'] as String?;
+      }
+      return null;
+    } on DioException {
+      return null;
     }
   }
 

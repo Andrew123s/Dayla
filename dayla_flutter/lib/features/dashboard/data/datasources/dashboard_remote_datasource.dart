@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:http_parser/http_parser.dart';
 
 class DashboardRemoteDatasource {
   DashboardRemoteDatasource(this._dio);
@@ -114,6 +115,26 @@ class DashboardRemoteDatasource {
     String noteId,
   ) async {
     final response = await _dio.delete('/api/trips/$tripId/notes/$noteId');
+    return response.data as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> uploadImage(String filePath) async {
+    final fileName = filePath.split(RegExp(r'[\\/]')).last;
+    final ext = fileName.split('.').last.toLowerCase();
+    final mimeType = switch (ext) {
+      'png' => 'image/png',
+      'gif' => 'image/gif',
+      'webp' => 'image/webp',
+      _ => 'image/jpeg',
+    };
+    final formData = FormData.fromMap({
+      'image': await MultipartFile.fromFile(
+        filePath,
+        filename: fileName,
+        contentType: MediaType.parse(mimeType),
+      ),
+    });
+    final response = await _dio.post('/api/upload/images', data: formData);
     return response.data as Map<String, dynamic>;
   }
 
