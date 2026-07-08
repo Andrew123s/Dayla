@@ -143,6 +143,19 @@ class DashboardRepository {
     }
   }
 
+  /// Upload a voice memo (Cloudinary via the backend); returns its URL.
+  Future<String?> uploadAudio(String filePath) async {
+    try {
+      final json = await _remote.uploadAudio(filePath);
+      if (json['success'] == true) {
+        return json['data']?['url'] as String?;
+      }
+      return null;
+    } on DioException {
+      return null;
+    }
+  }
+
   /// Upload an image (Cloudinary via the backend); returns its URL.
   Future<String?> uploadImage(String filePath) async {
     try {

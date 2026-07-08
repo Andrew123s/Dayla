@@ -168,7 +168,9 @@ const uploadAudio = async (req, res) => {
 
     // Validate file
     const allowedTypes = [
-      'audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/webm', 'audio/ogg'
+      'audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/webm', 'audio/ogg',
+      // AAC/M4A — what the mobile apps record voice memos in.
+      'audio/mp4', 'audio/m4a', 'audio/x-m4a', 'audio/aac'
     ];
 
     const validation = validateFile(file, allowedTypes, 25 * 1024 * 1024);

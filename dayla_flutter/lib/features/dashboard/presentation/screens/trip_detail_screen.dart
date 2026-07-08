@@ -10,6 +10,7 @@ import 'package:dayla_flutter/core/theme/app_colors.dart';
 import 'package:dayla_flutter/features/dashboard/application/providers/dashboard_providers.dart';
 import 'package:dayla_flutter/features/dashboard/data/models/trip_model.dart';
 import 'package:dayla_flutter/features/dashboard/presentation/widgets/board_canvas.dart';
+import 'package:dayla_flutter/features/dashboard/presentation/widgets/voice_memo_sheet.dart';
 
 class TripDetailScreen extends ConsumerStatefulWidget {
   const TripDetailScreen({super.key, required this.tripId});
@@ -57,6 +58,7 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen>
     socket.on('user_joined', _handleUserJoined);
     socket.on('user_left', _handleUserLeft);
     socket.on('note_updated', _handleBoardChanged);
+    socket.on('note_deleted', _handleBoardChanged);
     socket.on('route:added', _handleBoardChanged);
   }
 
@@ -89,6 +91,7 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen>
       socket.off('user_joined', _handleUserJoined);
       socket.off('user_left', _handleUserLeft);
       socket.off('note_updated', _handleBoardChanged);
+      socket.off('note_deleted', _handleBoardChanged);
       socket.off('route:added', _handleBoardChanged);
     }
     _tabController.dispose();
@@ -193,8 +196,8 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen>
           unselectedLabelColor: Colors.grey,
           indicatorColor: AppColors.primary,
           tabs: const [
-            Tab(text: 'Overview'),
             Tab(text: 'Board'),
+            Tab(text: 'Overview'),
             Tab(text: 'Details'),
           ],
         ),
@@ -202,8 +205,8 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen>
       body: TabBarView(
         controller: _tabController,
         children: [
-          _buildOverview(trip),
           _buildBoard(),
+          _buildOverview(trip),
           _buildDetails(trip),
         ],
       ),
@@ -405,30 +408,6 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen>
     }
 
     final notes = _board!.notes;
-    if (notes.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.sticky_note_2_outlined,
-                size: 48, color: AppColors.sage),
-            const SizedBox(height: 12),
-            const Text('No sticky notes yet'),
-            const SizedBox(height: 12),
-            FilledButton.icon(
-              onPressed: _showAddNote,
-              icon: const Icon(Icons.add),
-              label: const Text('Add Note'),
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14)),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
 
     return Stack(
       children: [
@@ -494,6 +473,44 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen>
         );
       },
     ),
+        if (notes.isEmpty)
+          Positioned(
+            top: 24,
+            left: 24,
+            right: 24,
+            child: IgnorePointer(
+              child: Card(
+                color: Colors.white.withValues(alpha: 0.92),
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.sticky_note_2_outlined,
+                          size: 32, color: AppColors.sage),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Your shared planning canvas',
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleSmall
+                            ?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Tap + to drop sticky notes, photos and voice memos. '
+                        'Pinch to zoom, drag notes anywhere — your friends '
+                        'see changes live.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                            fontSize: 12.5, color: Colors.grey.shade600),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
         Positioned(
           bottom: 16,
           right: 16,
@@ -528,6 +545,13 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen>
   }
 
   Future<void> _moveNote(StickyNoteModel note, double x, double y) async {
+    // Broadcast the FULL note over the socket (the server replaces the whole
+    // subdocument), so collaborators watching the board see it move live.
+    final boardId = _board?.id;
+    if (boardId != null) {
+      final full = note.copyWith(x: x, y: y).toJson();
+      ref.read(socketServiceProvider).updateNote(boardId, note.id, full);
+    }
     await ref
         .read(dashboardRepositoryProvider)
         .updateStickyNote(widget.tripId, note.id, {'x': x, 'y': y});
@@ -553,6 +577,10 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen>
       ),
     );
     if (confirm == true) {
+      final boardId = _board?.id;
+      if (boardId != null) {
+        ref.read(socketServiceProvider).deleteNote(boardId, note.id);
+      }
       await ref
           .read(dashboardRepositoryProvider)
           .deleteStickyNote(widget.tripId, note.id);
@@ -810,6 +838,46 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen>
     );
   }
 
+  // New notes land in a loose grid near the canvas origin instead of
+  // stacking at one point.
+  Map<String, double> _nextNotePosition() {
+    final count = _board?.notes.length ?? 0;
+    return {
+      'x': 40.0 + (count % 4) * 240.0,
+      'y': 40.0 + (count ~/ 4) * 200.0,
+    };
+  }
+
+  Future<void> _addVoiceNote() async {
+    final path = await VoiceMemoSheet.show(context);
+    if (path == null || !mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Uploading voice memo…')),
+    );
+    final repo = ref.read(dashboardRepositoryProvider);
+    final url = await repo.uploadAudio(path);
+    if (url == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+              const SnackBar(content: Text('Voice memo upload failed')));
+      }
+      return;
+    }
+    final pos = _nextNotePosition();
+    await repo.createStickyNote(widget.tripId, {
+      'content': '',
+      'type': 'voice',
+      'audioUrl': url,
+      'width': 200,
+      'height': 80,
+      ...pos,
+    });
+    if (mounted) ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    _loadData();
+  }
+
   Future<void> _addImageNote() async {
     final picker = ImagePicker();
     final picked = await picker.pickImage(
@@ -837,6 +905,7 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen>
       'type': 'image',
       'width': 220,
       'height': 180,
+      ..._nextNotePosition(),
     });
     if (mounted) {
       ScaffoldMessenger.of(context).hideCurrentSnackBar();
@@ -872,16 +941,29 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen>
                       .toList(),
                 ),
                 const SizedBox(height: 8),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: TextButton.icon(
-                    onPressed: () {
-                      Navigator.pop(ctx);
-                      _addImageNote();
-                    },
-                    icon: const Icon(Icons.image_outlined, size: 18),
-                    label: const Text('Add a photo note instead'),
-                  ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextButton.icon(
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          _addImageNote();
+                        },
+                        icon: const Icon(Icons.image_outlined, size: 18),
+                        label: const Text('Photo'),
+                      ),
+                    ),
+                    Expanded(
+                      child: TextButton.icon(
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          _addVoiceNote();
+                        },
+                        icon: const Icon(Icons.mic_outlined, size: 18),
+                        label: const Text('Voice memo'),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 12),
                 TextField(
@@ -909,6 +991,7 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen>
                         await repo.createStickyNote(widget.tripId, {
                           'content': contentCtrl.text.trim(),
                           'type': noteType,
+                          ..._nextNotePosition(),
                         });
                         _loadData();
                         if (ctx.mounted) Navigator.pop(ctx);

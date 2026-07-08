@@ -138,6 +138,19 @@ class DashboardRemoteDatasource {
     return response.data as Map<String, dynamic>;
   }
 
+  Future<Map<String, dynamic>> uploadAudio(String filePath) async {
+    final fileName = filePath.split(RegExp(r'[\\/]')).last;
+    final formData = FormData.fromMap({
+      'audio': await MultipartFile.fromFile(
+        filePath,
+        filename: fileName,
+        contentType: MediaType.parse('audio/mp4'),
+      ),
+    });
+    final response = await _dio.post('/api/upload/audio', data: formData);
+    return response.data as Map<String, dynamic>;
+  }
+
   Future<Map<String, dynamic>> getWeather(
     String location, {
     int days = 5,

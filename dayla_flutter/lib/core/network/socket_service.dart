@@ -47,6 +47,25 @@ class SocketService {
   void leaveDashboard(String dashboardId) =>
       leaveRoom(dashboardId, 'dashboard');
 
+  // ── Board (collaborative canvas) ──
+  /// Persist + broadcast a note change. The server replaces the whole note
+  /// subdocument with [note], so always send the FULL note, not a delta.
+  void updateNote(String dashboardId, String noteId, Map<String, dynamic> note) {
+    _socket?.emit('note_update', {
+      'roomId': dashboardId,
+      'noteId': noteId,
+      'updates': note,
+    });
+  }
+
+  /// Broadcast a note deletion to collaborators viewing the board.
+  void deleteNote(String dashboardId, String noteId) {
+    _socket?.emit('note_deleted', {
+      'roomId': dashboardId,
+      'noteId': noteId,
+    });
+  }
+
   // ── Chat ──
   void sendMessage(String conversationId, String content) {
     _socket?.emit('send_message', {

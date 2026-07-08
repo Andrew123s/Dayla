@@ -1,6 +1,6 @@
+import 'package:audioplayers/audioplayers.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import 'package:dayla_flutter/core/theme/app_colors.dart';
 import 'package:dayla_flutter/features/dashboard/data/models/trip_model.dart';
@@ -109,6 +109,72 @@ class _GridPainter extends CustomPainter {
   bool shouldRepaint(_GridPainter oldDelegate) => false;
 }
 
+/// Inline voice memo player for the canvas: tap to play/stop.
+class _VoiceNotePlayer extends StatefulWidget {
+  const _VoiceNotePlayer({required this.url});
+
+  final String url;
+
+  @override
+  State<_VoiceNotePlayer> createState() => _VoiceNotePlayerState();
+}
+
+class _VoiceNotePlayerState extends State<_VoiceNotePlayer> {
+  final _player = AudioPlayer();
+  bool _playing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _player.onPlayerComplete.listen((_) {
+      if (mounted) setState(() => _playing = false);
+    });
+  }
+
+  Future<void> _toggle() async {
+    if (!widget.url.startsWith('http')) return;
+    if (_playing) {
+      await _player.stop();
+      if (mounted) setState(() => _playing = false);
+    } else {
+      await _player.play(UrlSource(widget.url));
+      if (mounted) setState(() => _playing = true);
+    }
+  }
+
+  @override
+  void dispose() {
+    _player.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: _toggle,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            _playing ? Icons.stop_circle : Icons.play_circle_fill,
+            color: AppColors.primary,
+            size: 30,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            _playing ? 'Playing…' : 'Voice memo',
+            style: TextStyle(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey.shade700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _NoteCard extends StatelessWidget {
   const _NoteCard({required this.note});
 
@@ -156,25 +222,7 @@ class _NoteCard extends StatelessWidget {
           width: width,
           height: 70,
           color: Colors.white,
-          child: InkWell(
-            onTap: url.startsWith('http')
-                ? () => launchUrl(Uri.parse(url),
-                    mode: LaunchMode.externalApplication)
-                : null,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.play_circle_fill,
-                    color: AppColors.primary, size: 30),
-                const SizedBox(width: 8),
-                Text('Voice note',
-                    style: TextStyle(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.grey.shade700)),
-              ],
-            ),
-          ),
+          child: _VoiceNotePlayer(url: url),
         );
 
       case 'route':

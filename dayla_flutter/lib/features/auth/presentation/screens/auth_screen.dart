@@ -101,12 +101,24 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     return Column(
       children: [
         Container(
-          padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(28),
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.25),
+                blurRadius: 24,
+                offset: const Offset(0, 8),
+              ),
+            ],
           ),
-          child: const Icon(Icons.eco, size: 56, color: AppColors.sage),
+          child: ClipOval(
+            child: Image.asset(
+              'assets/images/dayla_logo.png',
+              width: 128,
+              height: 128,
+              fit: BoxFit.cover,
+            ),
+          ),
         ),
         const SizedBox(height: 16),
         const Text(
