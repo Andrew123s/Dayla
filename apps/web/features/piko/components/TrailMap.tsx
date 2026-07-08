@@ -366,7 +366,11 @@ export function TrailMap({
 
   return (
     <div ref={rootRef} className={`relative overflow-hidden rounded-3xl ${className}`}>
-      <div ref={containerRef} className="absolute inset-0" />
+      {/* ROOT-CAUSE NOTE: maplibre-gl.css sets `.maplibregl-map { position: relative }`
+          on this element and loads AFTER Tailwind, overriding `absolute` — which made
+          `inset-0` stop sizing it (height collapsed to 0 → invisible map). Inline
+          styles win over any stylesheet order, so size it explicitly. */}
+      <div ref={containerRef} className="absolute inset-0" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} />
       {initError && (
         <div className="absolute inset-0 grid place-items-center bg-emerald-50/95 px-6 text-center text-emerald-700">
           <div className="flex flex-col items-center gap-2">
