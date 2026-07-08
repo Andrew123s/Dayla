@@ -68,6 +68,7 @@ dev_dependencies:
   freezed: ^3.0.6
   json_serializable: ^6.9.5
   flutter_launcher_icons: ^0.14.3
+  flutter_native_splash: ^2.4.4
 
 # App icons generated from the Dayla brand badge (apps/web/public/icons).
 # Regenerate with: dart run flutter_launcher_icons
@@ -80,6 +81,15 @@ flutter_launcher_icons:
   adaptive_icon_foreground: "assets/icons/app_icon_foreground.png"
   web:
     generate: false
+
+# Branded launch screen (brand green + badge). Regenerate with:
+# dart run flutter_native_splash:create
+flutter_native_splash:
+  color: "#19693A"
+  image: assets/icons/app_icon_foreground.png
+  android_12:
+    color: "#19693A"
+    image: assets/icons/app_icon_foreground.png
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
