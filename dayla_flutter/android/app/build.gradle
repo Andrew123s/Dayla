@@ -34,7 +34,9 @@ android {
     defaultConfig {
         // Play Store identity — cannot change after first upload.
         applicationId = "com.dayla.app"
-        minSdk = flutter.minSdkVersion
+        // record_android (voice memos) requires 23; Android 6.0+ covers
+        // effectively all active devices.
+        minSdk = 23
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName

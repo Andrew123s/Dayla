@@ -1,0 +1,25 @@
+# Local stub replacing the broken published record_linux (0.7.2), which does
+# not implement current record_platform_interface versions and therefore
+# breaks compilation of EVERY build (Flutter's Dart plugin registrant compiles
+# all platform implementations regardless of target). Dayla ships on
+# Android/iOS only, so the Linux implementation can safely be a stub.
+name: record_linux
+description: Stub Linux implementation of the record plugin (unsupported).
+version: 0.7.2
+publish_to: "none"
+
+environment:
+  sdk: ^3.6.0
+  flutter: ">=3.22.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  record_platform_interface: ">=1.4.0 <2.0.0"
+
+flutter:
+  plugin:
+    implements: record
+    platforms:
+      linux:
+        dartPluginClass: RecordLinux

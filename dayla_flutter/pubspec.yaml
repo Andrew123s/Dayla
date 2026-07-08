@@ -58,6 +58,14 @@ dependencies:
   record: ^5.2.0
   audioplayers: ^6.1.0
 
+# The published record_linux 0.7.2 doesn't implement the current
+# record_platform_interface and breaks compilation of all builds (Flutter's
+# plugin registrant compiles every platform implementation). We ship
+# Android/iOS only, so substitute a local no-op stub. See packages/record_linux.
+dependency_overrides:
+  record_linux:
+    path: packages/record_linux
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
