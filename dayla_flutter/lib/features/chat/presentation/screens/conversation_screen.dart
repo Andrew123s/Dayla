@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:timeago/timeago.dart' as timeago;
@@ -28,6 +30,8 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   bool _sending = false;
   List<MessageModel> _messages = [];
   bool _loaded = false;
+  String? _typingUser;
+  Timer? _typingStopTimer;
 
   @override
   void initState() {
@@ -39,28 +43,67 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   void _setupSocket() {
     final socket = ref.read(socketServiceProvider);
     socket.joinConversation(widget.conversationId);
-    socket.onNewMessage((data) {
-      if (!mounted) return;
-      if (data is Map<String, dynamic>) {
-        final msgConvoId = data['conversationId'] as String?;
-        if (msgConvoId == widget.conversationId) {
-          try {
-            final msg = MessageModel.fromJson(data);
+    socket.on('new_message', _handleNewMessage);
+    socket.on('user_typing', _handleTyping);
+    socket.on('user_stopped_typing', _handleStoppedTyping);
+  }
+
+  void _handleNewMessage(dynamic data) {
+    if (!mounted) return;
+    if (data is Map) {
+      final map = Map<String, dynamic>.from(data);
+      final msgConvoId = map['conversationId'] as String?;
+      if (msgConvoId == widget.conversationId) {
+        try {
+          final msg = MessageModel.fromJson(map);
+          // The sender already appended this message locally.
+          final currentUserId = ref.read(authSessionProvider).user?.id;
+          final isMine = msg.senderId == currentUserId ||
+              msg.sender?.id == currentUserId;
+          if (!isMine && !_messages.any((m) => m.id == msg.id)) {
             setState(() => _messages.insert(0, msg));
-            ref.read(chatRepositoryProvider).markAsRead(widget.conversationId);
-          } catch (_) {
-            ref.invalidate(messagesProvider(widget.conversationId));
           }
+          ref.read(chatRepositoryProvider).markAsRead(widget.conversationId);
+        } catch (_) {
+          ref.invalidate(messagesProvider(widget.conversationId));
         }
       }
+    }
+  }
+
+  void _handleTyping(dynamic data) {
+    if (!mounted || data is! Map) return;
+    if (data['conversationId'] != widget.conversationId) return;
+    final name = data['userName'] as String?;
+    final currentUser = ref.read(authSessionProvider).user;
+    if (name == null || name == currentUser?.name) return;
+    setState(() => _typingUser = name);
+  }
+
+  void _handleStoppedTyping(dynamic data) {
+    if (!mounted || data is! Map) return;
+    if (data['conversationId'] != widget.conversationId) return;
+    setState(() => _typingUser = null);
+  }
+
+  void _onTextChanged(String value) {
+    final socket = ref.read(socketServiceProvider);
+    socket.startTyping(widget.conversationId);
+    _typingStopTimer?.cancel();
+    _typingStopTimer = Timer(const Duration(seconds: 2), () {
+      socket.stopTyping(widget.conversationId);
     });
   }
 
   @override
   void dispose() {
+    _typingStopTimer?.cancel();
     final socket = ref.read(socketServiceProvider);
+    socket.stopTyping(widget.conversationId);
     socket.leaveConversation(widget.conversationId);
-    socket.offNewMessage();
+    socket.off('new_message', _handleNewMessage);
+    socket.off('user_typing', _handleTyping);
+    socket.off('user_stopped_typing', _handleStoppedTyping);
     _messageController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -73,9 +116,14 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     setState(() => _sending = true);
     _messageController.clear();
 
+    _typingStopTimer?.cancel();
+    ref.read(socketServiceProvider).stopTyping(widget.conversationId);
+
     final repo = ref.read(chatRepositoryProvider);
     await repo.sendMessage(widget.conversationId, text);
 
+    // Repopulate the local list from the refetch so the sent message shows.
+    _loaded = false;
     ref.invalidate(messagesProvider(widget.conversationId));
     ref.read(conversationsProvider.notifier).refresh();
 
@@ -138,6 +186,21 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
               },
             ),
           ),
+          if (_typingUser != null)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+                child: Text(
+                  '$_typingUser is typing…',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontStyle: FontStyle.italic,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+              ),
+            ),
           Container(
             decoration: BoxDecoration(
               color: Theme.of(context).colorScheme.surface,
@@ -156,6 +219,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                 Expanded(
                   child: TextField(
                     controller: _messageController,
+                    onChanged: _onTextChanged,
                     textCapitalization: TextCapitalization.sentences,
                     decoration: InputDecoration(
                       hintText: 'Type a message...',

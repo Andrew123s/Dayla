@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import 'package:dayla_flutter/core/network/socket_service.dart';
 import 'package:dayla_flutter/core/theme/app_colors.dart';
 import 'package:dayla_flutter/features/dashboard/application/providers/dashboard_providers.dart';
 import 'package:dayla_flutter/features/dashboard/data/models/trip_model.dart';
@@ -22,6 +23,8 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen>
   TripModel? _trip;
   BoardModel? _board;
   bool _loading = true;
+  // Live presence: who else has this board open right now (socket-driven).
+  final Map<String, String> _activeUsers = {};
 
   @override
   void initState() {
@@ -40,11 +43,50 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen>
         _board = board;
         _loading = false;
       });
+      if (board != null) _setupPresence(board.id);
     }
+  }
+
+  void _setupPresence(String boardId) {
+    final socket = ref.read(socketServiceProvider);
+    socket.joinDashboard(boardId);
+    socket.on('user_joined', _handleUserJoined);
+    socket.on('user_left', _handleUserLeft);
+    socket.on('note_updated', _handleBoardChanged);
+    socket.on('route:added', _handleBoardChanged);
+  }
+
+  void _handleUserJoined(dynamic data) {
+    if (!mounted || data is! Map) return;
+    final id = data['userId']?.toString();
+    final name = data['name'] as String?;
+    if (id != null && name != null) {
+      setState(() => _activeUsers[id] = name);
+    }
+  }
+
+  void _handleUserLeft(dynamic data) {
+    if (!mounted || data is! Map) return;
+    final id = data['userId']?.toString();
+    if (id != null) setState(() => _activeUsers.remove(id));
+  }
+
+  void _handleBoardChanged(dynamic data) {
+    // A collaborator changed the board (note edit / route added) — reload.
+    if (mounted) _loadData();
   }
 
   @override
   void dispose() {
+    final boardId = _board?.id;
+    if (boardId != null) {
+      final socket = ref.read(socketServiceProvider);
+      socket.leaveDashboard(boardId);
+      socket.off('user_joined', _handleUserJoined);
+      socket.off('user_left', _handleUserLeft);
+      socket.off('note_updated', _handleBoardChanged);
+      socket.off('route:added', _handleBoardChanged);
+    }
     _tabController.dispose();
     super.dispose();
   }
@@ -71,6 +113,32 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen>
       appBar: AppBar(
         title: Text(trip.name),
         actions: [
+          if (_activeUsers.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(right: 4),
+              child: Tooltip(
+                message:
+                    'Online now: ${_activeUsers.values.join(', ')}',
+                child: Chip(
+                  visualDensity: VisualDensity.compact,
+                  avatar: Container(
+                    width: 8,
+                    height: 8,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF10B981),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  label: Text(
+                    '${_activeUsers.length} online',
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                  backgroundColor:
+                      AppColors.sage.withValues(alpha: 0.2),
+                  side: BorderSide.none,
+                ),
+              ),
+            ),
           PopupMenuButton<String>(
             onSelected: (action) async {
               if (action == 'delete') {

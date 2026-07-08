@@ -33,25 +33,13 @@ const billingController = require('./controllers/billing.controller');
 // Create Express app
 const app = express();
 
-// Build allowed origins list once
-const allowedOrigins = [
-  'http://localhost:5173',
-  'http://localhost:3000',
-  'http://localhost:3002',
-  'http://127.0.0.1:5173',
-  'http://127.0.0.1:3000',
-  'http://127.0.0.1:3002',
-  process.env.FRONTEND_URL
-].filter(Boolean);
+// Shared origin logic (also used by the Socket.io server in server.js) so
+// REST and WebSocket connections can never drift apart again.
+const { corsOrigin } = require('./config/cors.config');
 
 // CORS must be before helmet so preflight OPTIONS requests aren't blocked
 app.use(cors({
-  origin: function (origin, callback) {
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin)) return callback(null, true);
-    if (process.env.NODE_ENV !== 'production') return callback(null, true);
-    return callback(new Error('Not allowed by CORS'));
-  },
+  origin: corsOrigin,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin']

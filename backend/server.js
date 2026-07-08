@@ -10,16 +10,15 @@ const PORT = process.env.PORT || 5000;
 // Create HTTP server
 const server = createServer(app);
 
-// Initialize Socket.io
-const socketOrigins = [
-  'http://localhost:5173',
-  'http://localhost:3000',
-  process.env.FRONTEND_URL
-].filter(Boolean);
+// Initialize Socket.io — CORS uses the SAME origin logic as the REST API
+// (config/cors.config.js). The old separate exact-string list meant a
+// FRONTEND_URL trailing slash or www mismatch rejected every socket
+// handshake while HTTP kept working, killing real-time notifications.
+const { corsOrigin } = require('./config/cors.config');
 
 const io = new Server(server, {
   cors: {
-    origin: socketOrigins,
+    origin: corsOrigin,
     methods: ["GET", "POST"],
     credentials: true
   }

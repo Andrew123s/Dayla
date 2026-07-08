@@ -323,12 +323,21 @@ const App: React.FC = () => {
       };
     };
 
-    // Try immediately, then retry once after a short delay if socket wasn't ready
-    const cleanup = attachListeners();
-    if (cleanup) return cleanup;
-
-    const timer = setTimeout(() => attachListeners(), 1500);
-    return () => clearTimeout(timer);
+    // Attach as soon as the socket exists. The old version retried exactly
+    // once after 1.5 s and dropped the retry's cleanup — if the socket wasn't
+    // ready by then, real-time notifications never attached for the session.
+    let cleanup = attachListeners() || null;
+    let timer: ReturnType<typeof setInterval> | undefined;
+    if (!cleanup) {
+      timer = setInterval(() => {
+        cleanup = attachListeners() || null;
+        if (cleanup && timer) clearInterval(timer);
+      }, 1000);
+    }
+    return () => {
+      if (timer) clearInterval(timer);
+      if (cleanup) cleanup();
+    };
   }, [currentUser, fetchPendingFriendRequests, fetchNotifications]);
 
   // Polling fallback — refresh notifications every 30 s while logged in

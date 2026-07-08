@@ -4,6 +4,10 @@ import 'package:socket_io_client/socket_io_client.dart' as io;
 import 'package:dayla_flutter/core/network/api_config.dart';
 import 'package:dayla_flutter/core/network/auth_token_provider.dart';
 
+/// Socket.io client speaking the backend's protocol (socket.service.js):
+/// rooms via `join_room`/`leave_room` with a roomType, typing via
+/// `typing_start`/`typing_stop`, and server events like `new_message`,
+/// `notification:new`, `user_joined`, `post:liked`, `comment:added`.
 class SocketService {
   io.Socket? _socket;
 
@@ -21,19 +25,29 @@ class SocketService {
           .enableReconnection()
           .build(),
     );
-
-    _socket!.onConnect((_) {});
-    _socket!.onDisconnect((_) {});
   }
 
-  void joinConversation(String conversationId) {
-    _socket?.emit('join_conversation', {'conversationId': conversationId});
+  // ── Rooms ──
+  void joinRoom(String roomId, String roomType) {
+    _socket?.emit('join_room', {'roomId': roomId, 'roomType': roomType});
   }
 
-  void leaveConversation(String conversationId) {
-    _socket?.emit('leave_conversation', {'conversationId': conversationId});
+  void leaveRoom(String roomId, String roomType) {
+    _socket?.emit('leave_room', {'roomId': roomId, 'roomType': roomType});
   }
 
+  void joinConversation(String conversationId) =>
+      joinRoom(conversationId, 'conversation');
+
+  void leaveConversation(String conversationId) =>
+      leaveRoom(conversationId, 'conversation');
+
+  void joinDashboard(String dashboardId) => joinRoom(dashboardId, 'dashboard');
+
+  void leaveDashboard(String dashboardId) =>
+      leaveRoom(dashboardId, 'dashboard');
+
+  // ── Chat ──
   void sendMessage(String conversationId, String content) {
     _socket?.emit('send_message', {
       'conversationId': conversationId,
@@ -41,32 +55,29 @@ class SocketService {
     });
   }
 
-  void onNewMessage(void Function(dynamic data) callback) {
-    _socket?.on('new_message', callback);
+  void startTyping(String conversationId) {
+    _socket?.emit('typing_start', {'conversationId': conversationId});
   }
 
-  void offNewMessage() {
-    _socket?.off('new_message');
+  void stopTyping(String conversationId) {
+    _socket?.emit('typing_stop', {'conversationId': conversationId});
   }
 
-  void onTyping(void Function(dynamic data) callback) {
-    _socket?.on('user_typing', callback);
+  // ── Generic event listeners ──
+  void on(String event, void Function(dynamic data) callback) {
+    _socket?.on(event, callback);
   }
 
-  void offTyping() {
-    _socket?.off('user_typing');
+  void off(String event, [void Function(dynamic data)? callback]) {
+    if (callback != null) {
+      _socket?.off(event, callback);
+    } else {
+      _socket?.off(event);
+    }
   }
 
-  void emitTyping(String conversationId) {
-    _socket?.emit('typing', {'conversationId': conversationId});
-  }
-
-  void onNotification(void Function(dynamic data) callback) {
-    _socket?.on('notification', callback);
-  }
-
-  void offNotification() {
-    _socket?.off('notification');
+  void onConnect(void Function() callback) {
+    _socket?.onConnect((_) => callback());
   }
 
   void disconnect() {

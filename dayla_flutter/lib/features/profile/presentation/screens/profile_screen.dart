@@ -7,6 +7,7 @@ import 'package:dayla_flutter/core/constants/route_paths.dart';
 import 'package:dayla_flutter/core/theme/app_colors.dart';
 import 'package:dayla_flutter/features/auth/application/providers/auth_providers.dart';
 import 'package:dayla_flutter/features/auth/application/providers/auth_session_provider.dart';
+import 'package:dayla_flutter/features/auth/application/providers/notification_providers.dart';
 import 'package:dayla_flutter/features/auth/data/models/user_model.dart' hide Badge;
 
 class ProfileScreen extends ConsumerStatefulWidget {
@@ -17,8 +18,6 @@ class ProfileScreen extends ConsumerStatefulWidget {
 }
 
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
-  List<NotificationModel> _notifications = [];
-  int _unreadCount = 0;
   List<FriendRequest> _pendingRequests = [];
 
   @override
@@ -27,20 +26,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     _loadExtras();
   }
 
+  // Notifications come from the live notificationsProvider (socket-driven);
+  // only pending friend requests are still loaded here.
   Future<void> _loadExtras() async {
     final repo = ref.read(authRepositoryProvider);
-    final results = await Future.wait([
-      repo.getNotifications(),
-      repo.getPendingFriendRequests(),
-    ]);
-    final notifResult =
-        results[0] as ({List<NotificationModel> notifications, int unreadCount});
+    final requests = await repo.getPendingFriendRequests();
     if (mounted) {
-      setState(() {
-        _notifications = notifResult.notifications;
-        _unreadCount = notifResult.unreadCount;
-        _pendingRequests = results[1] as List<FriendRequest>;
-      });
+      setState(() => _pendingRequests = requests);
     }
   }
 
@@ -48,14 +40,16 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   Widget build(BuildContext context) {
     final authState = ref.watch(authSessionProvider);
     final user = authState.user;
+    final notifState = ref.watch(notificationsProvider).valueOrNull;
+    final unreadCount = notifState?.unreadCount ?? 0;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Profile'),
         actions: [
-          if (_unreadCount > 0 || _pendingRequests.isNotEmpty)
+          if (unreadCount > 0 || _pendingRequests.isNotEmpty)
             Badge(
-              label: Text('${_unreadCount + _pendingRequests.length}'),
+              label: Text('${unreadCount + _pendingRequests.length}'),
               child: IconButton(
                 icon: const Icon(Icons.notifications_outlined),
                 onPressed: () => _showNotifications(context),
@@ -77,6 +71,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           : RefreshIndicator(
               onRefresh: () async {
                 await ref.read(authSessionProvider.notifier).refreshUser();
+                await ref.read(notificationsProvider.notifier).refresh();
                 await _loadExtras();
               },
               child: SingleChildScrollView(
@@ -398,10 +393,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       ),
       builder: (ctx) {
         return _NotificationsSheet(
-          notifications: _notifications,
+          notifications: ref
+                  .read(notificationsProvider)
+                  .valueOrNull
+                  ?.notifications ??
+              [],
           onMarkRead: () async {
-            final repo = ref.read(authRepositoryProvider);
-            await repo.markNotificationsRead();
+            await ref.read(notificationsProvider.notifier).markAllRead();
             _loadExtras();
           },
         );
