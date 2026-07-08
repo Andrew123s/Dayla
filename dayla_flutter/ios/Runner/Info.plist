@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Dayla Flutter</string>
+	<string>Dayla</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -45,5 +45,16 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Dayla needs access to your photo library so you can attach photos to posts, trips and your profile.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Dayla needs camera access so you can take photos for posts and your profile.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Dayla needs microphone access to record voice notes on trip boards.</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 </dict>
 </plist>

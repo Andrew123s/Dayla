@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import 'package:dayla_flutter/core/constants/route_paths.dart';
 import 'package:dayla_flutter/core/theme/app_colors.dart';
 import 'package:dayla_flutter/features/dashboard/application/providers/dashboard_providers.dart';
 import 'package:dayla_flutter/features/dashboard/data/models/trip_model.dart';
@@ -39,6 +41,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       appBar: AppBar(
         title: const Text('My Trips'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.hiking),
+            tooltip: 'Piko Trails',
+            onPressed: () => context.push(RoutePaths.piko),
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () => ref.read(tripsProvider.notifier).refresh(),

@@ -1,16 +1,49 @@
-# dayla_flutter
+# Dayla — Flutter (Android & iOS)
 
-A new Flutter project.
+The native mobile client for **Dayla**, the collaborative eco-travel planning app.
+It talks to the same Express backend as the web app (`backend/`) and mirrors its
+features: trips & plan boards, budget, weather, Ntelipak smart packing, carbon
+footprint (Climatiq), Piko Trails, community feed, chat, and profile.
 
-## Getting Started
+## Structure
 
-This project is a starting point for a Flutter application.
+Feature-first + clean architecture (see `docs/Architecture Guidelines.md`):
 
-A few resources to get you started if this is your first Flutter project:
+```
+lib/
+  core/            # theme, routing (go_router), Dio client, socket, storage
+  features/
+    auth/          # login, register, onboarding, session
+    dashboard/     # trips, plan boards, budget, weather
+    packing/       # Ntelipak smart packing
+    climatiq/      # carbon footprint
+    piko/          # Piko Trails — discover, saved, route detail, add-to-plan
+    community/     # posts, likes, comments
+    chat/          # conversations, real-time messages
+    profile/       # profile & settings
+```
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+State: Riverpod (`AsyncNotifierProvider`). Models: freezed + json_serializable.
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## Running
+
+```bash
+flutter pub get
+dart run build_runner build --delete-conflicting-outputs   # after model changes
+
+# Start the backend first (backend/ on port 3005), then:
+flutter run --dart-define=API_BASE_URL=http://10.0.2.2:3005    # Android emulator
+flutter run --dart-define=API_BASE_URL=http://localhost:3005   # iOS simulator
+flutter run --dart-define=API_BASE_URL=http://192.168.x.x:3005 # physical device
+```
+
+`API_BASE_URL` defaults to `http://localhost:3005` (see `lib/core/network/api_config.dart`).
+
+## Builds
+
+```bash
+flutter build apk --release --dart-define=API_BASE_URL=https://api.daylapp.com
+flutter build ipa --release --dart-define=API_BASE_URL=https://api.daylapp.com  # macOS only
+```
+
+Android cleartext HTTP is enabled for local development; production should use HTTPS.

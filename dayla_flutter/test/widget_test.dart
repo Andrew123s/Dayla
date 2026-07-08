@@ -13,6 +13,6 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Dayla'), findsOneWidget);
-    expect(find.text('Explore together'), findsOneWidget);
+    expect(find.text('EXPLORE TOGETHER'), findsOneWidget);
   });
 }

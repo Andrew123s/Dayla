@@ -12,4 +12,6 @@ abstract final class RoutePaths {
   static const climatiq = '/trip/:tripId/carbon';
   static const weather = '/trip/:tripId/weather';
   static const budget = '/trip/:tripId/budget';
+  static const piko = '/piko';
+  static const pikoRoute = '/piko/routes/:routeId';
 }

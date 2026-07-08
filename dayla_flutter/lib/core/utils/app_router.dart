@@ -16,6 +16,8 @@ import 'package:dayla_flutter/features/dashboard/presentation/screens/trip_detai
 import 'package:dayla_flutter/features/dashboard/presentation/screens/budget_screen.dart';
 import 'package:dayla_flutter/features/dashboard/presentation/screens/weather_screen.dart';
 import 'package:dayla_flutter/features/packing/presentation/screens/packing_screen.dart';
+import 'package:dayla_flutter/features/piko/presentation/screens/piko_screen.dart';
+import 'package:dayla_flutter/features/piko/presentation/screens/route_detail_screen.dart';
 import 'package:dayla_flutter/features/profile/presentation/screens/profile_screen.dart';
 import 'package:dayla_flutter/features/verify_email/presentation/screens/verify_email_screen.dart';
 
@@ -120,6 +122,17 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             tripName: tripName,
             defaultLocation: location,
           );
+        },
+      ),
+      GoRoute(
+        path: RoutePaths.piko,
+        builder: (context, state) => const PikoScreen(),
+      ),
+      GoRoute(
+        path: RoutePaths.pikoRoute,
+        builder: (context, state) {
+          final routeId = state.pathParameters['routeId']!;
+          return RouteDetailScreen(routeId: routeId);
         },
       ),
       StatefulShellRoute.indexedStack(
