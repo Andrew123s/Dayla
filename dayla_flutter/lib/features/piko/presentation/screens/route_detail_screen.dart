@@ -12,6 +12,7 @@ import 'package:dayla_flutter/features/piko/data/repositories/piko_repository.da
 import 'package:dayla_flutter/features/piko/presentation/widgets/plan_picker_sheet.dart';
 import 'package:dayla_flutter/features/piko/presentation/widgets/route_card.dart';
 import 'package:dayla_flutter/features/piko/presentation/widgets/route_mini_map.dart';
+import 'package:dayla_flutter/features/piko/presentation/widgets/trail_map.dart';
 
 class RouteDetailScreen extends ConsumerStatefulWidget {
   const RouteDetailScreen({super.key, required this.routeId});
@@ -240,8 +241,21 @@ class _RouteDetailScreenState extends ConsumerState<RouteDetailScreen> {
                 ],
                 const SizedBox(height: 16),
 
-                // Route shape preview
-                if (route.geometry != null) ...[
+                // Real map with the route; mini-map schematic as fallback.
+                if (route.geometry != null &&
+                    route.geometry!.coordinates.length >= 2) ...[
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(24),
+                    child: SizedBox(
+                      height: 220,
+                      child: TrailMap(
+                        routeCoordinates: route.geometry!.coordinates,
+                        initialZoom: 12,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ] else if (route.geometry != null) ...[
                   RouteMiniMap(geometry: route.geometry),
                   const SizedBox(height: 16),
                 ],

@@ -1,12 +1,15 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:latlong2/latlong.dart';
 
 import 'package:dayla_flutter/core/theme/app_colors.dart';
 import 'package:dayla_flutter/features/piko/application/providers/piko_providers.dart';
 import 'package:dayla_flutter/features/piko/data/models/route_model.dart';
+import 'package:dayla_flutter/features/piko/presentation/widgets/create_trail_sheet.dart';
 import 'package:dayla_flutter/features/piko/presentation/widgets/route_card.dart';
 
 /// Piko Trails — Discover + Saved, mirroring the web app's embedded Piko page.
@@ -50,16 +53,46 @@ class _PikoScreenState extends ConsumerState<PikoScreen> {
     final filters = ref.watch(pikoFiltersProvider);
 
     return DefaultTabController(
-      length: 2,
+      length: 3,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Piko Trails'),
+          actions: [
+            PopupMenuButton<String>(
+              onSelected: (v) {
+                switch (v) {
+                  case 'group':
+                    context.push('/piko/group-plan');
+                  case 'moderation':
+                    context.push('/piko/moderation');
+                }
+              },
+              itemBuilder: (_) => const [
+                PopupMenuItem(
+                  value: 'group',
+                  child: Text('Group plan & voting'),
+                ),
+                PopupMenuItem(
+                  value: 'moderation',
+                  child: Text('Moderation (admins)'),
+                ),
+              ],
+            ),
+          ],
           bottom: const TabBar(
             tabs: [
               Tab(icon: Icon(Icons.explore_outlined), text: 'Discover'),
+              Tab(icon: Icon(Icons.map_outlined), text: 'Map'),
               Tab(icon: Icon(Icons.bookmark_outline), text: 'Saved'),
             ],
           ),
+        ),
+        floatingActionButton: FloatingActionButton.extended(
+          onPressed: () => CreateTrailSheet.show(context),
+          backgroundColor: AppColors.primary,
+          foregroundColor: Colors.white,
+          icon: const Icon(Icons.add),
+          label: const Text('Create'),
         ),
         body: TabBarView(
           children: [
@@ -132,6 +165,8 @@ class _PikoScreenState extends ConsumerState<PikoScreen> {
                 Expanded(child: _DiscoverList()),
               ],
             ),
+            // ── Map ──
+            _RoutesMap(),
             // ── Saved ──
             _SavedList(),
           ],
@@ -166,6 +201,88 @@ class _DiscoverList extends ConsumerWidget {
             onToggleSave: (id) =>
                 ref.read(pikoRoutesProvider.notifier).toggleSave(id),
           ),
+        );
+      },
+    );
+  }
+}
+
+/// Map tab: all discoverable routes as markers; tap opens the detail page.
+class _RoutesMap extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final routesAsync = ref.watch(pikoRoutesProvider);
+
+    return routesAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => _ErrorRetry(
+        onRetry: () => ref.read(pikoRoutesProvider.notifier).refresh(),
+      ),
+      data: (routes) {
+        final placed = [
+          for (final r in routes)
+            if (r.startPoint != null && r.startPoint!.length >= 2) r,
+        ];
+        if (placed.isEmpty) {
+          return const _EmptyState(
+            icon: Icons.map_outlined,
+            title: 'No mapped trails',
+            subtitle: 'Trails with a location appear here',
+          );
+        }
+        final center = LatLng(
+          placed.map((r) => r.startPoint![1]).reduce((a, b) => a + b) /
+              placed.length,
+          placed.map((r) => r.startPoint![0]).reduce((a, b) => a + b) /
+              placed.length,
+        );
+        return FlutterMap(
+          options: MapOptions(initialCenter: center, initialZoom: 4),
+          children: [
+            TileLayer(
+              urlTemplate:
+                  'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+              userAgentPackageName: 'com.dayla.app',
+            ),
+            MarkerLayer(
+              markers: [
+                for (final r in placed)
+                  Marker(
+                    point: LatLng(r.startPoint![1], r.startPoint![0]),
+                    width: 40,
+                    height: 40,
+                    child: GestureDetector(
+                      onTap: () => context.push('/piko/routes/${r.id}'),
+                      child: Tooltip(
+                        message: r.title,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: RouteCard.difficultyColor(r.difficulty),
+                            shape: BoxShape.circle,
+                            border:
+                                Border.all(color: Colors.white, width: 2.5),
+                            boxShadow: const [
+                              BoxShadow(
+                                color: Colors.black26,
+                                blurRadius: 4,
+                                offset: Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: const Icon(Icons.hiking,
+                              size: 20, color: Colors.white),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            RichAttributionWidget(
+              attributions: [
+                TextSourceAttribution('OpenStreetMap contributors'),
+              ],
+            ),
+          ],
         );
       },
     );

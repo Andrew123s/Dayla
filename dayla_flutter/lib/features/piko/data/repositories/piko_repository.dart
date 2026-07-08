@@ -14,6 +14,34 @@ class PikoActionException implements Exception {
   String toString() => message;
 }
 
+/// Result of snapping waypoints to real trails (GraphHopper).
+class SnappedRoute {
+  const SnappedRoute({
+    required this.coordinates,
+    required this.distanceKm,
+    required this.elevationGainM,
+    required this.durationMins,
+  });
+
+  /// `[lng, lat, ele?]` positions.
+  final List<List<double>> coordinates;
+  final double distanceKm;
+  final double elevationGainM;
+  final double durationMins;
+}
+
+class ModerationEntry {
+  const ModerationEntry({
+    required this.route,
+    required this.reportCount,
+    required this.reportReasons,
+  });
+
+  final RouteModel route;
+  final int reportCount;
+  final List<String> reportReasons;
+}
+
 class PikoRepository {
   PikoRepository(this._remote);
 
@@ -143,6 +171,74 @@ class PikoRepository {
       await _remote.addToPlan(routeId, dashboardId.toString());
     } on DioException catch (e) {
       throw PikoActionException(_messageFrom(e, 'Failed to add to plan'));
+    }
+  }
+
+  /// Snap waypoints (`[lng, lat]` pairs) to real trails.
+  /// Throws [PikoActionException] with the server's message on failure
+  /// (missing GraphHopper key, no walkable route, Pro gate).
+  Future<SnappedRoute> snapRoute(
+    List<List<double>> points, {
+    String profile = 'hike',
+  }) async {
+    try {
+      final json = await _remote.snapRoute(points, profile: profile);
+      final data = json['data'] as Map? ?? {};
+      final geometry = data['geometry'] as Map? ?? {};
+      final coords = (geometry['coordinates'] as List? ?? [])
+          .map((c) => (c as List)
+              .map((v) => (v as num).toDouble())
+              .toList())
+          .toList();
+      return SnappedRoute(
+        coordinates: coords,
+        distanceKm: (data['distanceKm'] as num?)?.toDouble() ?? 0,
+        elevationGainM: (data['elevationGainM'] as num?)?.toDouble() ?? 0,
+        durationMins: (data['durationMins'] as num?)?.toDouble() ?? 0,
+      );
+    } on DioException catch (e) {
+      throw PikoActionException(_messageFrom(e, 'Routing failed'));
+    }
+  }
+
+  /// Create a user-generated route (enters moderation).
+  Future<RouteModel> createRoute(Map<String, dynamic> data) async {
+    try {
+      final json = await _remote.createRoute(data);
+      return RouteModel.fromJson(
+          Map<String, dynamic>.from(json['data'] as Map));
+    } on DioException catch (e) {
+      throw PikoActionException(_messageFrom(e, 'Failed to create route'));
+    }
+  }
+
+  /// Moderation queue — throws with the server message on 403 (not admin).
+  Future<List<ModerationEntry>> getModerationQueue() async {
+    try {
+      final json = await _remote.getModerationQueue();
+      final routes = (json['data'] as List?) ?? [];
+      return routes.whereType<Map>().map((r) {
+        final map = Map<String, dynamic>.from(r);
+        return ModerationEntry(
+          route: RouteModel.fromJson(map),
+          reportCount: (map['reportCount'] as num?)?.toInt() ?? 0,
+          reportReasons: (map['reportReasons'] as List? ?? [])
+              .map((x) => x.toString())
+              .toList(),
+        );
+      }).toList();
+    } on DioException catch (e) {
+      throw PikoActionException(
+          _messageFrom(e, 'Failed to load moderation queue'));
+    }
+  }
+
+  Future<bool> moderateRoute(String id, String action) async {
+    try {
+      final json = await _remote.moderateRoute(id, action);
+      return json['success'] == true;
+    } on DioException {
+      return false;
     }
   }
 

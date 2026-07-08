@@ -75,6 +75,42 @@ class PikoRemoteDatasource {
     return response.data as Map<String, dynamic>;
   }
 
+  /// Snap drawn/recorded waypoints to real trails (GraphHopper proxy).
+  /// `points` are `[lng, lat]` pairs.
+  Future<Map<String, dynamic>> snapRoute(
+    List<List<double>> points, {
+    String profile = 'hike',
+  }) async {
+    final response = await _dio.post(
+      '/api/piko/route',
+      data: {'points': points, 'profile': profile, 'elevation': true},
+    );
+    return response.data as Map<String, dynamic>;
+  }
+
+  /// Create a user-generated route (enters moderation).
+  Future<Map<String, dynamic>> createRoute(Map<String, dynamic> data) async {
+    final response = await _dio.post('/api/piko/routes', data: data);
+    return response.data as Map<String, dynamic>;
+  }
+
+  /// Moderation queue (admins via ADMIN_EMAILS).
+  Future<Map<String, dynamic>> getModerationQueue() async {
+    final response = await _dio.get('/api/piko/moderation');
+    return response.data as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> moderateRoute(
+    String id,
+    String action,
+  ) async {
+    final response = await _dio.post(
+      '/api/piko/routes/$id/moderate',
+      data: {'action': action},
+    );
+    return response.data as Map<String, dynamic>;
+  }
+
   Future<Map<String, dynamic>> reportRoute(String id, {String? reason}) async {
     final response = await _dio.post(
       '/api/piko/routes/$id/report',

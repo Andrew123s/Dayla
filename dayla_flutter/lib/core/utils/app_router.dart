@@ -17,7 +17,11 @@ import 'package:dayla_flutter/features/dashboard/presentation/screens/trip_detai
 import 'package:dayla_flutter/features/dashboard/presentation/screens/budget_screen.dart';
 import 'package:dayla_flutter/features/dashboard/presentation/screens/weather_screen.dart';
 import 'package:dayla_flutter/features/packing/presentation/screens/packing_screen.dart';
+import 'package:dayla_flutter/features/piko/presentation/screens/draw_route_screen.dart';
+import 'package:dayla_flutter/features/piko/presentation/screens/group_plan_screen.dart';
+import 'package:dayla_flutter/features/piko/presentation/screens/moderation_screen.dart';
 import 'package:dayla_flutter/features/piko/presentation/screens/piko_screen.dart';
+import 'package:dayla_flutter/features/piko/presentation/screens/record_route_screen.dart';
 import 'package:dayla_flutter/features/piko/presentation/screens/route_detail_screen.dart';
 import 'package:dayla_flutter/features/profile/presentation/screens/profile_screen.dart';
 import 'package:dayla_flutter/features/verify_email/presentation/screens/verify_email_screen.dart';
@@ -141,6 +145,22 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           final routeId = state.pathParameters['routeId']!;
           return RouteDetailScreen(routeId: routeId);
         },
+      ),
+      GoRoute(
+        path: RoutePaths.pikoDraw,
+        builder: (context, state) => const DrawRouteScreen(),
+      ),
+      GoRoute(
+        path: RoutePaths.pikoRecord,
+        builder: (context, state) => const RecordRouteScreen(),
+      ),
+      GoRoute(
+        path: RoutePaths.pikoGroupPlan,
+        builder: (context, state) => const GroupPlanScreen(),
+      ),
+      GoRoute(
+        path: RoutePaths.pikoModeration,
+        builder: (context, state) => const ModerationScreen(),
       ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) =>

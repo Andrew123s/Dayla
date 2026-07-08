@@ -51,6 +51,8 @@
 	<string>Dayla needs camera access so you can take photos for posts and your profile.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Dayla needs microphone access to record voice notes on trip boards.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Dayla uses your location to record trails as you hike and to center the trail map near you.</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsLocalNetworking</key>
