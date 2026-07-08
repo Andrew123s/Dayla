@@ -917,6 +917,18 @@ class _SettingsSheet extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           ListTile(
+            leading: const Icon(Icons.workspace_premium_outlined,
+                color: AppColors.primary),
+            title: const Text('Dayla Pro'),
+            subtitle: const Text('Plans, upgrade & manage subscription'),
+            trailing: const Icon(Icons.chevron_right, size: 20),
+            onTap: () {
+              Navigator.pop(context);
+              context.push(RoutePaths.pricing);
+            },
+          ),
+          const Divider(),
+          ListTile(
             leading: const Icon(Icons.lock_outline),
             title: const Text('Change Password'),
             trailing: const Icon(Icons.chevron_right, size: 20),

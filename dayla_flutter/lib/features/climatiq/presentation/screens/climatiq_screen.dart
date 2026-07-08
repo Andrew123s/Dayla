@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:dayla_flutter/core/theme/app_colors.dart';
+import 'package:dayla_flutter/features/billing/application/providers/billing_providers.dart';
+import 'package:dayla_flutter/features/billing/data/models/billing_models.dart';
+import 'package:dayla_flutter/features/billing/presentation/widgets/pro_gate.dart';
 import 'package:dayla_flutter/features/climatiq/application/providers/climatiq_providers.dart';
 import 'package:dayla_flutter/features/climatiq/data/models/climatiq_model.dart';
 
@@ -110,6 +113,21 @@ class _ClimatiqScreenState extends ConsumerState<ClimatiqScreen> {
   @override
   Widget build(BuildContext context) {
     final connectionAsync = ref.watch(climatiqConnectionProvider);
+    final access = ref.watch(subscriptionAccessProvider);
+
+    // Eco-Tracker is Pro-gated (mirrors the web; server re-checks anyway).
+    if (!access.canUse(ProFeatures.footprint)) {
+      return Scaffold(
+        appBar: AppBar(title: Text('Carbon — ${widget.tripName}')),
+        body: const ProUpsell(
+          featureLabel: 'Eco-Tracker',
+          description:
+              'Estimate the carbon footprint of your transport, stay and '
+              'meals — and find greener alternatives for the whole group.',
+          icon: Icons.eco_outlined,
+        ),
+      );
+    }
 
     return Scaffold(
       appBar: AppBar(

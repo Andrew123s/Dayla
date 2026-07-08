@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:timeago/timeago.dart' as timeago;
 
 import 'package:dayla_flutter/core/theme/app_colors.dart';
+import 'package:dayla_flutter/features/billing/data/models/billing_models.dart';
+import 'package:dayla_flutter/features/billing/presentation/widgets/pro_gate.dart';
 import 'package:dayla_flutter/features/piko/application/providers/piko_providers.dart';
 import 'package:dayla_flutter/features/piko/data/models/route_model.dart';
 import 'package:dayla_flutter/features/piko/data/repositories/piko_repository.dart';
@@ -39,6 +41,12 @@ class _RouteDetailScreenState extends ConsumerState<RouteDetailScreen> {
   }
 
   Future<void> _vote(int value) async {
+    // Voting on group trails is Pro (backend requirePro('trails')).
+    if (!ProGate.check(context, ref,
+        featureKey: ProFeatures.trailsCreate,
+        featureLabel: 'Trail voting')) {
+      return;
+    }
     try {
       await ref
           .read(pikoRouteDetailProvider(widget.routeId).notifier)
@@ -49,6 +57,11 @@ class _RouteDetailScreenState extends ConsumerState<RouteDetailScreen> {
   }
 
   Future<void> _addToPlan() async {
+    if (!ProGate.check(context, ref,
+        featureKey: ProFeatures.trailsCreate,
+        featureLabel: 'Group trail planning')) {
+      return;
+    }
     final plan = await PlanPickerSheet.show(context);
     if (plan == null) return;
     setState(() => _addingToPlan = true);

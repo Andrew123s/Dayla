@@ -7,6 +7,7 @@ import 'package:dayla_flutter/core/utils/main_shell.dart';
 import 'package:dayla_flutter/features/auth/application/providers/auth_session_provider.dart';
 import 'package:dayla_flutter/features/auth/presentation/screens/auth_screen.dart';
 import 'package:dayla_flutter/features/auth/presentation/screens/onboarding_screen.dart';
+import 'package:dayla_flutter/features/billing/presentation/screens/pricing_screen.dart';
 import 'package:dayla_flutter/features/chat/presentation/screens/chat_screen.dart';
 import 'package:dayla_flutter/features/community/presentation/screens/community_screen.dart';
 import 'package:dayla_flutter/features/dashboard/presentation/screens/dashboard_screen.dart';
@@ -123,6 +124,12 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             defaultLocation: location,
           );
         },
+      ),
+      GoRoute(
+        path: RoutePaths.pricing,
+        builder: (context, state) => PricingScreen(
+          attemptedFeature: state.uri.queryParameters['feature'],
+        ),
       ),
       GoRoute(
         path: RoutePaths.piko,

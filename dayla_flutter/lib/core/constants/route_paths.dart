@@ -14,4 +14,5 @@ abstract final class RoutePaths {
   static const budget = '/trip/:tripId/budget';
   static const piko = '/piko';
   static const pikoRoute = '/piko/routes/:routeId';
+  static const pricing = '/pricing';
 }
