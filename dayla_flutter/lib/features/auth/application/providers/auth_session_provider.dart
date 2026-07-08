@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dayla_flutter/core/network/auth_token_provider.dart';
 import 'package:dayla_flutter/core/network/token_storage.dart';
 import 'package:dayla_flutter/features/auth/application/providers/auth_providers.dart';
+import 'package:dayla_flutter/features/auth/application/providers/push_provider.dart';
 import 'package:dayla_flutter/features/auth/data/models/user_model.dart';
 import 'package:dayla_flutter/features/auth/data/repositories/auth_repository.dart';
 
@@ -189,6 +190,8 @@ class AuthSessionNotifier extends Notifier<AuthState> {
   }
 
   Future<void> logout() async {
+    // Unregister this device's push token while the JWT is still valid.
+    await ref.read(pushServiceProvider).unregister();
     await _repo.logout();
     await _tokenStorage.delete();
     ref.read(authTokenProvider.notifier).state = null;

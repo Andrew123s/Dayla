@@ -1,8 +1,10 @@
-/// Backend base URL (matches Vite proxy / mobile `EXPO_PUBLIC_API_URL` conventions).
-/// Override via `--dart-define=API_BASE_URL=https://example.com` for release builds.
+/// Backend base URL. Defaults to the production API so installed builds work
+/// out of the box; override for local development, e.g.
+/// `flutter run --dart-define=API_BASE_URL=http://10.0.2.2:3005` (Android
+/// emulator) or `http://localhost:3005` (iOS simulator).
 abstract final class ApiConfig {
   static const String baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://localhost:3005',
+    defaultValue: 'https://dayla.onrender.com',
   );
 }

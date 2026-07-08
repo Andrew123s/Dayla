@@ -20,7 +20,9 @@ const {
   getNotifications,
   markNotificationsRead,
   searchUsers,
-  updatePreferences
+  updatePreferences,
+  registerPushToken,
+  removePushToken
 } = require('../controllers/auth.controller');
 const { protect } = require('../middleware/auth.middleware');
 const { validate, userSchemas } = require('../utils/validator');
@@ -74,6 +76,8 @@ router.post('/friend-request/:userId/decline', declineFriendRequest);
 router.get('/notifications', getNotifications);
 router.post('/notifications/read', markNotificationsRead);
 router.patch('/preferences', updatePreferences);
+router.post('/push-token', registerPushToken);
+router.delete('/push-token', removePushToken);
 
 router.put('/me', (req, res, next) => {
   const validation = validate(userSchemas.updateProfile, req.body);

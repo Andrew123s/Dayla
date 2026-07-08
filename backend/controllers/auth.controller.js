@@ -7,6 +7,7 @@ const config = require('../config/env.config');
 const logger = require('../utils/logger');
 const { sendConfirmationEmail, generateVerificationToken } = require('../services/email.service');
 const { uploadFile, getOptimizedImageUrl, validateFile } = require('../services/cloud.service');
+const push = require('../services/push.service');
 
 // Generate JWT Token
 const generateToken = (id) => {
@@ -828,6 +829,11 @@ const sendFriendRequest = async (req, res) => {
         senderAvatar: req.user.avatar,
         timestamp: new Date()
       });
+      push.sendToUser(userId, {
+        title: 'Dayla',
+        body: `${req.user.name} sent you a friend request`,
+        data: { type: 'friend_request' }
+      });
       logger.info(`Friend request sent: ${req.user.email} → ${targetUser.email}`);
     }
 
@@ -942,7 +948,12 @@ const acceptFriendRequest = async (req, res) => {
         senderAvatar: req.user.avatar,
         timestamp: new Date()
       });
-      
+      push.sendToUser(userId, {
+        title: 'Dayla',
+        body: `${req.user.name} accepted your friend request`,
+        data: { type: 'friend_accepted' }
+      });
+
       logger.info(`Friend request accepted: ${requestUser.email} ↔ ${req.user.email}`);
     }
 
@@ -1117,6 +1128,40 @@ const markNotificationsRead = async (req, res) => {
   }
 };
 
+// @desc    Register an FCM device token for push notifications
+// @route   POST /api/auth/push-token   body { token }
+// @access  Private
+const registerPushToken = async (req, res) => {
+  try {
+    const token = typeof req.body.token === 'string' ? req.body.token.trim() : '';
+    if (!token || token.length > 4096) {
+      return res.status(400).json({ success: false, message: 'A valid token is required' });
+    }
+    // $addToSet keeps it idempotent across app restarts / token refreshes.
+    await User.findByIdAndUpdate(req.user._id, { $addToSet: { pushTokens: token } });
+    res.status(200).json({ success: true, message: 'Push token registered' });
+  } catch (error) {
+    logger.error('Register push token error:', error);
+    res.status(500).json({ success: false, message: 'Failed to register push token' });
+  }
+};
+
+// @desc    Remove an FCM device token (e.g. on logout)
+// @route   DELETE /api/auth/push-token   body { token }
+// @access  Private
+const removePushToken = async (req, res) => {
+  try {
+    const token = typeof req.body.token === 'string' ? req.body.token.trim() : '';
+    if (token) {
+      await User.findByIdAndUpdate(req.user._id, { $pull: { pushTokens: token } });
+    }
+    res.status(200).json({ success: true, message: 'Push token removed' });
+  } catch (error) {
+    logger.error('Remove push token error:', error);
+    res.status(500).json({ success: false, message: 'Failed to remove push token' });
+  }
+};
+
 // @desc    Search users by name or email (with friend status)
 // @route   GET /api/auth/search?q=query
 // @access  Private
@@ -1241,5 +1286,7 @@ module.exports = {
   getNotifications,
   markNotificationsRead,
   searchUsers,
-  updatePreferences
+  updatePreferences,
+  registerPushToken,
+  removePushToken
 };

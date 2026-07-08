@@ -31,20 +31,24 @@ State: Riverpod (`AsyncNotifierProvider`). Models: freezed + json_serializable.
 flutter pub get
 dart run build_runner build --delete-conflicting-outputs   # after model changes
 
-# Start the backend first (backend/ on port 3005), then:
+# By default the app talks to production: https://dayla.onrender.com
+flutter run
+
+# Local backend instead (backend/ on port 3005):
 flutter run --dart-define=API_BASE_URL=http://10.0.2.2:3005    # Android emulator
 flutter run --dart-define=API_BASE_URL=http://localhost:3005   # iOS simulator
 flutter run --dart-define=API_BASE_URL=http://192.168.x.x:3005 # physical device
 ```
 
-`API_BASE_URL` defaults to `http://localhost:3005` (see `lib/core/network/api_config.dart`).
+`API_BASE_URL` defaults to `https://dayla.onrender.com` (see `lib/core/network/api_config.dart`).
 
 ## Builds
 
 ```bash
-flutter build apk --release --dart-define=API_BASE_URL=https://api.daylapp.com
-flutter build appbundle --release --dart-define=API_BASE_URL=https://api.daylapp.com  # Play Store
-flutter build ipa --release --dart-define=API_BASE_URL=https://api.daylapp.com  # macOS only
+# Production API (https://dayla.onrender.com) is the default — no flags needed.
+flutter build apk --release
+flutter build appbundle --release   # Play Store
+flutter build ipa --release        # macOS only
 ```
 
 Android cleartext HTTP is enabled for local development; production should use HTTPS.
@@ -82,7 +86,18 @@ subscriptions to use their in-app purchase systems; before submission, either
 integrate `in_app_purchase` (RevenueCat makes cross-platform + Stripe sync easier)
 or hide the upgrade button on the store builds and treat Pro as web-managed.
 
-**Push notifications** — not implemented (web has none either). When needed:
-create a Firebase project, add `google-services.json` / `GoogleService-Info.plist`,
-add `firebase_messaging`, and emit pushes from the backend alongside the existing
-Socket.io `notification:new` events.
+**Push notifications (FCM)** — implemented end-to-end:
+
+- App: `firebase_core` + `firebase_messaging`; the device token is registered
+  on login (`POST /api/auth/push-token`) and removed on logout. Android reads
+  `android/app/google-services.json` (in place, package `com.dayla.app`).
+- Backend: `backend/services/push.service.js` sends pushes wherever the
+  Socket.io `notification:new` events fire (likes, comments, friend requests,
+  board joins, chat messages). **Required env on the deployed backend**:
+  `FIREBASE_SERVICE_ACCOUNT` = the service-account JSON string (Firebase
+  console → Project settings → Service accounts → Generate new private key),
+  or `FIREBASE_SERVICE_ACCOUNT_PATH` = path to that file. Without it, push
+  sending silently no-ops (sockets still work).
+- iOS: still needs `GoogleService-Info.plist` in `ios/Runner` plus an APNs
+  key uploaded to Firebase and the Push Notifications capability in Xcode
+  (requires a Mac).

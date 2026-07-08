@@ -48,6 +48,12 @@ const userSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
   }],
+  // FCM device tokens for push notifications (mobile apps). A user can have
+  // several devices; invalid tokens are pruned by push.service.js on send.
+  pushTokens: [{
+    type: String,
+    select: false
+  }],
   friendRequests: [{
     from: {
       type: mongoose.Schema.Types.ObjectId,

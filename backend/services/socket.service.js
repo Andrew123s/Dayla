@@ -5,6 +5,7 @@ const Dashboard = require('../models/dashboard.model');
 const Conversation = require('../models/conversation.model');
 const Notification = require('../models/notification.model');
 const logger = require('../utils/logger');
+const push = require('./push.service');
 
 // Connected users map (socketId -> userId)
 const connectedUsers = new Map();
@@ -201,6 +202,11 @@ const initializeSocket = (io) => {
               conversationId,
               preview,
               timestamp: new Date()
+            });
+            push.sendToUser(participantId, {
+              title: user.name,
+              body: preview,
+              data: { type: 'message', conversationId }
             });
           } catch (notifErr) {
             logger.error('Failed to create message notification:', notifErr);

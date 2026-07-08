@@ -4,6 +4,7 @@ const Notification = require('../models/notification.model');
 const { sendInvitationEmail } = require('../services/email.service');
 const logger = require('../utils/logger');
 const { collaboratorLimit, UNLIMITED } = require('../utils/permissions');
+const push = require('../services/push.service');
 
 /**
  * Collaborator-limit gate, evaluated against the DASHBOARD OWNER's plan (not the
@@ -436,6 +437,11 @@ const acceptInvitation = async (req, res) => {
           timestamp: new Date()
         });
       }
+      push.sendToUser(ownerId, {
+        title: 'Dayla',
+        body: `${req.user.name} joined your plan "${dashboard.name || 'Untitled'}"`,
+        data: { type: 'board_join', dashboardId: dashboard._id.toString() }
+      });
     }
 
     res.status(200).json({

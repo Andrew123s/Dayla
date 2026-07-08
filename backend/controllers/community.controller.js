@@ -2,6 +2,7 @@ const Post = require('../models/post.model');
 const User = require('../models/user.model');
 const Notification = require('../models/notification.model');
 const logger = require('../utils/logger');
+const push = require('../services/push.service');
 
 // @desc    Create post
 // @route   POST /api/community/posts
@@ -333,6 +334,11 @@ const addLike = async (req, res) => {
             postId: post._id.toString(),
             timestamp: new Date()
           });
+          push.sendToUser(postOwnerId, {
+            title: 'Dayla',
+            body: `${req.user.name} liked your post`,
+            data: { type: 'like', postId: post._id.toString() }
+          });
         }
 
         logger.info(`Post like event emitted: ${post._id} by ${req.user.email}`);
@@ -448,6 +454,11 @@ const addComment = async (req, res) => {
           senderAvatar: req.user.avatar,
           postId: post._id.toString(),
           timestamp: new Date()
+        });
+        push.sendToUser(postOwnerId, {
+          title: 'Dayla',
+          body: `${req.user.name} commented on your post`,
+          data: { type: 'comment', postId: post._id.toString() }
         });
       }
 
