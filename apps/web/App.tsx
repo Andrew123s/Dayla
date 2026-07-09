@@ -627,6 +627,9 @@ const App: React.FC = () => {
                         setView('community');
                       } else if (notif.type === 'message') {
                         setView('chat');
+                      } else if (notif.type === 'board_invite' && (notif as any).invitationId) {
+                        // Open the accept flow directly for this invitation.
+                        setInvitationId((notif as any).invitationId);
                       } else if (notif.type === 'board_join' || notif.type === 'board_invite') {
                         setView('dashboard');
                       }

@@ -29,6 +29,11 @@ const notificationSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  // For board_invite notifications: lets the client open the accept flow.
+  invitationId: {
+    type: String,
+    default: null
+  },
   read: {
     type: Boolean,
     default: false

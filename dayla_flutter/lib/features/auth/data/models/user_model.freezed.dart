@@ -1796,7 +1796,9 @@ mixin _$NotificationModel {
   String get type;
   String get message;
   bool get read;
-  NotificationSender? get sender;
+  NotificationSender?
+      get sender; // board_invite notifications carry the invitation to accept.
+  String? get invitationId;
   String? get createdAt;
 
   /// Create a copy of NotificationModel
@@ -1820,18 +1822,20 @@ mixin _$NotificationModel {
             (identical(other.message, message) || other.message == message) &&
             (identical(other.read, read) || other.read == read) &&
             (identical(other.sender, sender) || other.sender == sender) &&
+            (identical(other.invitationId, invitationId) ||
+                other.invitationId == invitationId) &&
             (identical(other.createdAt, createdAt) ||
                 other.createdAt == createdAt));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode =>
-      Object.hash(runtimeType, id, type, message, read, sender, createdAt);
+  int get hashCode => Object.hash(
+      runtimeType, id, type, message, read, sender, invitationId, createdAt);
 
   @override
   String toString() {
-    return 'NotificationModel(id: $id, type: $type, message: $message, read: $read, sender: $sender, createdAt: $createdAt)';
+    return 'NotificationModel(id: $id, type: $type, message: $message, read: $read, sender: $sender, invitationId: $invitationId, createdAt: $createdAt)';
   }
 }
 
@@ -1847,6 +1851,7 @@ abstract mixin class $NotificationModelCopyWith<$Res> {
       String message,
       bool read,
       NotificationSender? sender,
+      String? invitationId,
       String? createdAt});
 
   $NotificationSenderCopyWith<$Res>? get sender;
@@ -1870,6 +1875,7 @@ class _$NotificationModelCopyWithImpl<$Res>
     Object? message = null,
     Object? read = null,
     Object? sender = freezed,
+    Object? invitationId = freezed,
     Object? createdAt = freezed,
   }) {
     return _then(_self.copyWith(
@@ -1893,6 +1899,10 @@ class _$NotificationModelCopyWithImpl<$Res>
           ? _self.sender
           : sender // ignore: cast_nullable_to_non_nullable
               as NotificationSender?,
+      invitationId: freezed == invitationId
+          ? _self.invitationId
+          : invitationId // ignore: cast_nullable_to_non_nullable
+              as String?,
       createdAt: freezed == createdAt
           ? _self.createdAt
           : createdAt // ignore: cast_nullable_to_non_nullable
@@ -1924,6 +1934,7 @@ class _NotificationModel implements NotificationModel {
       this.message = '',
       this.read = false,
       this.sender,
+      this.invitationId,
       this.createdAt});
   factory _NotificationModel.fromJson(Map<String, dynamic> json) =>
       _$NotificationModelFromJson(json);
@@ -1940,6 +1951,9 @@ class _NotificationModel implements NotificationModel {
   final bool read;
   @override
   final NotificationSender? sender;
+// board_invite notifications carry the invitation to accept.
+  @override
+  final String? invitationId;
   @override
   final String? createdAt;
 
@@ -1968,18 +1982,20 @@ class _NotificationModel implements NotificationModel {
             (identical(other.message, message) || other.message == message) &&
             (identical(other.read, read) || other.read == read) &&
             (identical(other.sender, sender) || other.sender == sender) &&
+            (identical(other.invitationId, invitationId) ||
+                other.invitationId == invitationId) &&
             (identical(other.createdAt, createdAt) ||
                 other.createdAt == createdAt));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode =>
-      Object.hash(runtimeType, id, type, message, read, sender, createdAt);
+  int get hashCode => Object.hash(
+      runtimeType, id, type, message, read, sender, invitationId, createdAt);
 
   @override
   String toString() {
-    return 'NotificationModel(id: $id, type: $type, message: $message, read: $read, sender: $sender, createdAt: $createdAt)';
+    return 'NotificationModel(id: $id, type: $type, message: $message, read: $read, sender: $sender, invitationId: $invitationId, createdAt: $createdAt)';
   }
 }
 
@@ -1997,6 +2013,7 @@ abstract mixin class _$NotificationModelCopyWith<$Res>
       String message,
       bool read,
       NotificationSender? sender,
+      String? invitationId,
       String? createdAt});
 
   @override
@@ -2021,6 +2038,7 @@ class __$NotificationModelCopyWithImpl<$Res>
     Object? message = null,
     Object? read = null,
     Object? sender = freezed,
+    Object? invitationId = freezed,
     Object? createdAt = freezed,
   }) {
     return _then(_NotificationModel(
@@ -2044,6 +2062,10 @@ class __$NotificationModelCopyWithImpl<$Res>
           ? _self.sender
           : sender // ignore: cast_nullable_to_non_nullable
               as NotificationSender?,
+      invitationId: freezed == invitationId
+          ? _self.invitationId
+          : invitationId // ignore: cast_nullable_to_non_nullable
+              as String?,
       createdAt: freezed == createdAt
           ? _self.createdAt
           : createdAt // ignore: cast_nullable_to_non_nullable

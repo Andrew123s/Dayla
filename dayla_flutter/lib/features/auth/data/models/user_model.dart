@@ -138,6 +138,8 @@ abstract class NotificationModel with _$NotificationModel {
     @Default('') String message,
     @Default(false) bool read,
     NotificationSender? sender,
+    // board_invite notifications carry the invitation to accept.
+    String? invitationId,
     String? createdAt,
   }) = _NotificationModel;
 

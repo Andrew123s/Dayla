@@ -880,6 +880,18 @@ class _NotificationsSheet extends StatelessWidget {
                                     n.read ? FontWeight.normal : FontWeight.w600,
                                 fontSize: 14,
                               )),
+                          trailing: n.type == 'board_invite' &&
+                                  n.invitationId != null
+                              ? const Icon(Icons.chevron_right, size: 20)
+                              : null,
+                          onTap: n.type == 'board_invite' &&
+                                  n.invitationId != null
+                              ? () {
+                                  Navigator.pop(ctx);
+                                  ctx.push(
+                                      '${RoutePaths.invitation}?invitationId=${n.invitationId}');
+                                }
+                              : null,
                         );
                       },
                     ),
@@ -894,9 +906,10 @@ class _NotificationsSheet extends StatelessWidget {
     return switch (type) {
       'friend_request' => Icons.person_add,
       'friend_accepted' => Icons.people,
-      'trip_invite' => Icons.flight,
-      'post_like' => Icons.favorite,
-      'post_comment' => Icons.comment,
+      'trip_invite' || 'board_invite' => Icons.dashboard_customize_outlined,
+      'board_join' => Icons.group_add,
+      'post_like' || 'like' => Icons.favorite,
+      'post_comment' || 'comment' => Icons.comment,
       'message' => Icons.chat,
       _ => Icons.notifications,
     };

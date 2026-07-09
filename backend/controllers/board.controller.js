@@ -228,7 +228,10 @@ const updateActivity = async (req, res) => {
 const inviteUser = async (req, res) => {
   try {
     const { boardId } = req.params;
-    const { email, role = 'editor' } = req.body;
+    // Account emails are stored lowercased — normalize so the invitation
+    // matches at accept time regardless of how the inviter typed it.
+    const email = (req.body.email || '').trim().toLowerCase();
+    const { role = 'editor' } = req.body;
 
     if (!email) {
       return res.status(400).json({
@@ -308,6 +311,41 @@ const inviteUser = async (req, res) => {
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
     const invitationUrl = `${frontendUrl}/accept-invitation?invitationId=${invitation.id}`;
 
+    // Existing Dayla users get the invite IN-APP too (notification + socket +
+    // push) — email was the only channel before, so invites silently vanished
+    // whenever email delivery failed.
+    if (targetUser) {
+      try {
+        await Notification.create({
+          recipient: targetUser._id,
+          sender: req.user._id,
+          type: 'board_invite',
+          dashboard: dashboard._id,
+          invitationId: invitation.id,
+          message: `${req.user.name} invited you to plan "${dashboard.name || 'a trip'}"`
+        });
+        const io = req.app.get('io');
+        if (io) {
+          io.to(`user:${targetUser._id.toString()}`).emit('notification:new', {
+            recipientId: targetUser._id.toString(),
+            type: 'board_invite',
+            senderName: req.user.name,
+            senderAvatar: req.user.avatar,
+            invitationId: invitation.id,
+            dashboardId: dashboard._id.toString(),
+            timestamp: new Date()
+          });
+        }
+        push.sendToUser(targetUser._id, {
+          title: 'Dayla',
+          body: `${req.user.name} invited you to plan "${dashboard.name || 'a trip'}"`,
+          data: { type: 'board_invite', invitationId: invitation.id }
+        });
+      } catch (notifErr) {
+        logger.error('Failed to create board invite notification:', notifErr);
+      }
+    }
+
     // Send email invitation
     let emailDelivered = false;
     try {
@@ -355,10 +393,11 @@ const acceptInvitation = async (req, res) => {
   try {
     const { invitationId } = req.params;
 
-    // Find dashboard with this invitation
+    // Find by invitation id alone, then compare emails case-insensitively —
+    // older invitations stored the email exactly as typed, so a mixed-case
+    // invite could never match the (lowercased) account email.
     const dashboard = await Dashboard.findOne({
-      'invitations.id': invitationId,
-      'invitations.email': req.user.email
+      'invitations.id': invitationId
     });
 
     if (!dashboard) {
@@ -370,7 +409,8 @@ const acceptInvitation = async (req, res) => {
 
     const invitation = dashboard.invitations.find(inv => inv.id === invitationId);
 
-    if (!invitation) {
+    if (!invitation ||
+        (invitation.email || '').toLowerCase() !== (req.user.email || '').toLowerCase()) {
       return res.status(404).json({
         success: false,
         message: 'Invitation not found'

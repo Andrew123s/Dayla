@@ -158,6 +158,7 @@ _NotificationModel _$NotificationModelFromJson(Map<String, dynamic> json) =>
       sender: json['sender'] == null
           ? null
           : NotificationSender.fromJson(json['sender'] as Map<String, dynamic>),
+      invitationId: json['invitationId'] as String?,
       createdAt: json['createdAt'] as String?,
     );
 
@@ -168,6 +169,7 @@ Map<String, dynamic> _$NotificationModelToJson(_NotificationModel instance) =>
       'message': instance.message,
       'read': instance.read,
       'sender': instance.sender,
+      'invitationId': instance.invitationId,
       'createdAt': instance.createdAt,
     };
 
