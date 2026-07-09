@@ -19,4 +19,6 @@ abstract final class RoutePaths {
   static const pikoGroupPlan = '/piko/group-plan';
   static const pikoModeration = '/piko/moderation';
   static const pricing = '/pricing';
+  static const memories = '/memories';
+  static const memoryDetail = '/memories/:memoryId';
 }

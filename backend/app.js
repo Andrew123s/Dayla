@@ -28,6 +28,7 @@ const weatherRoutes = require('./routes/weather.routes');
 const packingRoutes = require('./routes/packing.routes');
 const pikoRoutes = require('./routes/piko.routes');
 const billingRoutes = require('./routes/billing.routes');
+const memoryRoutes = require('./routes/memory.routes');
 const billingController = require('./controllers/billing.controller');
 
 // Create Express app
@@ -150,6 +151,7 @@ app.use('/api/weather', weatherRoutes);
 app.use('/api/packing', packingRoutes);
 app.use('/api/piko', pikoRoutes);
 app.use('/api/billing', billingRoutes);
+app.use('/api/memories', memoryRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {

@@ -14,7 +14,7 @@ const notificationSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: ['like', 'comment', 'friend_request', 'friend_accepted', 'board_join', 'board_invite', 'follow', 'message'],
+    enum: ['like', 'comment', 'friend_request', 'friend_accepted', 'board_join', 'board_invite', 'follow', 'message', 'memory'],
     required: true
   },
   post: {
@@ -31,6 +31,11 @@ const notificationSchema = new mongoose.Schema({
   },
   // For board_invite notifications: lets the client open the accept flow.
   invitationId: {
+    type: String,
+    default: null
+  },
+  // For memory notifications: lets the client open the story card.
+  memoryId: {
     type: String,
     default: null
   },

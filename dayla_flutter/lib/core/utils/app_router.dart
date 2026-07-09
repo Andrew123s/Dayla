@@ -8,6 +8,8 @@ import 'package:dayla_flutter/features/auth/application/providers/auth_session_p
 import 'package:dayla_flutter/features/auth/presentation/screens/auth_screen.dart';
 import 'package:dayla_flutter/features/auth/presentation/screens/onboarding_screen.dart';
 import 'package:dayla_flutter/features/billing/presentation/screens/pricing_screen.dart';
+import 'package:dayla_flutter/features/memories/presentation/screens/memories_screen.dart';
+import 'package:dayla_flutter/features/memories/presentation/screens/memory_detail_screen.dart';
 import 'package:dayla_flutter/features/chat/presentation/screens/chat_screen.dart';
 import 'package:dayla_flutter/features/community/presentation/screens/community_screen.dart';
 import 'package:dayla_flutter/features/dashboard/presentation/screens/dashboard_screen.dart';
@@ -133,6 +135,16 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         path: RoutePaths.pricing,
         builder: (context, state) => PricingScreen(
           attemptedFeature: state.uri.queryParameters['feature'],
+        ),
+      ),
+      GoRoute(
+        path: RoutePaths.memories,
+        builder: (context, state) => const MemoriesScreen(),
+      ),
+      GoRoute(
+        path: RoutePaths.memoryDetail,
+        builder: (context, state) => MemoryDetailScreen(
+          memoryId: state.pathParameters['memoryId']!,
         ),
       ),
       GoRoute(

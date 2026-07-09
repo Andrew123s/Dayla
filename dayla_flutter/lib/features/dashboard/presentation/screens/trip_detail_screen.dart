@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import 'dart:io';
+
+import 'package:exif/exif.dart';
 import 'package:image_picker/image_picker.dart';
 
 import 'package:dayla_flutter/core/constants/route_paths.dart';
@@ -12,6 +15,7 @@ import 'package:dayla_flutter/features/dashboard/application/providers/dashboard
 import 'package:dayla_flutter/features/dashboard/data/models/trip_model.dart';
 import 'package:dayla_flutter/features/dashboard/presentation/widgets/board_canvas.dart';
 import 'package:dayla_flutter/features/dashboard/presentation/widgets/voice_memo_sheet.dart';
+import 'package:dayla_flutter/features/memories/application/providers/memory_providers.dart';
 
 class TripDetailScreen extends ConsumerStatefulWidget {
   const TripDetailScreen({super.key, required this.tripId});
@@ -149,6 +153,23 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen>
             ),
           PopupMenuButton<String>(
             onSelected: (action) async {
+              if (action == 'memory') {
+                // Assemble (or refresh) the Mriz memory for this trip and
+                // open its story card.
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                    content: Text('Creating your memory…')));
+                final memory = await ref
+                    .read(memoryRepositoryProvider)
+                    .generateForTrip(trip.id);
+                if (!context.mounted) return;
+                ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                if (memory != null) {
+                  context.push('${RoutePaths.memories}/${memory.id}');
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                      content: Text('Could not create the memory')));
+                }
+              }
               if (action == 'delete') {
                 final confirm = await showDialog<bool>(
                   context: context,
@@ -177,6 +198,18 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen>
               }
             },
             itemBuilder: (_) => [
+              if (trip.status == 'completed')
+                const PopupMenuItem(
+                  value: 'memory',
+                  child: Row(
+                    children: [
+                      Icon(Icons.auto_awesome,
+                          color: AppColors.primary, size: 20),
+                      SizedBox(width: 8),
+                      Text('View memory'),
+                    ],
+                  ),
+                ),
               const PopupMenuItem(
                 value: 'delete',
                 child: Row(
@@ -948,15 +981,16 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen>
 
   Future<void> _addImageNote() async {
     final picker = ImagePicker();
-    final picked = await picker.pickImage(
-      source: ImageSource.gallery,
-      maxWidth: 1600,
-      imageQuality: 85,
-    );
+    // Pick the ORIGINAL file (no resize) so EXIF survives — Mriz memories
+    // use the photo's GPS position and capture time for the route replay.
+    final picked = await picker.pickImage(source: ImageSource.gallery);
     if (picked == null || !mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Uploading image…')),
     );
+
+    final exifMeta = await _readPhotoExif(picked.path);
+
     final repo = ref.read(dashboardRepositoryProvider);
     final url = await repo.uploadImage(picked.path);
     if (url == null) {
@@ -973,12 +1007,65 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen>
       'type': 'image',
       'width': 220,
       'height': 180,
+      if (exifMeta.isNotEmpty) 'metadata': exifMeta,
       ..._nextNotePosition(),
     });
     if (mounted) {
       ScaffoldMessenger.of(context).hideCurrentSnackBar();
     }
     _loadData();
+  }
+
+  /// Extract capture time + GPS position for Mriz memories. Best effort —
+  /// screenshots and messenger images simply have none.
+  Future<Map<String, dynamic>> _readPhotoExif(String path) async {
+    try {
+      final tags = await readExifFromBytes(await File(path).readAsBytes());
+      final meta = <String, dynamic>{};
+
+      final dateTag =
+          tags['EXIF DateTimeOriginal'] ?? tags['Image DateTime'];
+      if (dateTag != null) {
+        // EXIF format: "2026:07:09 14:32:11" → ISO.
+        final raw = dateTag.printable.trim();
+        final match = RegExp(
+                r'^(\d{4}):(\d{2}):(\d{2})[ T](\d{2}):(\d{2}):(\d{2})')
+            .firstMatch(raw);
+        if (match != null) {
+          meta['takenAt'] =
+              '${match[1]}-${match[2]}-${match[3]}T${match[4]}:${match[5]}:${match[6]}';
+        }
+      }
+
+      final lat = _gpsToDecimal(
+          tags['GPS GPSLatitude'], tags['GPS GPSLatitudeRef']?.printable);
+      final lng = _gpsToDecimal(
+          tags['GPS GPSLongitude'], tags['GPS GPSLongitudeRef']?.printable);
+      if (lat != null && lng != null) {
+        meta['lat'] = lat;
+        meta['lng'] = lng;
+      }
+      return meta;
+    } catch (_) {
+      return {};
+    }
+  }
+
+  static double? _gpsToDecimal(IfdTag? tag, String? ref) {
+    final values = tag?.values.toList();
+    if (values == null || values.length < 3) return null;
+    double toDouble(dynamic v) =>
+        v is Ratio ? v.numerator / v.denominator : (v as num).toDouble();
+    try {
+      final deg = toDouble(values[0]);
+      final min = toDouble(values[1]);
+      final sec = toDouble(values[2]);
+      var decimal = deg + min / 60 + sec / 3600;
+      if (ref == 'S' || ref == 'W') decimal = -decimal;
+      return double.parse(decimal.toStringAsFixed(6));
+    } catch (_) {
+      return null;
+    }
   }
 
   void _showAddNote() {

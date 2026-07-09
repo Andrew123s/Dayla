@@ -1798,7 +1798,8 @@ mixin _$NotificationModel {
   bool get read;
   NotificationSender?
       get sender; // board_invite notifications carry the invitation to accept.
-  String? get invitationId;
+  String? get invitationId; // memory notifications carry the story to open.
+  String? get memoryId;
   String? get createdAt;
 
   /// Create a copy of NotificationModel
@@ -1824,18 +1825,20 @@ mixin _$NotificationModel {
             (identical(other.sender, sender) || other.sender == sender) &&
             (identical(other.invitationId, invitationId) ||
                 other.invitationId == invitationId) &&
+            (identical(other.memoryId, memoryId) ||
+                other.memoryId == memoryId) &&
             (identical(other.createdAt, createdAt) ||
                 other.createdAt == createdAt));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode => Object.hash(
-      runtimeType, id, type, message, read, sender, invitationId, createdAt);
+  int get hashCode => Object.hash(runtimeType, id, type, message, read, sender,
+      invitationId, memoryId, createdAt);
 
   @override
   String toString() {
-    return 'NotificationModel(id: $id, type: $type, message: $message, read: $read, sender: $sender, invitationId: $invitationId, createdAt: $createdAt)';
+    return 'NotificationModel(id: $id, type: $type, message: $message, read: $read, sender: $sender, invitationId: $invitationId, memoryId: $memoryId, createdAt: $createdAt)';
   }
 }
 
@@ -1852,6 +1855,7 @@ abstract mixin class $NotificationModelCopyWith<$Res> {
       bool read,
       NotificationSender? sender,
       String? invitationId,
+      String? memoryId,
       String? createdAt});
 
   $NotificationSenderCopyWith<$Res>? get sender;
@@ -1876,6 +1880,7 @@ class _$NotificationModelCopyWithImpl<$Res>
     Object? read = null,
     Object? sender = freezed,
     Object? invitationId = freezed,
+    Object? memoryId = freezed,
     Object? createdAt = freezed,
   }) {
     return _then(_self.copyWith(
@@ -1902,6 +1907,10 @@ class _$NotificationModelCopyWithImpl<$Res>
       invitationId: freezed == invitationId
           ? _self.invitationId
           : invitationId // ignore: cast_nullable_to_non_nullable
+              as String?,
+      memoryId: freezed == memoryId
+          ? _self.memoryId
+          : memoryId // ignore: cast_nullable_to_non_nullable
               as String?,
       createdAt: freezed == createdAt
           ? _self.createdAt
@@ -1935,6 +1944,7 @@ class _NotificationModel implements NotificationModel {
       this.read = false,
       this.sender,
       this.invitationId,
+      this.memoryId,
       this.createdAt});
   factory _NotificationModel.fromJson(Map<String, dynamic> json) =>
       _$NotificationModelFromJson(json);
@@ -1954,6 +1964,9 @@ class _NotificationModel implements NotificationModel {
 // board_invite notifications carry the invitation to accept.
   @override
   final String? invitationId;
+// memory notifications carry the story to open.
+  @override
+  final String? memoryId;
   @override
   final String? createdAt;
 
@@ -1984,18 +1997,20 @@ class _NotificationModel implements NotificationModel {
             (identical(other.sender, sender) || other.sender == sender) &&
             (identical(other.invitationId, invitationId) ||
                 other.invitationId == invitationId) &&
+            (identical(other.memoryId, memoryId) ||
+                other.memoryId == memoryId) &&
             (identical(other.createdAt, createdAt) ||
                 other.createdAt == createdAt));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode => Object.hash(
-      runtimeType, id, type, message, read, sender, invitationId, createdAt);
+  int get hashCode => Object.hash(runtimeType, id, type, message, read, sender,
+      invitationId, memoryId, createdAt);
 
   @override
   String toString() {
-    return 'NotificationModel(id: $id, type: $type, message: $message, read: $read, sender: $sender, invitationId: $invitationId, createdAt: $createdAt)';
+    return 'NotificationModel(id: $id, type: $type, message: $message, read: $read, sender: $sender, invitationId: $invitationId, memoryId: $memoryId, createdAt: $createdAt)';
   }
 }
 
@@ -2014,6 +2029,7 @@ abstract mixin class _$NotificationModelCopyWith<$Res>
       bool read,
       NotificationSender? sender,
       String? invitationId,
+      String? memoryId,
       String? createdAt});
 
   @override
@@ -2039,6 +2055,7 @@ class __$NotificationModelCopyWithImpl<$Res>
     Object? read = null,
     Object? sender = freezed,
     Object? invitationId = freezed,
+    Object? memoryId = freezed,
     Object? createdAt = freezed,
   }) {
     return _then(_NotificationModel(
@@ -2065,6 +2082,10 @@ class __$NotificationModelCopyWithImpl<$Res>
       invitationId: freezed == invitationId
           ? _self.invitationId
           : invitationId // ignore: cast_nullable_to_non_nullable
+              as String?,
+      memoryId: freezed == memoryId
+          ? _self.memoryId
+          : memoryId // ignore: cast_nullable_to_non_nullable
               as String?,
       createdAt: freezed == createdAt
           ? _self.createdAt

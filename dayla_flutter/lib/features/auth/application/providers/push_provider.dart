@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:dayla_flutter/core/network/dio_provider.dart';
+import 'package:dayla_flutter/core/utils/app_router.dart';
 import 'package:dayla_flutter/features/auth/application/providers/notification_providers.dart';
 
 /// FCM push notifications.
@@ -31,6 +32,7 @@ class PushService {
   String? _token;
   StreamSubscription<String>? _refreshSub;
   StreamSubscription<RemoteMessage>? _foregroundSub;
+  StreamSubscription<RemoteMessage>? _openedSub;
 
   bool get _supportedPlatform =>
       !kIsWeb && (Platform.isAndroid || Platform.isIOS);
@@ -64,8 +66,32 @@ class PushService {
         // In-app: refresh the notifications list/badge.
         _ref.read(notificationsProvider.notifier).refresh();
       });
+
+      // Deep links: tapping a push opens the relevant screen.
+      _openedSub ??=
+          FirebaseMessaging.onMessageOpenedApp.listen(_handleTap);
+      final initial = await messaging.getInitialMessage();
+      if (initial != null) _handleTap(initial);
     } catch (e) {
       debugPrint('Push registration skipped: $e');
+    }
+  }
+
+  void _handleTap(RemoteMessage message) {
+    final data = message.data;
+    final router = _ref.read(goRouterProvider);
+    switch (data['type']) {
+      case 'memory':
+        final id = data['memoryId'];
+        if (id != null) router.push('/memories/$id');
+      case 'board_invite':
+        final id = data['invitationId'];
+        if (id != null) router.push('/invitation?invitationId=$id');
+      case 'message':
+        router.go('/chat');
+      case 'like':
+      case 'comment':
+        router.go('/community');
     }
   }
 

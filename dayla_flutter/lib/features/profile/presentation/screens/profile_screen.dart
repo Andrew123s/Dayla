@@ -880,8 +880,9 @@ class _NotificationsSheet extends StatelessWidget {
                                     n.read ? FontWeight.normal : FontWeight.w600,
                                 fontSize: 14,
                               )),
-                          trailing: n.type == 'board_invite' &&
-                                  n.invitationId != null
+                          trailing: (n.type == 'board_invite' &&
+                                      n.invitationId != null) ||
+                                  (n.type == 'memory' && n.memoryId != null)
                               ? const Icon(Icons.chevron_right, size: 20)
                               : null,
                           onTap: n.type == 'board_invite' &&
@@ -891,7 +892,13 @@ class _NotificationsSheet extends StatelessWidget {
                                   ctx.push(
                                       '${RoutePaths.invitation}?invitationId=${n.invitationId}');
                                 }
-                              : null,
+                              : n.type == 'memory' && n.memoryId != null
+                                  ? () {
+                                      Navigator.pop(ctx);
+                                      ctx.push(
+                                          '${RoutePaths.memories}/${n.memoryId}');
+                                    }
+                                  : null,
                         );
                       },
                     ),
@@ -911,6 +918,7 @@ class _NotificationsSheet extends StatelessWidget {
       'post_like' || 'like' => Icons.favorite,
       'post_comment' || 'comment' => Icons.comment,
       'message' => Icons.chat,
+      'memory' => Icons.auto_awesome,
       _ => Icons.notifications,
     };
   }
@@ -929,6 +937,18 @@ class _SettingsSheet extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          ListTile(
+            leading:
+                const Icon(Icons.auto_awesome, color: AppColors.primary),
+            title: const Text('Memories'),
+            subtitle: const Text('Your trips, retold as stories'),
+            trailing: const Icon(Icons.chevron_right, size: 20),
+            onTap: () {
+              Navigator.pop(context);
+              context.push(RoutePaths.memories);
+            },
+          ),
+          const Divider(),
           ListTile(
             leading: const Icon(Icons.workspace_premium_outlined,
                 color: AppColors.primary),

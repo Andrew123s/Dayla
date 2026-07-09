@@ -140,6 +140,8 @@ abstract class NotificationModel with _$NotificationModel {
     NotificationSender? sender,
     // board_invite notifications carry the invitation to accept.
     String? invitationId,
+    // memory notifications carry the story to open.
+    String? memoryId,
     String? createdAt,
   }) = _NotificationModel;
 

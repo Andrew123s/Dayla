@@ -147,11 +147,23 @@ const updateTrip = async (req, res) => {
       });
     }
 
+    const wasCompleted = trip.status === 'completed';
+
     const updatedTrip = await Trip.findByIdAndUpdate(
       req.params.id,
       req.body,
       { new: true, runValidators: true }
     ).populate('owner', 'name avatar');
+
+    // Mriz: a trip that just completed becomes a memory — assemble it and
+    // notify the group. Fire-and-forget so the update response stays fast.
+    if (!wasCompleted && updatedTrip.status === 'completed') {
+      const { assembleMemoryForTrip } = require('../services/memory.service');
+      assembleMemoryForTrip(updatedTrip._id, {
+        notify: true,
+        io: req.app.get('io'),
+      }).catch((e) => logger.error('Memory assembly failed:', e));
+    }
 
     logger.info(`Trip updated: ${updatedTrip.name} by ${req.user.email}`);
 
