@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:dayla_flutter/core/theme/app_colors.dart';
 import 'package:dayla_flutter/features/billing/application/providers/billing_providers.dart';
 import 'package:dayla_flutter/features/billing/data/repositories/billing_repository.dart';
+import 'package:dayla_flutter/features/billing/data/services/revenuecat_service.dart';
 
 /// Free vs Pro pricing page (mirrors the web PricingView). Upgrading opens
 /// Stripe Checkout in the browser; after paying, pull-to-refresh (or
@@ -40,6 +41,12 @@ class _PricingScreenState extends ConsumerState<PricingScreen> {
   ];
 
   Future<void> _upgrade() async {
+    // Store builds (RevenueCat keys baked in) buy through Google Play /
+    // App Store as required by store policy; otherwise fall back to the
+    // web's Stripe checkout in the browser.
+    if (RevenueCatBilling.isAvailable) {
+      return _upgradeViaStore();
+    }
     setState(() => _busy = true);
     try {
       final url = await ref
@@ -52,6 +59,37 @@ class _PricingScreenState extends ConsumerState<PricingScreen> {
       _show(e.message);
     } finally {
       if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _upgradeViaStore() async {
+    setState(() => _busy = true);
+    try {
+      final active =
+          await RevenueCatBilling.purchasePro(annual: _cycle == 'annual');
+      if (active) {
+        _show("You're Pro! It may take a moment to activate everywhere.");
+        await ref.read(subscriptionProvider.notifier).refresh();
+      }
+      // false = user cancelled the store sheet; stay quiet.
+    } on RevenueCatException catch (e) {
+      _show(e.message);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _restorePurchases() async {
+    setState(() => _busy = true);
+    final restored = await RevenueCatBilling.restore();
+    if (restored) {
+      await ref.read(subscriptionProvider.notifier).refresh();
+    }
+    if (mounted) {
+      setState(() => _busy = false);
+      _show(restored
+          ? 'Purchases restored — welcome back to Pro!'
+          : 'No previous purchases found for this account.');
     }
   }
 
@@ -233,12 +271,26 @@ class _PricingScreenState extends ConsumerState<PricingScreen> {
               footer: null,
             ),
             const SizedBox(height: 16),
-            Text(
-              'Payments are processed securely by Stripe in your browser. '
-              'After upgrading, pull to refresh this page to activate Pro.',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
-            ),
+            if (RevenueCatBilling.isAvailable) ...[
+              Center(
+                child: TextButton(
+                  onPressed: _busy ? null : _restorePurchases,
+                  child: const Text('Restore purchases'),
+                ),
+              ),
+              Text(
+                'Subscriptions are billed through your app store and can be '
+                'managed in your store account settings.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+              ),
+            ] else
+              Text(
+                'Payments are processed securely by Stripe in your browser. '
+                'After upgrading, pull to refresh this page to activate Pro.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+              ),
           ],
         ),
       ),

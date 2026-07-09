@@ -7,6 +7,99 @@ const User = require('../models/user.model');
 const Subscription = require('../models/subscription.model');
 const BillingEvent = require('../models/billingEvent.model');
 
+// ── RevenueCat (mobile in-app purchases) ────────────────────────────────────
+//
+// The mobile apps buy Pro through Google Play / the App Store via RevenueCat;
+// RevenueCat then POSTs subscription events here so the user's billing
+// snapshot (the same fields the Stripe webhook maintains) stays in sync.
+//
+// Config (both optional until the store apps go live):
+//   REVENUECAT_WEBHOOK_AUTH — shared secret; set the same value as the
+//   "Authorization header value" in RevenueCat → Project → Webhooks.
+//
+// The mobile app calls Purchases.logIn(<dayla user id>), so `app_user_id`
+// in events is our Mongo user id. Anonymous ids ($RCAnonymousID:…) are
+// acknowledged but ignored.
+//
+// @route POST /api/billing/revenuecat-webhook   (no auth middleware — header check)
+const handleRevenueCatWebhook = async (req, res) => {
+  try {
+    const secret = process.env.REVENUECAT_WEBHOOK_AUTH;
+    if (!secret) {
+      return res.status(503).json({ success: false, message: 'RevenueCat webhook not configured' });
+    }
+    const header = req.headers.authorization || '';
+    if (header !== secret && header !== `Bearer ${secret}`) {
+      return res.status(401).json({ success: false, message: 'Invalid webhook authorization' });
+    }
+
+    const event = (req.body && req.body.event) || {};
+    const type = event.type || 'UNKNOWN';
+    const appUserId = event.app_user_id || '';
+
+    // RevenueCat's "Send test event" button — acknowledge so setup verifies.
+    if (type === 'TEST') {
+      return res.status(200).json({ success: true, message: 'Test event received' });
+    }
+
+    const mongoose = require('mongoose');
+    if (!mongoose.isValidObjectId(appUserId)) {
+      logger.warn(`RevenueCat event ${type} for non-user app_user_id "${appUserId}" — ignored`);
+      return res.status(200).json({ success: true, message: 'Ignored (anonymous app_user_id)' });
+    }
+
+    const expiration = event.expiration_at_ms ? new Date(event.expiration_at_ms) : null;
+    const productId = (event.product_id || '').toLowerCase();
+    const cycle = /annual|year/.test(productId) ? 'annual' : 'monthly';
+
+    let update = null;
+    switch (type) {
+      case 'INITIAL_PURCHASE':
+      case 'RENEWAL':
+      case 'UNCANCELLATION':
+      case 'PRODUCT_CHANGE':
+      case 'NON_RENEWING_PURCHASE':
+        update = {
+          subscriptionType: 'pro',
+          subscriptionStatus: 'active',
+          billingCycle: cycle,
+          cancelAtPeriodEnd: false,
+          currentPeriodEnd: expiration,
+        };
+        break;
+      case 'CANCELLATION':
+        // Auto-renew turned off — Pro persists until the paid period ends
+        // (permissions.js already honors cancelAtPeriodEnd + currentPeriodEnd).
+        update = { cancelAtPeriodEnd: true };
+        break;
+      case 'BILLING_ISSUE':
+        update = { subscriptionStatus: 'past_due' };
+        break;
+      case 'EXPIRATION':
+        update = {
+          subscriptionType: 'free',
+          subscriptionStatus: 'canceled',
+          cancelAtPeriodEnd: false,
+          billingCycle: null,
+        };
+        break;
+      default:
+        logger.info(`RevenueCat event ${type} — no action`);
+    }
+
+    if (update) {
+      await User.findByIdAndUpdate(appUserId, update);
+      logger.info(`RevenueCat ${type}: user ${appUserId} → ${JSON.stringify(update)}`);
+    }
+
+    res.status(200).json({ success: true });
+  } catch (error) {
+    logger.error('RevenueCat webhook error:', error);
+    // Non-2xx makes RevenueCat retry — that's what we want on real failures.
+    res.status(500).json({ success: false, message: 'Webhook processing failed' });
+  }
+};
+
 // ── helpers ─────────────────────────────────────────────────────────────────
 
 function notConfigured(res) {
@@ -544,6 +637,7 @@ module.exports = {
   createCheckoutSession,
   createCustomerPortal,
   handleWebhook,
+  handleRevenueCatWebhook,
   getAdminMetrics,
   getStripeConfigCheck,
 };

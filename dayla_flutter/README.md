@@ -80,11 +80,51 @@ testing, not for the Play Store).
 set your Team + bundle id (e.g. `com.dayla.app`), then `flutter build ipa`.
 Permissions strings are already in `Info.plist`.
 
-**Subscriptions in stores** — the current upgrade flow opens Stripe Checkout in
-the browser. Apple (and Google, for apps distributed on Play) require digital
-subscriptions to use their in-app purchase systems; before submission, either
-integrate `in_app_purchase` (RevenueCat makes cross-platform + Stripe sync easier)
-or hide the upgrade button on the store builds and treat Pro as web-managed.
+**Subscriptions in stores (RevenueCat)** — integrated but dormant until API
+keys exist. The pricing screen automatically uses Google Play / App Store
+billing when the app is built with RevenueCat keys, and falls back to the
+web's Stripe checkout otherwise. Backend sync happens via
+`POST /api/billing/revenuecat-webhook`.
+
+Once the Play Console is active:
+
+1. Create a [RevenueCat](https://app.revenuecat.com) project → add the
+   **Google Play** app (`com.dayla.app`) with a Play service-account JSON.
+2. In Play Console → Monetize → Subscriptions: create products
+   `dayla_pro_monthly` (€15/mo) and `dayla_pro_annual` (€180/yr).
+3. In RevenueCat: import both products, create an entitlement named **`pro`**,
+   attach the products, and put them in the **default offering** (the app
+   picks `offering.monthly` / `offering.annual`).
+4. RevenueCat → Project settings → Webhooks: URL
+   `https://dayla.onrender.com/api/billing/revenuecat-webhook`, and set an
+   Authorization header value; put the same value in Render env as
+   `REVENUECAT_WEBHOOK_AUTH`.
+5. Build the store bundle with the public SDK key:
+   `flutter build appbundle --release --dart-define=REVENUECAT_ANDROID_KEY=goog_xxxx`
+   (iOS later: `--dart-define=REVENUECAT_IOS_KEY=appl_xxxx`.)
+
+Without the `--dart-define` keys the whole flow is a no-op and Stripe is used —
+fine for sideloaded builds, **not allowed on Play**, so always pass the key for
+store uploads.
+
+## Play Store submission
+
+1. **One-time**: [Play Console](https://play.google.com/console) account
+   ($25) → Create app → name "Dayla", App, Free. App id `com.dayla.app` is
+   read from the bundle.
+2. **Build**: `flutter build appbundle --release` (plus the RevenueCat
+   `--dart-define` above) → upload
+   `build/app/outputs/bundle/release/app-release.aab`.
+3. **Listing**: descriptions, ≥2 phone screenshots, 512×512 icon
+   (`assets/icons/app_icon.png`), 1024×500 feature graphic, privacy policy
+   URL (`https://daylapp.com/privacy`).
+4. **Data safety**: declares email/name (account), photos (user content),
+   location (trail recording), data encrypted in transit.
+5. **Content rating** questionnaire (has UGC + chat).
+6. **App access**: provide a test account (email + password) since login is
+   required.
+7. **Internal testing** first, then Production → roll out. First review
+   takes ~3–7 days.
 
 **Push notifications (FCM)** — implemented end-to-end:
 

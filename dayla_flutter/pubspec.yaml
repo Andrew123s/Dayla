@@ -57,6 +57,7 @@ dependencies:
   firebase_messaging: ^15.2.0
   record: ^5.2.0
   audioplayers: ^6.1.0
+  purchases_flutter: ^10.4.1
 
 # The published record_linux 0.7.2 doesn't implement the current
 # record_platform_interface and breaks compilation of all builds (Flutter's

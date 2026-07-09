@@ -5,6 +5,7 @@ const {
   getSubscription,
   createCheckoutSession,
   createCustomerPortal,
+  handleRevenueCatWebhook,
   getAdminMetrics,
   getStripeConfigCheck,
 } = require('../controllers/billing.controller');
@@ -13,6 +14,10 @@ const router = express.Router();
 
 // NOTE: POST /api/billing/webhook is mounted directly in app.js (raw body,
 // no auth) — it must not go through the JSON parser or `protect`.
+
+// RevenueCat webhook (mobile in-app purchases): plain JSON, authenticated by
+// a shared Authorization header inside the handler — so it goes BEFORE protect.
+router.post('/revenuecat-webhook', handleRevenueCatWebhook);
 
 router.use(protect);
 
