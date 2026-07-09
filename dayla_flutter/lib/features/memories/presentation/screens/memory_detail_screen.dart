@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import 'package:dayla_flutter/core/theme/app_colors.dart';
 import 'package:dayla_flutter/features/memories/application/providers/memory_providers.dart';
@@ -20,6 +21,8 @@ class MemoryDetailScreen extends ConsumerStatefulWidget {
 
 class _MemoryDetailScreenState extends ConsumerState<MemoryDetailScreen> {
   bool _sharing = false;
+  // Per-person perspective filter for the Moments strip (Phase 4).
+  String? _personFilter;
 
   Future<void> _shareToCommunity() async {
     setState(() => _sharing = true);
@@ -51,6 +54,19 @@ class _MemoryDetailScreenState extends ConsumerState<MemoryDetailScreen> {
           return _buildStory(memory);
         },
       ),
+      floatingActionButton: memoryAsync.valueOrNull != null &&
+              (memoryAsync.valueOrNull!.routeCoordinates.length > 1 ||
+                  memoryAsync.valueOrNull!.media.isNotEmpty)
+          ? FloatingActionButton.extended(
+              onPressed: () => context.push(
+                  '/memories/${widget.memoryId}/replay'),
+              backgroundColor:
+                  SeasonPalette.of(memoryAsync.valueOrNull!.season),
+              foregroundColor: Colors.white,
+              icon: const Icon(Icons.play_arrow_rounded),
+              label: const Text('Relive'),
+            )
+          : null,
     );
   }
 
@@ -239,40 +255,8 @@ class _MemoryDetailScreenState extends ConsumerState<MemoryDetailScreen> {
                   const SizedBox(height: 20),
                 ],
 
-                // Photo strip
-                if (memory.media.isNotEmpty) ...[
-                  Text('Moments',
-                      style: Theme.of(context)
-                          .textTheme
-                          .titleSmall
-                          ?.copyWith(fontWeight: FontWeight.w700)),
-                  const SizedBox(height: 10),
-                  SizedBox(
-                    height: 150,
-                    child: ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: memory.media.length,
-                      separatorBuilder: (_, __) => const SizedBox(width: 10),
-                      itemBuilder: (context, i) => ClipRRect(
-                        borderRadius: BorderRadius.circular(16),
-                        child: CachedNetworkImage(
-                          imageUrl: memory.media[i].url,
-                          height: 150,
-                          width: 120,
-                          fit: BoxFit.cover,
-                          errorWidget: (_, __, ___) => Container(
-                            width: 120,
-                            color: Colors.grey.shade200,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                ],
-
-                // Route replay teaser (Phase 3)
-                if (memory.routeCoordinates.length > 1)
+                // Milestones — quiet superlatives vs your own history.
+                if (memory.milestones.isNotEmpty) ...[
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(14),
@@ -280,26 +264,143 @@ class _MemoryDetailScreenState extends ConsumerState<MemoryDetailScreen> {
                       color: color.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(16),
                     ),
-                    child: Row(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(Icons.route, color: color),
-                        const SizedBox(width: 10),
-                        const Expanded(
-                          child: Text(
-                            'Route replay is coming soon — this memory '
-                            'already has its trail recorded.',
-                            style: TextStyle(fontSize: 12.5),
+                        for (final line in memory.milestones)
+                          Padding(
+                            padding:
+                                const EdgeInsets.symmetric(vertical: 3),
+                            child: Row(
+                              children: [
+                                Icon(Icons.auto_awesome,
+                                    size: 15, color: color),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    line,
+                                    style: const TextStyle(
+                                      fontSize: 13.5,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
                       ],
                     ),
                   ),
+                  const SizedBox(height: 20),
+                ],
+
+                // Photo strip with per-person perspectives (Phase 4).
+                if (memory.media.isNotEmpty) ...[
+                  Text('Moments',
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleSmall
+                          ?.copyWith(fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 10),
+                  ..._buildMomentsFilter(memory, color),
+                  SizedBox(
+                    height: 150,
+                    child: Builder(builder: (context) {
+                      final shown = _personFilter == null
+                          ? memory.media
+                          : memory.media
+                              .where((m) => m.byUser == _personFilter)
+                              .toList();
+                      if (shown.isEmpty) {
+                        return Center(
+                          child: Text(
+                            'No moments from them yet',
+                            style: TextStyle(color: Colors.grey.shade500),
+                          ),
+                        );
+                      }
+                      return ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: shown.length,
+                        separatorBuilder: (_, __) =>
+                            const SizedBox(width: 10),
+                        itemBuilder: (context, i) => ClipRRect(
+                          borderRadius: BorderRadius.circular(16),
+                          child: CachedNetworkImage(
+                            imageUrl: shown[i].url,
+                            height: 150,
+                            width: 120,
+                            fit: BoxFit.cover,
+                            errorWidget: (_, __, ___) => Container(
+                              width: 120,
+                              color: Colors.grey.shade200,
+                            ),
+                          ),
+                        ),
+                      );
+                    }),
+                  ),
+                  const SizedBox(height: 20),
+                ],
               ],
             ),
           ),
         ),
       ],
     );
+  }
+
+  /// Person chips above Moments — only when photos came from 2+ people.
+  List<Widget> _buildMomentsFilter(MemoryModel memory, Color color) {
+    final contributors = memory.media
+        .map((m) => m.byUser)
+        .whereType<String>()
+        .toSet();
+    if (contributors.length < 2) return const [];
+
+    final people = memory.participants
+        .where((p) => contributors.contains(p.id))
+        .toList();
+    if (people.length < 2) return const [];
+
+    return [
+      SizedBox(
+        height: 38,
+        child: ListView(
+          scrollDirection: Axis.horizontal,
+          children: [
+            ChoiceChip(
+              label: const Text('Everyone'),
+              selected: _personFilter == null,
+              onSelected: (_) => setState(() => _personFilter = null),
+              selectedColor: color.withValues(alpha: 0.2),
+              visualDensity: VisualDensity.compact,
+            ),
+            const SizedBox(width: 8),
+            for (final p in people) ...[
+              ChoiceChip(
+                avatar: CircleAvatar(
+                  backgroundImage:
+                      p.avatar != null ? NetworkImage(p.avatar!) : null,
+                  child: p.avatar == null
+                      ? Text(p.name.isNotEmpty ? p.name[0] : '?',
+                          style: const TextStyle(fontSize: 10))
+                      : null,
+                ),
+                label: Text(p.name.split(' ').first),
+                selected: _personFilter == p.id,
+                onSelected: (_) =>
+                    setState(() => _personFilter = p.id),
+                selectedColor: color.withValues(alpha: 0.2),
+                visualDensity: VisualDensity.compact,
+              ),
+              const SizedBox(width: 8),
+            ],
+          ],
+        ),
+      ),
+      const SizedBox(height: 10),
+    ];
   }
 
   Widget _stat(IconData icon, String value, Color color) => Expanded(

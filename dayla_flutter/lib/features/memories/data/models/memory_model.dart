@@ -14,6 +14,7 @@ class MemoryModel {
     this.weatherCondition,
     this.weatherTempC,
     required this.participants,
+    this.milestones = const [],
     this.routeCoordinates = const [],
     this.createdAt,
   });
@@ -31,6 +32,9 @@ class MemoryModel {
   final String? weatherCondition;
   final double? weatherTempC;
   final List<MemoryPerson> participants;
+
+  /// Story-driven superlatives vs the owner's history ("longest yet"...).
+  final List<String> milestones;
 
   /// `[lng, lat, ele?]` — present when the trip had a Piko route (Phase 3).
   final List<List<double>> routeCoordinates;
@@ -62,9 +66,17 @@ class MemoryModel {
           .toList(),
       weatherCondition: firstWeather?['condition'] as String?,
       weatherTempC: (firstWeather?['tempC'] as num?)?.toDouble(),
-      participants: (json['participants'] as List? ?? [])
-          .whereType<Map>()
-          .map((p) => MemoryPerson.fromJson(Map<String, dynamic>.from(p)))
+      participants: [
+        // Owner first, then collaborators — used by per-person perspectives.
+        if (json['owner'] is Map)
+          MemoryPerson.fromJson(
+              Map<String, dynamic>.from(json['owner'] as Map)),
+        ...(json['participants'] as List? ?? [])
+            .whereType<Map>()
+            .map((p) => MemoryPerson.fromJson(Map<String, dynamic>.from(p))),
+      ],
+      milestones: (json['milestones'] as List? ?? [])
+          .map((m) => m.toString())
           .toList(),
       routeCoordinates: (geometry?['coordinates'] as List? ?? [])
           .whereType<List>()
@@ -90,12 +102,21 @@ class MemoryStats {
 }
 
 class MemoryMedia {
-  const MemoryMedia({required this.url, this.takenAt, this.lat, this.lng});
+  const MemoryMedia({
+    required this.url,
+    this.takenAt,
+    this.lat,
+    this.lng,
+    this.byUser,
+  });
 
   final String url;
   final DateTime? takenAt;
   final double? lat;
   final double? lng;
+
+  /// Who added this photo — powers the per-person perspective filter.
+  final String? byUser;
 
   factory MemoryMedia.fromJson(Map<String, dynamic> json) {
     final coords = json['coords'] as Map?;
@@ -104,18 +125,21 @@ class MemoryMedia {
       takenAt: DateTime.tryParse((json['takenAt'] ?? '').toString()),
       lat: (coords?['lat'] as num?)?.toDouble(),
       lng: (coords?['lng'] as num?)?.toDouble(),
+      byUser: json['byUser']?.toString(),
     );
   }
 }
 
 class MemoryPerson {
-  const MemoryPerson({required this.name, this.avatar});
+  const MemoryPerson({required this.id, required this.name, this.avatar});
 
+  final String id;
   final String name;
   final String? avatar;
 
   factory MemoryPerson.fromJson(Map<String, dynamic> json) {
     return MemoryPerson(
+      id: (json['_id'] ?? json['id'] ?? '').toString(),
       name: (json['name'] ?? '').toString(),
       avatar: json['avatar'] as String?,
     );

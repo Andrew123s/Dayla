@@ -93,6 +93,49 @@ function deriveMoodTags({ trip, weatherDays, stats }) {
 }
 
 /**
+ * Story-driven milestones (Phase 4): quiet superlatives computed against the
+ * user's OWN history — no points, no badges, just lines for the story.
+ */
+function computeMilestones({ trip, stats, season, country, previous }) {
+  const lines = [];
+
+  if (previous.length === 0) {
+    lines.push('Your first Dayla story');
+  } else {
+    const maxDistance = Math.max(...previous.map((m) => (m.stats && m.stats.distanceKm) || 0));
+    if (stats.distanceKm > 0 && stats.distanceKm > maxDistance) {
+      lines.push('Your longest adventure yet');
+    }
+
+    const climbedHighBefore = previous.some((m) => ((m.stats && m.stats.elevationGainM) || 0) >= 1000);
+    if (stats.elevationGainM >= 1000 && !climbedHighBefore) {
+      lines.push('First time climbing 1,000 m in one trip');
+    }
+
+    const knownCountries = previous.map((m) => (m.country || '').toLowerCase()).filter(Boolean);
+    if (country && knownCountries.length && !knownCountries.includes(country.toLowerCase())) {
+      lines.push(`Your first story from ${country}`);
+    }
+
+    if (!previous.some((m) => m.season === season)) {
+      lines.push(`Your first ${season} story`);
+    }
+
+    const sharedBefore = previous.some((m) => ((m.stats && m.stats.companions) || 0) > 0);
+    if (stats.companions > 0 && !sharedBefore) {
+      lines.push('Your first shared story');
+    }
+
+    const greenestBefore = Math.max(...previous.map((m) => m.ecoScore || 0), 0);
+    if ((trip.ecoScore || 0) >= 70 && (trip.ecoScore || 0) > greenestBefore) {
+      lines.push('Your greenest trip yet');
+    }
+  }
+
+  return lines.slice(0, 3);
+}
+
+/**
  * Assemble (or refresh) the memory for a trip. Returns the Memory doc, or
  * null when the trip doesn't exist.
  * @param {string} tripId
@@ -156,6 +199,16 @@ async function assembleMemoryForTrip(tripId, { notify = false, io = null } = {})
     (trip.destination && trip.destination.name) || null
   );
 
+  const season = seasonOf(startDate ? new Date(startDate) : new Date());
+  const country = (trip.destination && trip.destination.country) || '';
+
+  // Milestones compare against the user's OTHER memories (exclude this trip's).
+  const previous = await Memory.find({
+    owner: trip.owner,
+    tripId: { $ne: trip._id },
+  }).select('stats season country ecoScore');
+  const milestones = computeMilestones({ trip, stats, season, country, previous });
+
   const doc = {
     tripId: trip._id,
     owner: trip.owner,
@@ -163,9 +216,12 @@ async function assembleMemoryForTrip(tripId, { notify = false, io = null } = {})
     status: 'ready',
     title: (trip.destination && trip.destination.name) || trip.name,
     coverPhoto: trip.coverImage || (media[0] && media[0].url) || null,
-    season: seasonOf(startDate ? new Date(startDate) : new Date()),
+    country,
+    ecoScore: trip.ecoScore || 0,
+    season,
     stats,
     moodTags: deriveMoodTags({ trip, weatherDays, stats }),
+    milestones,
     media,
     ...(geometry ? { routeGeometry: geometry } : {}),
     weatherDays,

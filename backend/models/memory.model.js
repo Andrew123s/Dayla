@@ -42,6 +42,10 @@ const memorySchema = new mongoose.Schema(
 
     title: { type: String, default: '' },
     coverPhoto: { type: String, default: null },
+    // Destination country — used by milestone comparisons (cross-border).
+    country: { type: String, default: '' },
+    // Trip eco score at completion — used by the "greenest yet" milestone.
+    ecoScore: { type: Number, default: 0 },
     season: {
       type: String,
       enum: ['spring', 'summer', 'autumn', 'winter'],
