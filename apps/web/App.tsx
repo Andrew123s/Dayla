@@ -123,7 +123,21 @@ const App: React.FC = () => {
       }
     };
 
-    checkAuthStatus();
+    // No stored token → there is no session to restore, so show the auth
+    // page IMMEDIATELY instead of blocking on the backend (a cold-started
+    // Render instance can take 30-60s to wake). Ping it in the background so
+    // it's warm by the time the user submits the login/register form.
+    if (!getAuthToken()) {
+      setIsLoading(false);
+      fetch(`${API_BASE_URL}/version`).catch(() => {});
+      return;
+    }
+
+    // A token exists: verify it, but never hold the UI hostage — after 4s
+    // fall through to the auth view and let the check finish in the
+    // background (the view flips to the dashboard if the session is valid).
+    const spinnerCap = setTimeout(() => setIsLoading(false), 4000);
+    checkAuthStatus().finally(() => clearTimeout(spinnerCap));
   }, []);
 
   // Toast shown after returning from Stripe checkout / billing portal.

@@ -127,7 +127,7 @@ class PikoRemoteDatasource {
   }
 
   Future<Map<String, dynamic>> getBoardByTrip(String tripId) async {
-    final response = await _dio.get('/api/board/by-trip/$tripId');
+    final response = await _dio.get('/api/boards/by-trip/$tripId');
     return response.data as Map<String, dynamic>;
   }
 }

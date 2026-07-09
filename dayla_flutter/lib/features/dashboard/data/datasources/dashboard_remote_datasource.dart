@@ -71,12 +71,12 @@ class DashboardRemoteDatasource {
   }
 
   Future<Map<String, dynamic>> getBoardByTrip(String tripId) async {
-    final response = await _dio.get('/api/board/by-trip/$tripId');
+    final response = await _dio.get('/api/boards/by-trip/$tripId');
     return response.data as Map<String, dynamic>;
   }
 
   Future<Map<String, dynamic>> getBoard(String boardId) async {
-    final response = await _dio.get('/api/board/$boardId');
+    final response = await _dio.get('/api/boards/$boardId');
     return response.data as Map<String, dynamic>;
   }
 
@@ -85,7 +85,7 @@ class DashboardRemoteDatasource {
     String email,
   ) async {
     final response = await _dio.post(
-      '/api/board/$boardId/invite',
+      '/api/boards/$boardId/invite',
       data: {'email': email},
     );
     return response.data as Map<String, dynamic>;

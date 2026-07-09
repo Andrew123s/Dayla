@@ -86,7 +86,9 @@ class DashboardRepository {
         return BoardModel.fromJson(boardJson as Map<String, dynamic>);
       }
       return null;
-    } on DioException {
+    } catch (_) {
+      // 404 (no board yet), auth errors, or an unexpected payload shape —
+      // the screen falls back to its no-board state either way.
       return null;
     }
   }

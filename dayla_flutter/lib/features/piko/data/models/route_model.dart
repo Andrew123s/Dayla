@@ -84,7 +84,7 @@ abstract class RouteCommentModel with _$RouteCommentModel {
 }
 
 /// A group plan (Dayla trip + dashboard) a route can be added to.
-/// Assembled client-side from `/api/trips` + `/api/board/by-trip`.
+/// Assembled client-side from `/api/trips` + `/api/boards/by-trip`.
 class PikoPlan {
   const PikoPlan({
     required this.tripId,

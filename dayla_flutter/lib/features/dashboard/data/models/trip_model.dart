@@ -152,6 +152,15 @@ abstract class BoardModel with _$BoardModel {
   static Map<String, dynamic> _normalizeId(Map<String, dynamic> json) {
     final copy = Map<String, dynamic>.from(json);
     copy['id'] ??= copy['_id'];
+    // Defensive: `name` may be absent on old boards; `tripId` may arrive
+    // populated as an object.
+    copy['name'] ??= 'Trip Board';
+    final tripId = copy['tripId'];
+    if (tripId is Map) {
+      copy['tripId'] = (tripId['_id'] ?? tripId['id']).toString();
+    } else {
+      copy['tripId'] = tripId?.toString() ?? '';
+    }
     return copy;
   }
 }

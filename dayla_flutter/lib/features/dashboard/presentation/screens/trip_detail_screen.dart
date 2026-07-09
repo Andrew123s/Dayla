@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 
 import 'package:image_picker/image_picker.dart';
 
+import 'package:dayla_flutter/core/constants/route_paths.dart';
 import 'package:dayla_flutter/core/network/socket_service.dart';
 import 'package:dayla_flutter/core/theme/app_colors.dart';
 import 'package:dayla_flutter/features/dashboard/application/providers/dashboard_providers.dart';
@@ -498,9 +499,9 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen>
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Tap + to drop sticky notes, photos and voice memos. '
-                        'Pinch to zoom, drag notes anywhere — your friends '
-                        'see changes live.',
+                        'Add notes, photos or voice memos from the toolbar '
+                        'below. Pinch to zoom, drag notes anywhere — your '
+                        'friends see changes live.',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                             fontSize: 12.5, color: Colors.grey.shade600),
@@ -511,36 +512,103 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen>
               ),
             ),
           ),
+        // Web-style board toolbar: create tools, then module shortcuts.
         Positioned(
-          bottom: 16,
-          right: 16,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              FloatingActionButton(
-                mini: true,
-                heroTag: 'board-view-toggle',
-                backgroundColor: Colors.white,
-                foregroundColor: AppColors.primary,
-                tooltip: _boardAsList ? 'Canvas view' : 'List view',
-                onPressed: () =>
-                    setState(() => _boardAsList = !_boardAsList),
-                child: Icon(
-                    _boardAsList ? Icons.grid_view : Icons.view_list),
+          left: 12,
+          right: 12,
+          bottom: 12,
+          child: Card(
+            elevation: 4,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    _toolbarItem(Icons.title, 'Note', _showAddNote),
+                    _toolbarItem(
+                        Icons.image_outlined, 'Image', _addImageNote),
+                    _toolbarItem(Icons.mic_outlined, 'Voice', _addVoiceNote),
+                    Container(
+                      width: 1,
+                      height: 34,
+                      margin: const EdgeInsets.symmetric(horizontal: 4),
+                      color: Colors.grey.shade300,
+                    ),
+                    _toolbarItem(
+                      Icons.account_balance_wallet_outlined,
+                      'Budget',
+                      () => context.push(
+                        '/trip/${_trip!.id}/budget?name=${Uri.encodeComponent(_trip!.name)}',
+                      ),
+                    ),
+                    _toolbarItem(
+                      Icons.terrain_outlined,
+                      'Trails',
+                      () => context.push(RoutePaths.piko),
+                    ),
+                    _toolbarItem(
+                      Icons.backpack_outlined,
+                      'Pack',
+                      () => context.push(
+                        '/trip/${_trip!.id}/packing?name=${Uri.encodeComponent(_trip!.name)}',
+                      ),
+                    ),
+                    _toolbarItem(
+                      Icons.eco_outlined,
+                      'Carbon',
+                      () => context.push(
+                        '/trip/${_trip!.id}/carbon?name=${Uri.encodeComponent(_trip!.name)}',
+                      ),
+                    ),
+                    Container(
+                      width: 1,
+                      height: 34,
+                      margin: const EdgeInsets.symmetric(horizontal: 4),
+                      color: Colors.grey.shade300,
+                    ),
+                    _toolbarItem(
+                      _boardAsList ? Icons.grid_view : Icons.view_list,
+                      _boardAsList ? 'Canvas' : 'List',
+                      () => setState(() => _boardAsList = !_boardAsList),
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(height: 10),
-              FloatingActionButton(
-                mini: true,
-                heroTag: 'board-add-note',
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                onPressed: _showAddNote,
-                child: const Icon(Icons.add),
-              ),
-            ],
+            ),
           ),
         ),
       ],
+    );
+  }
+
+  Widget _toolbarItem(IconData icon, String label, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 22, color: AppColors.primary),
+            const SizedBox(height: 2),
+            Text(
+              label.toUpperCase(),
+              style: TextStyle(
+                fontSize: 9,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.6,
+                color: Colors.grey.shade700,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

@@ -29,9 +29,48 @@ class BoardCanvas extends StatefulWidget {
 class _BoardCanvasState extends State<BoardCanvas> {
   // Local drag offsets so dragging is smooth without waiting for the server.
   final Map<String, Offset> _positions = {};
+  final _transform = TransformationController();
+  double _zoom = 1.0;
 
   Offset _positionOf(StickyNoteModel note) =>
       _positions[note.id] ?? Offset(note.x, note.y);
+
+  @override
+  void initState() {
+    super.initState();
+    _transform.addListener(() {
+      final scale = _transform.value.getMaxScaleOnAxis();
+      if ((scale - _zoom).abs() > 0.01) {
+        setState(() => _zoom = scale);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _transform.dispose();
+    super.dispose();
+  }
+
+  void _setZoom(double scale) {
+    final clamped = scale.clamp(0.35, 2.5);
+    // Zoom around the current viewport center.
+    final current = _transform.value.getMaxScaleOnAxis();
+    final factor = clamped / current;
+    final box = context.findRenderObject() as RenderBox?;
+    final center = box == null
+        ? Offset.zero
+        : Offset(box.size.width / 2, box.size.height / 2);
+    final m = _transform.value.clone()
+      ..translate(center.dx, center.dy)
+      ..scale(factor)
+      ..translate(-center.dx, -center.dy);
+    _transform.value = m;
+  }
+
+  void _resetView() {
+    _transform.value = Matrix4.identity();
+  }
 
   Size get _canvasSize {
     var maxX = 900.0;
@@ -48,45 +87,90 @@ class _BoardCanvasState extends State<BoardCanvas> {
   Widget build(BuildContext context) {
     final size = _canvasSize;
 
-    return InteractiveViewer(
-      constrained: false,
-      minScale: 0.35,
-      maxScale: 2.5,
-      boundaryMargin: const EdgeInsets.all(200),
-      child: SizedBox(
-        width: size.width,
-        height: size.height,
-        child: Stack(
-          children: [
-            Positioned.fill(
-              child: CustomPaint(painter: _GridPainter()),
-            ),
-            for (final note in widget.notes)
-              Positioned(
-                left: _positionOf(note).dx,
-                top: _positionOf(note).dy,
-                child: GestureDetector(
-                  onTap: () => widget.onTap(note),
-                  onLongPress: () => widget.onDelete(note),
-                  onPanUpdate: (details) {
-                    setState(() {
-                      final p = _positionOf(note) + details.delta;
-                      _positions[note.id] = Offset(
-                        p.dx.clamp(0, size.width - note.width),
-                        p.dy.clamp(0, size.height - note.height),
-                      );
-                    });
-                  },
-                  onPanEnd: (_) {
-                    final p = _positionOf(note);
-                    widget.onMove(note, p.dx, p.dy);
-                  },
-                  child: _NoteCard(note: note),
+    return Stack(
+      children: [
+        InteractiveViewer(
+          transformationController: _transform,
+          constrained: false,
+          minScale: 0.35,
+          maxScale: 2.5,
+          boundaryMargin: const EdgeInsets.all(200),
+          child: SizedBox(
+            width: size.width,
+            height: size.height,
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: CustomPaint(painter: _GridPainter()),
                 ),
-              ),
-          ],
+                for (final note in widget.notes)
+                  Positioned(
+                    left: _positionOf(note).dx,
+                    top: _positionOf(note).dy,
+                    child: GestureDetector(
+                      onTap: () => widget.onTap(note),
+                      onLongPress: () => widget.onDelete(note),
+                      onPanUpdate: (details) {
+                        setState(() {
+                          final p = _positionOf(note) + details.delta;
+                          _positions[note.id] = Offset(
+                            p.dx.clamp(0, size.width - note.width),
+                            p.dy.clamp(0, size.height - note.height),
+                          );
+                        });
+                      },
+                      onPanEnd: (_) {
+                        final p = _positionOf(note);
+                        widget.onMove(note, p.dx, p.dy);
+                      },
+                      child: _NoteCard(note: note),
+                    ),
+                  ),
+              ],
+            ),
+          ),
         ),
-      ),
+        // Zoom controls (mirrors the web board's +/−/% panel).
+        Positioned(
+          right: 12,
+          bottom: 100,
+          child: Card(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    visualDensity: VisualDensity.compact,
+                    icon: const Icon(Icons.add, size: 20),
+                    onPressed: () => _setZoom(_zoom * 1.25),
+                  ),
+                  Text(
+                    '${(_zoom * 100).round()}%',
+                    style: const TextStyle(
+                        fontSize: 11, fontWeight: FontWeight.w700),
+                  ),
+                  IconButton(
+                    visualDensity: VisualDensity.compact,
+                    icon: const Icon(Icons.remove, size: 20),
+                    onPressed: () => _setZoom(_zoom / 1.25),
+                  ),
+                  const Divider(height: 1, indent: 8, endIndent: 8),
+                  IconButton(
+                    visualDensity: VisualDensity.compact,
+                    tooltip: 'Reset view',
+                    icon: const Icon(Icons.crop_free, size: 18),
+                    onPressed: _resetView,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

@@ -45,19 +45,23 @@ class RouteCard extends StatelessWidget {
           children: [
             Stack(
               children: [
+                // Fixed 16:9 frame filled edge-to-edge so photos are never
+                // letterboxed or clipped to a partial width.
                 if (photo != null)
-                  CachedNetworkImage(
-                    imageUrl: photo,
-                    height: 160,
-                    fit: BoxFit.cover,
-                    placeholder: (_, __) => Container(
-                      height: 160,
-                      color: AppColors.sage.withValues(alpha: 0.2),
+                  AspectRatio(
+                    aspectRatio: 16 / 9,
+                    child: CachedNetworkImage(
+                      imageUrl: photo,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                      placeholder: (_, __) => Container(
+                        color: AppColors.sage.withValues(alpha: 0.2),
+                      ),
+                      errorWidget: (_, __, ___) => _fallback(),
                     ),
-                    errorWidget: (_, __, ___) => _fallback(),
                   )
                 else if (route.geometry != null)
-                  RouteMiniMap(geometry: route.geometry, height: 160)
+                  RouteMiniMap(geometry: route.geometry, height: 180)
                 else
                   _fallback(),
                 Positioned(

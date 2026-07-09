@@ -148,6 +148,15 @@ const Landing: React.FC = () => {
   const [scrolled, setScrolled] = useState(false);
   const [activeTab, setActiveTab] = useState<TabId>('plan');
 
+  // Warm up the API while the visitor reads the landing page — Render free
+  // instances cold-start in ~30-60s, and this makes "Get Started" → sign-in
+  // feel instant instead of hitting a sleeping backend.
+  useEffect(() => {
+    import('../lib/api')
+      .then(({ API_BASE_URL }) => fetch(`${API_BASE_URL}/version`))
+      .catch(() => {/* best effort */});
+  }, []);
+
   // Nav elevation follows the landing scroll container (body is overflow:hidden).
   useEffect(() => {
     const el = rootRef.current;
