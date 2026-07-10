@@ -11,6 +11,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:dayla_flutter/core/constants/route_paths.dart';
 import 'package:dayla_flutter/core/network/socket_service.dart';
 import 'package:dayla_flutter/core/theme/app_colors.dart';
+import 'package:dayla_flutter/features/auth/application/providers/auth_session_provider.dart';
 import 'package:dayla_flutter/features/dashboard/application/providers/dashboard_providers.dart';
 import 'package:dayla_flutter/features/dashboard/data/models/trip_model.dart';
 import 'package:dayla_flutter/features/dashboard/presentation/widgets/board_canvas.dart';
@@ -37,6 +38,12 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen>
   BoardModel? _board;
   bool _loading = true;
   bool _boardAsList = false;
+
+  /// Sticky-note palette, shared by the create and edit dialogs.
+  static const _notePalette = [
+    '#faedcd', '#fefae0', '#e9edc9', '#ccd5ae', '#d8e2dc', '#f8edeb',
+    '#ffd7ba', '#fec89a', '#cdeac0', '#bde0fe', '#e2cfea', '#f4acb7',
+  ];
   // Live presence: who else has this board open right now (socket-driven).
   final Map<String, String> _activeUsers = {};
 
@@ -87,8 +94,14 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen>
   }
 
   void _handleBoardChanged(dynamic data) {
-    // A collaborator changed the board (note edit / route added) — reload.
-    if (mounted) _loadData();
+    if (!mounted) return;
+    // Skip our own echoes — the local flow already reloaded; reloading again
+    // mid-gesture makes dragging feel jumpy.
+    final byUser = data is Map ? data['updatedBy'] ?? data['deletedBy'] : null;
+    final byId = byUser is Map ? byUser['userId']?.toString() : null;
+    final myId = ref.read(authSessionProvider).user?.id;
+    if (byId != null && myId != null && byId == myId) return;
+    _loadData();
   }
 
   @override
@@ -726,9 +739,7 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen>
     }
     final contentCtrl = TextEditingController(text: note.content);
     String color = note.color;
-    const palette = [
-      '#faedcd', '#e9edc9', '#ccd5ae', '#fefae0', '#f8edeb', '#d8e2dc',
-    ];
+    const palette = _notePalette;
     showDialog(
       context: context,
       builder: (ctx) {
@@ -1160,6 +1171,7 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen>
   void _showAddNote() {
     final contentCtrl = TextEditingController();
     String noteType = 'text';
+    String noteColor = _notePalette.first;
     showDialog(
       context: context,
       builder: (ctx) {
@@ -1184,7 +1196,43 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen>
                           ))
                       .toList(),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 10),
+                // Color picker
+                SizedBox(
+                  height: 34,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    children: [
+                      for (final c in _notePalette)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: GestureDetector(
+                            onTap: () =>
+                                setDialogState(() => noteColor = c),
+                            child: Container(
+                              width: 30,
+                              height: 30,
+                              decoration: BoxDecoration(
+                                color: _parseColor(c),
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: noteColor == c
+                                      ? AppColors.primary
+                                      : Colors.grey.shade300,
+                                  width: noteColor == c ? 2.5 : 1,
+                                ),
+                              ),
+                              child: noteColor == c
+                                  ? const Icon(Icons.check,
+                                      size: 16, color: AppColors.primary)
+                                  : null,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 4),
                 Row(
                   children: [
                     Expanded(
@@ -1236,6 +1284,7 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen>
                             await repo.createStickyNote(widget.tripId, {
                           'content': contentCtrl.text.trim(),
                           'type': noteType,
+                          'color': noteColor,
                           'width': 220,
                           'height': 170,
                           ..._nextNotePosition(),

@@ -158,7 +158,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              _isLogin ? 'Welcome Back' : 'Create Account',
+              _isLogin ? 'Ready.Set.Go' : 'Create Account',
               textAlign: TextAlign.center,
               style: const TextStyle(
                 color: Colors.white,

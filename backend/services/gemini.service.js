@@ -4,12 +4,63 @@ const logger = require('../utils/logger');
 
 // Initialize Gemini AI
 const genAI = new GoogleGenerativeAI(config.googleAI.apiKey);
-// gemini-1.5-flash was retired for new API projects (late 2025) and 404s on
-// fresh keys — killing Compass and smart packing. Default to a current model;
-// override with GEMINI_MODEL when Google moves the line again.
-const model = genAI.getGenerativeModel({
-  model: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
-});
+
+// ── Evergreen model resolution ───────────────────────────────────────────────
+// Google keeps retiring named models for new API keys (1.5-flash, then
+// 2.5-flash both 404 with "no longer available to new users"). Chasing names
+// is a losing game, so:
+//   1. use GEMINI_MODEL when explicitly set,
+//   2. otherwise try the evergreen alias gemini-flash-latest,
+//   3. on a model-availability error, ask ListModels which generateContent
+//      models THIS key can actually use and pick the best flash one.
+// The winner is cached for the process lifetime.
+let resolvedModelName = process.env.GEMINI_MODEL || 'gemini-flash-latest';
+
+async function discoverModelName() {
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(config.googleAI.apiKey)}&pageSize=200`
+  );
+  if (!res.ok) throw new Error(`ListModels failed (${res.status})`);
+  const data = await res.json();
+  const usable = (data.models || []).filter((m) =>
+    (m.supportedGenerationMethods || []).includes('generateContent')
+  );
+  const score = (raw) => {
+    const n = raw.toLowerCase();
+    let s = 0;
+    const v = n.match(/gemini-(\d+(?:\.\d+)?)/);
+    if (v) s += parseFloat(v[1]) * 100;
+    if (n.includes('flash')) s += 30;
+    if (n.includes('latest')) s += 20;
+    if (n.includes('lite')) s -= 5;
+    if (n.includes('preview') || n.includes('exp')) s -= 10;
+    if (/tts|image|audio|embed|live|thinking/.test(n)) s -= 1000;
+    return s;
+  };
+  usable.sort((a, b) => score(b.name) - score(a.name));
+  if (!usable.length) throw new Error('No Gemini model with generateContent is available for this API key');
+  return usable[0].name.replace(/^models\//, '');
+}
+
+const isModelGoneError = (e) =>
+  /404|not found|no longer available|not supported/i.test((e && e.message) || '');
+
+/** Run generateContent with automatic model fallback + discovery. */
+async function generate(prompt) {
+  try {
+    const m = genAI.getGenerativeModel({ model: resolvedModelName });
+    return await m.generateContent(prompt);
+  } catch (e) {
+    if (!isModelGoneError(e)) throw e;
+    logger.warn(`Gemini model "${resolvedModelName}" unavailable — discovering a replacement`);
+    const discovered = await discoverModelName();
+    logger.info(`Gemini model discovered: ${discovered}`);
+    const m = genAI.getGenerativeModel({ model: discovered });
+    const result = await m.generateContent(prompt);
+    resolvedModelName = discovered; // cache only after success
+    return result;
+  }
+}
 
 // Generate trip planning suggestions
 const generateTripPlan = async (tripData) => {
@@ -84,7 +135,7 @@ Format the response as a JSON object with the following structure:
 }
 `;
 
-    const result = await model.generateContent(prompt);
+    const result = await generate(prompt);
     const response = await result.response;
     const text = response.text();
 
@@ -126,7 +177,7 @@ Format as JSON:
 }
 `;
 
-    const result = await model.generateContent(prompt);
+    const result = await generate(prompt);
     const response = await result.response;
     const text = response.text();
 
@@ -206,7 +257,7 @@ Format as JSON:
 }
 `;
 
-    const result = await model.generateContent(prompt);
+    const result = await generate(prompt);
     const response = await result.response;
     const text = response.text();
 
@@ -260,7 +311,7 @@ Format as JSON:
 }
 `;
 
-    const result = await model.generateContent(prompt);
+    const result = await generate(prompt);
     const response = await result.response;
     const text = response.text();
 
@@ -324,7 +375,7 @@ Format as JSON:
 }
 `;
 
-    const result = await model.generateContent(prompt);
+    const result = await generate(prompt);
     const response = await result.response;
     const text = response.text();
 
@@ -390,7 +441,7 @@ Format as JSON:
 }
 `;
 
-    const result = await model.generateContent(prompt);
+    const result = await generate(prompt);
     const response = await result.response;
     const text = response.text();
 
