@@ -234,6 +234,9 @@ const draftTrip = async (req, res) => {
       message: notConfigured
         ? 'Compass is not available right now (AI service not configured).'
         : 'Compass could not draft this trip. Try again in a moment.',
+      // Underlying cause (model errors, quota) — shown in logs/clients so
+      // failures are diagnosable instead of a blank shrug.
+      detail: (error.message || '').slice(0, 300),
     });
   }
 };

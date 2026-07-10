@@ -393,6 +393,18 @@ const createStickyNote = async (req, res) => {
       $set: { lastModified: new Date() },
     });
 
+    // Live boards refresh for everyone in the room (REST creates previously
+    // never broadcast, so collaborators only saw new notes after a manual
+    // refresh).
+    try {
+      req.app.get('io')?.to(dashboard._id.toString()).emit('note_updated', {
+        noteId: noteData.id,
+        created: true,
+        updatedBy: { userId: req.user._id, userName: req.user.name },
+        timestamp: new Date(),
+      });
+    } catch (_) { /* socket optional */ }
+
     res.status(201).json({
       success: true,
       message: 'Sticky note created successfully',
@@ -457,6 +469,15 @@ const updateStickyNote = async (req, res) => {
       { new: true }
     );
 
+    try {
+      req.app.get('io')?.to(dashboard._id.toString()).emit('note_updated', {
+        noteId: req.params.noteId,
+        updates: req.body,
+        updatedBy: { userId: req.user._id, userName: req.user.name },
+        timestamp: new Date(),
+      });
+    } catch (_) { /* socket optional */ }
+
     res.status(200).json({
       success: true,
       message: 'Sticky note updated successfully',
@@ -502,6 +523,14 @@ const deleteStickyNote = async (req, res) => {
       $pull: { notes: { id: req.params.noteId } },
       $set: { lastModified: new Date() },
     });
+
+    try {
+      req.app.get('io')?.to(dashboard._id.toString()).emit('note_deleted', {
+        noteId: req.params.noteId,
+        deletedBy: { userId: req.user._id, userName: req.user.name },
+        timestamp: new Date(),
+      });
+    } catch (_) { /* socket optional */ }
 
     res.status(200).json({
       success: true,
