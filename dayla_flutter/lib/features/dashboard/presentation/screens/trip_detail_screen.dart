@@ -1057,7 +1057,7 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen>
     }
     final pos = _nextNotePosition();
     await repo.createStickyNote(widget.tripId, {
-      'content': '',
+      'content': 'Voice memo',
       'type': 'voice',
       'audioUrl': url,
       'width': 200,
@@ -1232,13 +1232,26 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen>
                         if (contentCtrl.text.trim().isEmpty) return;
                         setDialogState(() => saving = true);
                         final repo = ref.read(dashboardRepositoryProvider);
-                        await repo.createStickyNote(widget.tripId, {
+                        final ok =
+                            await repo.createStickyNote(widget.tripId, {
                           'content': contentCtrl.text.trim(),
                           'type': noteType,
+                          'width': 220,
+                          'height': 170,
                           ..._nextNotePosition(),
                         });
-                        _loadData();
-                        if (ctx.mounted) Navigator.pop(ctx);
+                        if (ok) {
+                          _loadData();
+                          if (ctx.mounted) Navigator.pop(ctx);
+                        } else {
+                          setDialogState(() => saving = false);
+                          if (ctx.mounted) {
+                            ScaffoldMessenger.of(ctx).showSnackBar(
+                                const SnackBar(
+                                    content: Text(
+                                        'Could not add the note — try again')));
+                          }
+                        }
                       },
                 style: FilledButton.styleFrom(
                     backgroundColor: AppColors.primary),

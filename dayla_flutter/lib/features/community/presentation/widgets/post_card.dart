@@ -140,33 +140,70 @@ class _PostCardState extends ConsumerState<PostCard> {
             ),
           if (post.images.isNotEmpty) ...[
             const SizedBox(height: 10),
-            SizedBox(
-              height: 200,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
+            // Photos display uncropped: a single image keeps its natural
+            // aspect ratio at full width; multiple images scroll
+            // horizontally, each letterboxed (contain) rather than cropped.
+            if (post.images.length == 1)
+              Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                itemCount: post.images.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 8),
-                itemBuilder: (_, i) => ClipRRect(
+                child: ClipRRect(
                   borderRadius: BorderRadius.circular(12),
                   child: CachedNetworkImage(
-                    imageUrl: post.images[i].url,
-                    width: 200,
-                    fit: BoxFit.cover,
-                    placeholder: (_, __) => Container(
-                      width: 200,
-                      color: Colors.grey.shade200,
-                      child: const Center(child: CircularProgressIndicator()),
+                    imageUrl: post.images.first.url,
+                    width: double.infinity,
+                    fit: BoxFit.fitWidth,
+                    placeholder: (_, __) => AspectRatio(
+                      aspectRatio: 4 / 3,
+                      child: Container(
+                        color: Colors.grey.shade200,
+                        child: const Center(
+                            child: CircularProgressIndicator()),
+                      ),
                     ),
-                    errorWidget: (_, __, ___) => Container(
-                      width: 200,
-                      color: Colors.grey.shade200,
-                      child: const Icon(Icons.broken_image),
+                    errorWidget: (_, __, ___) => AspectRatio(
+                      aspectRatio: 4 / 3,
+                      child: Container(
+                        color: Colors.grey.shade200,
+                        child: const Icon(Icons.broken_image),
+                      ),
+                    ),
+                  ),
+                ),
+              )
+            else
+              SizedBox(
+                height: 240,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  itemCount: post.images.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 8),
+                  itemBuilder: (_, i) => ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      color: Colors.grey.shade100,
+                      constraints: const BoxConstraints(
+                          minWidth: 140, maxWidth: 300),
+                      child: CachedNetworkImage(
+                        imageUrl: post.images[i].url,
+                        height: 240,
+                        fit: BoxFit.contain,
+                        placeholder: (_, __) => Container(
+                          width: 200,
+                          color: Colors.grey.shade200,
+                          child: const Center(
+                              child: CircularProgressIndicator()),
+                        ),
+                        errorWidget: (_, __, ___) => Container(
+                          width: 200,
+                          color: Colors.grey.shade200,
+                          child: const Icon(Icons.broken_image),
+                        ),
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
           ],
           if (post.tags.isNotEmpty)
             Padding(

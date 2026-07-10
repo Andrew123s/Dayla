@@ -47,6 +47,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       appBar: AppBar(
         title: const Text('Profile'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.auto_awesome),
+            tooltip: 'Memories — your trips, retold as stories',
+            onPressed: () => context.push(RoutePaths.memories),
+          ),
           if (unreadCount > 0 || _pendingRequests.isNotEmpty)
             Badge(
               label: Text('${unreadCount + _pendingRequests.length}'),
@@ -937,18 +942,6 @@ class _SettingsSheet extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          ListTile(
-            leading:
-                const Icon(Icons.auto_awesome, color: AppColors.primary),
-            title: const Text('Memories'),
-            subtitle: const Text('Your trips, retold as stories'),
-            trailing: const Icon(Icons.chevron_right, size: 20),
-            onTap: () {
-              Navigator.pop(context);
-              context.push(RoutePaths.memories);
-            },
-          ),
-          const Divider(),
           ListTile(
             leading: const Icon(Icons.workspace_premium_outlined,
                 color: AppColors.primary),

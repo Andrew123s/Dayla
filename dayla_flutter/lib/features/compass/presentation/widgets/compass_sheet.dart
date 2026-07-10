@@ -65,6 +65,12 @@ class _CompassSheetState extends ConsumerState<CompassSheet> {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text(e.message)));
       }
+    } catch (_) {
+      // Whatever happens, never leave the button stuck on "drafting".
+      if (!mounted) return;
+      setState(() => _drafting = false);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Compass could not draft this trip. Try again.')));
     }
   }
 

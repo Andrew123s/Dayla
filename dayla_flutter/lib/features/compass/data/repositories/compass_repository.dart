@@ -42,11 +42,20 @@ class CompassRepository {
     required List<String> interests,
   }) async {
     try {
-      final response = await _dio.post('/api/compass/draft', data: {
-        'tripId': tripId,
-        'vibe': vibe,
-        'interests': interests,
-      });
+      final response = await _dio.post(
+        '/api/compass/draft',
+        data: {
+          'tripId': tripId,
+          'vibe': vibe,
+          'interests': interests,
+        },
+        // One Gemini round-trip + a possibly cold backend: give the draft
+        // more room than the default 30s before declaring failure.
+        options: Options(
+          receiveTimeout: const Duration(seconds: 90),
+          sendTimeout: const Duration(seconds: 30),
+        ),
+      );
       final data = response.data['data'] as Map? ?? {};
       return CompassDraft(
         notesAdded: (data['notesAdded'] as num?)?.toInt() ?? 0,

@@ -4,7 +4,12 @@ const logger = require('../utils/logger');
 
 // Initialize Gemini AI
 const genAI = new GoogleGenerativeAI(config.googleAI.apiKey);
-const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+// gemini-1.5-flash was retired for new API projects (late 2025) and 404s on
+// fresh keys — killing Compass and smart packing. Default to a current model;
+// override with GEMINI_MODEL when Google moves the line again.
+const model = genAI.getGenerativeModel({
+  model: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
+});
 
 // Generate trip planning suggestions
 const generateTripPlan = async (tripData) => {

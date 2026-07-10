@@ -372,8 +372,19 @@ const createStickyNote = async (req, res) => {
       });
     }
 
+    // Defaults for schema-required fields so a minimal client payload
+    // ({content, type}) can never fail validation and vanish silently.
+    const typeContentFallback = { voice: 'Voice memo', image: 'Photo' };
     const noteData = {
+      x: 40,
+      y: 40,
+      width: 220,
+      height: 170,
       ...req.body,
+      content:
+        (req.body.content && String(req.body.content).trim()) ||
+        typeContentFallback[req.body.type] ||
+        'Note',
       id: req.body.id || Math.random().toString(36).substr(2, 9),
     };
 
