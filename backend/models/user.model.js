@@ -54,6 +54,11 @@ const userSchema = new mongoose.Schema({
     type: String,
     select: false
   }],
+  // Dayla Compass: first AI draft is free, then Pro (see compass.controller).
+  compassDraftsUsed: {
+    type: Number,
+    default: 0
+  },
   friendRequests: [{
     from: {
       type: mongoose.Schema.Types.ObjectId,

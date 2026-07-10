@@ -15,6 +15,7 @@ import 'package:dayla_flutter/features/dashboard/application/providers/dashboard
 import 'package:dayla_flutter/features/dashboard/data/models/trip_model.dart';
 import 'package:dayla_flutter/features/dashboard/presentation/widgets/board_canvas.dart';
 import 'package:dayla_flutter/features/dashboard/presentation/widgets/voice_memo_sheet.dart';
+import 'package:dayla_flutter/features/compass/presentation/widgets/compass_sheet.dart';
 import 'package:dayla_flutter/features/memories/application/providers/memory_providers.dart';
 
 class TripDetailScreen extends ConsumerStatefulWidget {
@@ -562,6 +563,17 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen>
                 scrollDirection: Axis.horizontal,
                 child: Row(
                   children: [
+                    _toolbarItem(Icons.explore_outlined, 'Compass', () async {
+                      final drafted = await CompassSheet.show(context,
+                          tripId: widget.tripId);
+                      if (drafted == true) _loadData();
+                    }),
+                    Container(
+                      width: 1,
+                      height: 34,
+                      margin: const EdgeInsets.symmetric(horizontal: 4),
+                      color: Colors.grey.shade300,
+                    ),
                     _toolbarItem(Icons.title, 'Note', _showAddNote),
                     _toolbarItem(
                         Icons.image_outlined, 'Image', _addImageNote),
