@@ -11,6 +11,7 @@ import 'package:dayla_flutter/features/billing/presentation/screens/pricing_scre
 import 'package:dayla_flutter/features/memories/presentation/screens/memories_screen.dart';
 import 'package:dayla_flutter/features/memories/presentation/screens/memory_detail_screen.dart';
 import 'package:dayla_flutter/features/memories/presentation/screens/memory_replay_screen.dart';
+import 'package:dayla_flutter/features/offline/presentation/screens/offline_pack_screen.dart';
 import 'package:dayla_flutter/features/chat/presentation/screens/chat_screen.dart';
 import 'package:dayla_flutter/features/community/presentation/screens/community_screen.dart';
 import 'package:dayla_flutter/features/dashboard/presentation/screens/dashboard_screen.dart';
@@ -152,6 +153,12 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         path: RoutePaths.memoryReplay,
         builder: (context, state) => MemoryReplayScreen(
           memoryId: state.pathParameters['memoryId']!,
+        ),
+      ),
+      GoRoute(
+        path: RoutePaths.offlinePack,
+        builder: (context, state) => OfflinePackScreen(
+          tripId: state.pathParameters['tripId']!,
         ),
       ),
       GoRoute(

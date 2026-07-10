@@ -22,4 +22,5 @@ abstract final class RoutePaths {
   static const memories = '/memories';
   static const memoryDetail = '/memories/:memoryId';
   static const memoryReplay = '/memories/:memoryId/replay';
+  static const offlinePack = '/trip/:tripId/offline';
 }

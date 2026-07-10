@@ -15,8 +15,11 @@ import 'package:dayla_flutter/features/dashboard/application/providers/dashboard
 import 'package:dayla_flutter/features/dashboard/data/models/trip_model.dart';
 import 'package:dayla_flutter/features/dashboard/presentation/widgets/board_canvas.dart';
 import 'package:dayla_flutter/features/dashboard/presentation/widgets/voice_memo_sheet.dart';
+import 'package:dayla_flutter/features/billing/data/models/billing_models.dart';
+import 'package:dayla_flutter/features/billing/presentation/widgets/pro_gate.dart';
 import 'package:dayla_flutter/features/compass/presentation/widgets/compass_sheet.dart';
 import 'package:dayla_flutter/features/memories/application/providers/memory_providers.dart';
+import 'package:dayla_flutter/features/offline/data/offline_pack_service.dart';
 
 class TripDetailScreen extends ConsumerStatefulWidget {
   const TripDetailScreen({super.key, required this.tripId});
@@ -171,6 +174,10 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen>
                       content: Text('Could not create the memory')));
                 }
               }
+              if (action == 'offline') {
+                await _downloadOfflinePack();
+              }
+              if (!context.mounted) return;
               if (action == 'delete') {
                 final confirm = await showDialog<bool>(
                   context: context,
@@ -211,6 +218,17 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen>
                     ],
                   ),
                 ),
+              const PopupMenuItem(
+                value: 'offline',
+                child: Row(
+                  children: [
+                    Icon(Icons.download_for_offline_outlined,
+                        color: AppColors.primary, size: 20),
+                    SizedBox(width: 8),
+                    Text('Offline pack'),
+                  ],
+                ),
+              ),
               const PopupMenuItem(
                 value: 'delete',
                 child: Row(
@@ -949,6 +967,65 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen>
         );
       },
     );
+  }
+
+  /// Offline Adventure Pack (Pro): download the trip's data + map tiles
+  /// on-device, or open the pack when it already exists.
+  Future<void> _downloadOfflinePack() async {
+    final service = ref.read(offlinePackServiceProvider);
+
+    if (await service.hasPack(widget.tripId)) {
+      if (mounted) {
+        context.push('/trip/${widget.tripId}/offline');
+      }
+      return;
+    }
+
+    if (!mounted ||
+        !ProGate.check(context, ref,
+            featureKey: ProFeatures.trailsCreate,
+            featureLabel: 'Offline Adventure Packs')) {
+      return;
+    }
+
+    final progress = ValueNotifier<(double, String)>((0, 'Starting…'));
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        title: const Text('Downloading offline pack'),
+        content: ValueListenableBuilder<(double, String)>(
+          valueListenable: progress,
+          builder: (_, value, __) => Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              LinearProgressIndicator(
+                  value: value.$1, color: AppColors.primary),
+              const SizedBox(height: 12),
+              Text(value.$2, style: const TextStyle(fontSize: 13)),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    try {
+      await service.downloadPack(
+        widget.tripId,
+        onProgress: (f, label) => progress.value = (f, label),
+      );
+      if (mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+        context.push('/trip/${widget.tripId}/offline');
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content:
+                Text('Download failed — check your connection and retry')));
+      }
+    }
   }
 
   // New notes land in a loose grid near the canvas origin instead of
