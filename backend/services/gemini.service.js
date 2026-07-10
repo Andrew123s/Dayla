@@ -16,7 +16,7 @@ const genAI = new GoogleGenerativeAI(config.googleAI.apiKey);
 // The winner is cached for the process lifetime.
 let resolvedModelName = process.env.GEMINI_MODEL || 'gemini-flash-latest';
 
-async function discoverModelName() {
+async function discoverModelNames() {
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(config.googleAI.apiKey)}&pageSize=200`
   );
@@ -39,26 +39,59 @@ async function discoverModelName() {
   };
   usable.sort((a, b) => score(b.name) - score(a.name));
   if (!usable.length) throw new Error('No Gemini model with generateContent is available for this API key');
-  return usable[0].name.replace(/^models\//, '');
+  return usable.map((m) => m.name.replace(/^models\//, ''));
+}
+
+async function discoverModelName() {
+  return (await discoverModelNames())[0];
 }
 
 const isModelGoneError = (e) =>
   /404|not found|no longer available|not supported/i.test((e && e.message) || '');
 
-/** Run generateContent with automatic model fallback + discovery. */
+// Per-model capacity spikes ("high demand", 503/429/overloaded) are common
+// on the shared endpoints — retry, then fall back to a different model.
+const isBusyError = (e) =>
+  /503|429|high demand|overloaded|resource.?exhausted|try again later/i.test((e && e.message) || '');
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Run generateContent resiliently:
+ *  - model retired → discover a replacement via ListModels
+ *  - model busy    → brief retry, then try the next-best DIFFERENT model
+ */
 async function generate(prompt) {
+  const tryModel = (name) =>
+    genAI.getGenerativeModel({ model: name }).generateContent(prompt);
+
   try {
-    const m = genAI.getGenerativeModel({ model: resolvedModelName });
-    return await m.generateContent(prompt);
-  } catch (e) {
-    if (!isModelGoneError(e)) throw e;
-    logger.warn(`Gemini model "${resolvedModelName}" unavailable — discovering a replacement`);
-    const discovered = await discoverModelName();
-    logger.info(`Gemini model discovered: ${discovered}`);
-    const m = genAI.getGenerativeModel({ model: discovered });
-    const result = await m.generateContent(prompt);
-    resolvedModelName = discovered; // cache only after success
-    return result;
+    return await tryModel(resolvedModelName);
+  } catch (first) {
+    if (isModelGoneError(first)) {
+      logger.warn(`Gemini model "${resolvedModelName}" unavailable — discovering a replacement`);
+      const discovered = await discoverModelName();
+      logger.info(`Gemini model discovered: ${discovered}`);
+      const result = await tryModel(discovered);
+      resolvedModelName = discovered; // cache only after success
+      return result;
+    }
+    if (isBusyError(first)) {
+      logger.warn(`Gemini "${resolvedModelName}" busy — retrying once`);
+      await sleep(2500);
+      try {
+        return await tryModel(resolvedModelName);
+      } catch (second) {
+        if (!isBusyError(second) && !isModelGoneError(second)) throw second;
+        // Still busy: shift load to a different capable model.
+        const alternates = await discoverModelNames();
+        const alt = alternates.find((n) => n !== resolvedModelName);
+        if (!alt) throw second;
+        logger.warn(`Gemini still busy — falling back to "${alt}"`);
+        return await tryModel(alt);
+      }
+    }
+    throw first;
   }
 }
 
