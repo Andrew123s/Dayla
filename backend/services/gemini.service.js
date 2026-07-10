@@ -83,9 +83,15 @@ async function generate(prompt) {
         return await tryModel(resolvedModelName);
       } catch (second) {
         if (!isBusyError(second) && !isModelGoneError(second)) throw second;
-        // Still busy: shift load to a different capable model.
+        // Still busy: shift to a DIFFERENT capacity pool. "-latest" aliases
+        // resolve to the same underlying model, so prefer a lite variant
+        // (separate pool) over the next headline model.
         const alternates = await discoverModelNames();
-        const alt = alternates.find((n) => n !== resolvedModelName);
+        const notCurrent = (n) =>
+          n !== resolvedModelName && !n.includes('latest');
+        const alt =
+          alternates.find((n) => notCurrent(n) && n.includes('lite')) ||
+          alternates.find(notCurrent);
         if (!alt) throw second;
         logger.warn(`Gemini still busy — falling back to "${alt}"`);
         return await tryModel(alt);

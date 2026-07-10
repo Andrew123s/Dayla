@@ -228,15 +228,19 @@ const draftTrip = async (req, res) => {
     });
   } catch (error) {
     logger.error('Compass draft error:', error);
-    const notConfigured = /api key|API_KEY|not configured/i.test(error.message || '');
-    res.status(notConfigured ? 503 : 500).json({
+    const msg = error.message || '';
+    const notConfigured = /api key|API_KEY|not configured/i.test(msg);
+    const busy = /503|high demand|overloaded|429|try again later/i.test(msg);
+    res.status(notConfigured || busy ? 503 : 500).json({
       success: false,
       message: notConfigured
         ? 'Compass is not available right now (AI service not configured).'
-        : 'Compass could not draft this trip. Try again in a moment.',
+        : busy
+          ? 'The AI service is very busy right now — give it a minute and tap Draft again.'
+          : 'Compass could not draft this trip. Try again in a moment.',
       // Underlying cause (model errors, quota) — shown in logs/clients so
       // failures are diagnosable instead of a blank shrug.
-      detail: (error.message || '').slice(0, 300),
+      detail: msg.slice(0, 300),
     });
   }
 };
