@@ -5,7 +5,7 @@ import { API_BASE_URL, authFetch } from '../lib/api';
 import { BillingSection } from './billing/BillingSection';
 import { AdminMetricsPanel } from './billing/AdminMetricsPanel';
 import {
-  Settings, LogOut, Edit3, Camera, Map, Award, Users, X, Save,
+  Settings, LogOut, Edit3, Camera, Map, Award, Users, X, Save, Sparkles,
   Bell, Shield, Moon, Globe, ChevronRight, Loader, Check, AlertCircle,
   MapPin, Calendar, Heart, Image as ImageIcon, Search, UserPlus, MessageCircle
 } from 'lucide-react';
@@ -13,6 +13,8 @@ import {
 interface ProfileViewProps {
   user: User;
   onLogout: () => void;
+  /** Opens the Mriz memories overlay (owned by App). */
+  onOpenMemories?: () => void;
 }
 
 interface UserStats {
@@ -28,7 +30,7 @@ interface VisitedPlace {
   image?: string;
 }
 
-const ProfileView: React.FC<ProfileViewProps> = ({ user, onLogout }) => {
+const ProfileView: React.FC<ProfileViewProps> = ({ user, onLogout, onOpenMemories }) => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showFriendsModal, setShowFriendsModal] = useState(false);
@@ -344,7 +346,16 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onLogout }) => {
           </div>
         </div>
         <div className="absolute top-4 right-4 flex gap-2">
-          <button 
+          {onOpenMemories && (
+            <button
+              onClick={onOpenMemories}
+              title="Memories — your trips, retold as stories"
+              className="p-2 bg-white/20 backdrop-blur rounded-full text-white hover:bg-white/30 transition-colors active:scale-95"
+            >
+              <Sparkles size={20} />
+            </button>
+          )}
+          <button
             onClick={() => setShowSettingsModal(true)}
             className="p-2 bg-white/20 backdrop-blur rounded-full text-white hover:bg-white/30 transition-colors active:scale-95"
           >

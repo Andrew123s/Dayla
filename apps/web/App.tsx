@@ -18,6 +18,7 @@ const Dashboard = lazy(() => import('./components/Dashboard'));
 const Community = lazy(() => import('./components/Community'));
 const ChatView = lazy(() => import('./components/ChatView'));
 const ProfileView = lazy(() => import('./components/ProfileView'));
+const MemoriesOverlay = lazy(() => import('./features/mriz/MemoriesOverlay'));
 
 const ViewFallback: React.FC = () => (
   <div className="w-full h-full flex items-center justify-center">
@@ -63,6 +64,10 @@ const App: React.FC = () => {
   const [unreadNotifCount, setUnreadNotifCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
   const [processingRequestId, setProcessingRequestId] = useState<string | null>(null);
+
+  // Mriz memories overlay; a memory id deep-links straight to its story card.
+  const [memoriesOpen, setMemoriesOpen] = useState(false);
+  const [memoryDeepLink, setMemoryDeepLink] = useState<string | null>(null);
 
   // Check for verification token or invitation in URL
   useEffect(() => {
@@ -477,7 +482,22 @@ const App: React.FC = () => {
           {view === 'dashboard' && <Dashboard user={currentUser!} />}
           {view === 'community' && <Community user={currentUser!} onFriendRequestSent={fetchPendingFriendRequests} />}
           {view === 'chat' && <ChatView user={currentUser!} />}
-          {view === 'profile' && <ProfileView user={currentUser!} onLogout={handleLogout} />}
+          {view === 'profile' && (
+            <ProfileView
+              user={currentUser!}
+              onLogout={handleLogout}
+              onOpenMemories={() => setMemoriesOpen(true)}
+            />
+          )}
+          {memoriesOpen && (
+            <MemoriesOverlay
+              initialMemoryId={memoryDeepLink}
+              onClose={() => {
+                setMemoriesOpen(false);
+                setMemoryDeepLink(null);
+              }}
+            />
+          )}
         </Suspense>
       </main>
 
@@ -632,6 +652,9 @@ const App: React.FC = () => {
                         setInvitationId((notif as any).invitationId);
                       } else if (notif.type === 'board_join' || notif.type === 'board_invite') {
                         setView('dashboard');
+                      } else if (notif.type === 'memory') {
+                        setMemoryDeepLink((notif as any).memoryId || null);
+                        setMemoriesOpen(true);
                       }
                     };
 
