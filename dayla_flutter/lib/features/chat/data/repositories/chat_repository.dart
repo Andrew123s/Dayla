@@ -72,7 +72,8 @@ class ChatRepository {
       return messages
           .map((m) => MessageModel.fromJson(m as Map<String, dynamic>))
           .toList();
-    } on DioException {
+    } catch (_) {
+      // Parse failures must degrade to "no messages", never a crash.
       return [];
     }
   }
@@ -88,7 +89,7 @@ class ChatRepository {
         return MessageModel.fromJson(data as Map<String, dynamic>);
       }
       return null;
-    } on DioException {
+    } catch (_) {
       return null;
     }
   }

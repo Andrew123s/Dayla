@@ -120,7 +120,18 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     ref.read(socketServiceProvider).stopTyping(widget.conversationId);
 
     final repo = ref.read(chatRepositoryProvider);
-    await repo.sendMessage(widget.conversationId, text);
+    final sent = await repo.sendMessage(widget.conversationId, text);
+
+    if (sent == null) {
+      // Give the text back instead of silently eating it.
+      if (mounted) {
+        _messageController.text = text;
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Message not sent — try again')));
+        setState(() => _sending = false);
+      }
+      return;
+    }
 
     // Repopulate the local list from the refetch so the sent message shows.
     _loaded = false;

@@ -50,6 +50,10 @@ router.route('/conversations/:id')
 router.get('/conversations/:id/messages', getMessages);
 
 router.post('/conversations/:id/messages', (req, res, next) => {
+  // The conversation id is already in the URL — inject it so clients don't
+  // have to duplicate it in the body (the schema requires it, and REST
+  // clients that omitted it got an opaque 400 and messages never sent).
+  req.body.conversationId = req.body.conversationId || req.params.id;
   const validation = validate(chatSchemas.sendMessage, req.body);
   if (!validation.isValid) {
     return res.status(400).json({

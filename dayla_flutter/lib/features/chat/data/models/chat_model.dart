@@ -116,6 +116,18 @@ abstract class MessageModel with _$MessageModel {
     final copy = Map<String, dynamic>.from(json);
     copy['id'] ??= copy['_id'];
     copy['content'] ??= copy['text'] ?? '';
+    // The API has no `senderId` field: REST returns `sender` as a populated
+    // object; unpopulated documents carry a bare id string. Derive senderId
+    // from whichever shape arrived (a missing senderId used to throw and
+    // blank the whole chat).
+    final sender = copy['sender'];
+    if (sender is Map) {
+      copy['senderId'] ??= (sender['_id'] ?? sender['id'])?.toString();
+    } else if (sender is String) {
+      copy['senderId'] ??= sender;
+      copy.remove('sender');
+    }
+    copy['senderId'] ??= '';
     return copy;
   }
 }

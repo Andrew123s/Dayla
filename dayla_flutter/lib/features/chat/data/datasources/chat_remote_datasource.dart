@@ -52,7 +52,8 @@ class ChatRemoteDatasource {
   ) async {
     final response = await _dio.post(
       '/api/chat/conversations/$conversationId/messages',
-      data: {'content': content},
+      // The backend's validator wants conversationId in the body too.
+      data: {'conversationId': conversationId, 'content': content},
     );
     return response.data as Map<String, dynamic>;
   }
