@@ -24,6 +24,13 @@ abstract class ConversationModel with _$ConversationModel {
   static Map<String, dynamic> _normalize(Map<String, dynamic> json) {
     final copy = Map<String, dynamic>.from(json);
     copy['id'] ??= copy['_id'];
+    // POST /conversations returns createdBy POPULATED as an object; the
+    // list endpoint returns a bare id string. Coerce to the id either way
+    // (an object here used to throw in fromJson and hang "Creating…").
+    final createdBy = copy['createdBy'];
+    if (createdBy is Map) {
+      copy['createdBy'] = (createdBy['_id'] ?? createdBy['id'])?.toString();
+    }
     return copy;
   }
 }

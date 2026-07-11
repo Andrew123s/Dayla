@@ -27,7 +27,9 @@ class ChatRepository {
         return ConversationModel.fromJson(data as Map<String, dynamic>);
       }
       return null;
-    } on DioException {
+    } catch (_) {
+      // Network OR parse failures — callers treat null as failure; a parse
+      // throw must never escape and hang UI state.
       return null;
     }
   }
@@ -48,7 +50,9 @@ class ChatRepository {
         return ConversationModel.fromJson(data as Map<String, dynamic>);
       }
       return null;
-    } on DioException {
+    } catch (_) {
+      // Network OR parse failures — callers treat null as failure; a parse
+      // throw must never escape and hang UI state.
       return null;
     }
   }

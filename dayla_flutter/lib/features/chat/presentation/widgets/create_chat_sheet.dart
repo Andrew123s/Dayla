@@ -54,8 +54,10 @@ class _CreateChatSheetState extends ConsumerState<CreateChatSheet> {
     if (result != null && mounted) {
       ref.read(conversationsProvider.notifier).refresh();
       Navigator.pop(context);
-    } else {
+    } else if (mounted) {
       setState(() => _creating = false);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Could not start the chat — try again')));
     }
   }
 
