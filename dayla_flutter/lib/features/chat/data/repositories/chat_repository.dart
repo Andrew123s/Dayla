@@ -11,10 +11,16 @@ class ChatRepository {
     try {
       final json = await _remote.getConversations();
       final convos = (json['data']?['conversations'] as List?) ?? [];
-      return convos
-          .map((c) => ConversationModel.fromJson(c as Map<String, dynamic>))
-          .toList();
-    } on DioException {
+      // Parse per-conversation so one malformed entry can't blank the list.
+      final result = <ConversationModel>[];
+      for (final c in convos) {
+        try {
+          result.add(
+              ConversationModel.fromJson(c as Map<String, dynamic>));
+        } catch (_) {/* skip the bad one, keep the rest */}
+      }
+      return result;
+    } catch (_) {
       return [];
     }
   }

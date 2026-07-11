@@ -31,6 +31,27 @@ abstract class ConversationModel with _$ConversationModel {
     if (createdBy is Map) {
       copy['createdBy'] = (createdBy['_id'] ?? createdBy['id'])?.toString();
     }
+
+    // lastMessage appears once a chat has messages: populated it's a full
+    // message object; some endpoints return the bare ObjectId string. A
+    // string (or a string sender inside it) must not break list parsing —
+    // one bad conversation used to blank the whole chat list.
+    final lastMessage = copy['lastMessage'];
+    if (lastMessage is String) {
+      copy.remove('lastMessage');
+    } else if (lastMessage is Map && lastMessage['sender'] is String) {
+      final lm = Map<String, dynamic>.from(lastMessage);
+      lm.remove('sender');
+      copy['lastMessage'] = lm;
+    }
+
+    // Drop participants whose user wasn't populated (bare id string).
+    final participants = copy['participants'];
+    if (participants is List) {
+      copy['participants'] = participants
+          .where((p) => p is Map && p['user'] is Map)
+          .toList();
+    }
     return copy;
   }
 }

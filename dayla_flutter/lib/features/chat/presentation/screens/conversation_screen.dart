@@ -153,6 +153,19 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Keep the local list in sync with EVERY provider refresh (invalidations
+    // from sends, socket fallbacks, pull-to-refresh) — the old first-load-only
+    // gate could leave the screen stale or empty after a refetch.
+    ref.listen(messagesProvider(widget.conversationId), (previous, next) {
+      final data = next.valueOrNull;
+      if (data != null && mounted) {
+        setState(() {
+          _messages = List.from(data);
+          _loaded = true;
+        });
+      }
+    });
+
     final messagesAsync = ref.watch(messagesProvider(widget.conversationId));
     final currentUserId = ref.watch(authSessionProvider).user?.id;
 
