@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:timeago/timeago.dart' as timeago;
+import 'package:video_player/video_player.dart';
 
 import 'package:dayla_flutter/core/theme/app_colors.dart';
 import 'package:dayla_flutter/features/community/application/providers/community_providers.dart';
@@ -148,26 +149,28 @@ class _PostCardState extends ConsumerState<PostCard> {
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(12),
-                  child: CachedNetworkImage(
-                    imageUrl: post.images.first.url,
-                    width: double.infinity,
-                    fit: BoxFit.fitWidth,
-                    placeholder: (_, __) => AspectRatio(
-                      aspectRatio: 4 / 3,
-                      child: Container(
-                        color: Colors.grey.shade200,
-                        child: const Center(
-                            child: CircularProgressIndicator()),
-                      ),
-                    ),
-                    errorWidget: (_, __, ___) => AspectRatio(
-                      aspectRatio: 4 / 3,
-                      child: Container(
-                        color: Colors.grey.shade200,
-                        child: const Icon(Icons.broken_image),
-                      ),
-                    ),
-                  ),
+                  child: post.images.first.isVideo
+                      ? _VideoAttachment(url: post.images.first.url)
+                      : CachedNetworkImage(
+                          imageUrl: post.images.first.url,
+                          width: double.infinity,
+                          fit: BoxFit.fitWidth,
+                          placeholder: (_, __) => AspectRatio(
+                            aspectRatio: 4 / 3,
+                            child: Container(
+                              color: Colors.grey.shade200,
+                              child: const Center(
+                                  child: CircularProgressIndicator()),
+                            ),
+                          ),
+                          errorWidget: (_, __, ___) => AspectRatio(
+                            aspectRatio: 4 / 3,
+                            child: Container(
+                              color: Colors.grey.shade200,
+                              child: const Icon(Icons.broken_image),
+                            ),
+                          ),
+                        ),
                 ),
               )
             else
@@ -184,22 +187,28 @@ class _PostCardState extends ConsumerState<PostCard> {
                       color: Colors.grey.shade100,
                       constraints: const BoxConstraints(
                           minWidth: 140, maxWidth: 300),
-                      child: CachedNetworkImage(
-                        imageUrl: post.images[i].url,
-                        height: 240,
-                        fit: BoxFit.contain,
-                        placeholder: (_, __) => Container(
-                          width: 200,
-                          color: Colors.grey.shade200,
-                          child: const Center(
-                              child: CircularProgressIndicator()),
-                        ),
-                        errorWidget: (_, __, ___) => Container(
-                          width: 200,
-                          color: Colors.grey.shade200,
-                          child: const Icon(Icons.broken_image),
-                        ),
-                      ),
+                      child: post.images[i].isVideo
+                          ? SizedBox(
+                              width: 280,
+                              child:
+                                  _VideoAttachment(url: post.images[i].url),
+                            )
+                          : CachedNetworkImage(
+                              imageUrl: post.images[i].url,
+                              height: 240,
+                              fit: BoxFit.contain,
+                              placeholder: (_, __) => Container(
+                                width: 200,
+                                color: Colors.grey.shade200,
+                                child: const Center(
+                                    child: CircularProgressIndicator()),
+                              ),
+                              errorWidget: (_, __, ___) => Container(
+                                width: 200,
+                                color: Colors.grey.shade200,
+                                child: const Icon(Icons.broken_image),
+                              ),
+                            ),
                     ),
                   ),
                 ),
@@ -373,5 +382,100 @@ class _PostCardState extends ConsumerState<PostCard> {
     } catch (_) {
       return iso;
     }
+  }
+}
+
+/// Inline video attachment: shows a play cover, initializes the player on
+/// first tap, then tap toggles play/pause. (Videos used to render through
+/// the image widget and appeared permanently broken.)
+class _VideoAttachment extends StatefulWidget {
+  const _VideoAttachment({required this.url});
+
+  final String url;
+
+  @override
+  State<_VideoAttachment> createState() => _VideoAttachmentState();
+}
+
+class _VideoAttachmentState extends State<_VideoAttachment> {
+  VideoPlayerController? _controller;
+  bool _initializing = false;
+  bool _failed = false;
+
+  Future<void> _start() async {
+    if (_initializing) return;
+    setState(() => _initializing = true);
+    try {
+      final controller =
+          VideoPlayerController.networkUrl(Uri.parse(widget.url));
+      await controller.initialize();
+      controller.setLooping(true);
+      if (!mounted) {
+        controller.dispose();
+        return;
+      }
+      setState(() {
+        _controller = controller;
+        _initializing = false;
+      });
+      controller.play();
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _failed = true;
+          _initializing = false;
+        });
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = _controller;
+
+    if (controller != null && controller.value.isInitialized) {
+      return GestureDetector(
+        onTap: () => setState(() {
+          controller.value.isPlaying ? controller.pause() : controller.play();
+        }),
+        child: AspectRatio(
+          aspectRatio: controller.value.aspectRatio,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              VideoPlayer(controller),
+              if (!controller.value.isPlaying)
+                const Icon(Icons.play_circle_fill,
+                    size: 56, color: Colors.white70),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return GestureDetector(
+      onTap: _failed ? null : _start,
+      child: AspectRatio(
+        aspectRatio: 16 / 9,
+        child: Container(
+          color: Colors.black87,
+          child: Center(
+            child: _initializing
+                ? const CircularProgressIndicator(color: Colors.white70)
+                : _failed
+                    ? const Icon(Icons.videocam_off,
+                        color: Colors.white54, size: 40)
+                    : const Icon(Icons.play_circle_fill,
+                        size: 56, color: Colors.white),
+          ),
+        ),
+      ),
+    );
   }
 }

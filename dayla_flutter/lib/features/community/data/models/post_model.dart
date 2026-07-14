@@ -71,10 +71,21 @@ abstract class PostImage with _$PostImage {
   const factory PostImage({
     required String url,
     String? caption,
+    // Attachments can be videos too (web uploads them); rendering them as
+    // images produced permanent broken-image placeholders.
+    @Default('image') String type,
   }) = _PostImage;
 
   factory PostImage.fromJson(Map<String, dynamic> json) =>
       _$PostImageFromJson(json);
+}
+
+extension PostImageX on PostImage {
+  bool get isVideo =>
+      type == 'video' ||
+      url.toLowerCase().endsWith('.mp4') ||
+      url.toLowerCase().endsWith('.webm') ||
+      url.contains('/video/upload/');
 }
 
 @freezed

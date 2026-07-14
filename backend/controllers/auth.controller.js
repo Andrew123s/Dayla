@@ -195,8 +195,13 @@ const login = async (req, res) => {
       });
     }
 
-    // Update last active
-    await user.updateLastActive();
+    // Update last active + real counts (profile shows these immediately
+    // after login — they used to arrive only via /me on manual refresh)
+    const [, tripCount, postCount] = await Promise.all([
+      user.updateLastActive(),
+      Trip.countDocuments({ owner: user._id }),
+      Post.countDocuments({ author: user._id }),
+    ]);
 
     // Generate token
     const token = generateToken(user._id);
@@ -213,7 +218,9 @@ const login = async (req, res) => {
       badges: user.badges,
       emailVerified: user.emailVerified,
       onboardingCompleted: user.onboardingCompleted,
-      subscription: user.subscriptionSnapshot
+      subscription: user.subscriptionSnapshot,
+      tripCount,
+      postCount
     };
 
     logger.info(`User logged in: ${user.email}`);
@@ -599,7 +606,14 @@ const logout = async (req, res) => {
 // @access  Private
 const checkAuth = async (req, res) => {
   try {
-    const user = await User.findById(req.user._id);
+    // Counts in parallel — /check is the session-restore path, and it must
+    // return the SAME user shape as /me. It used to omit tripCount/postCount,
+    // so profiles showed 0s until a manual refresh happened to hit /me.
+    const [user, tripCount, postCount] = await Promise.all([
+      User.findById(req.user._id),
+      Trip.countDocuments({ owner: req.user._id }),
+      Post.countDocuments({ author: req.user._id }),
+    ]);
 
     if (!user) {
       clearTokenCookie(res);
@@ -621,7 +635,9 @@ const checkAuth = async (req, res) => {
       badges: user.badges,
       emailVerified: user.emailVerified,
       onboardingCompleted: user.onboardingCompleted,
-      subscription: user.subscriptionSnapshot
+      subscription: user.subscriptionSnapshot,
+      tripCount,
+      postCount
     };
 
     res.status(200).json({

@@ -20,8 +20,12 @@ const diskStorage = multer.diskStorage({
 const fileFilter = (req, file, cb) => {
   // Allowed mime types
   const allowedTypes = {
-    image: ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'],
-    audio: ['audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/webm', 'audio/ogg'],
+    // heic/heif: what iPhones (and some Androids) actually shoot.
+    image: ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'image/heif'],
+    // mp4/m4a/aac: what the mobile apps record voice memos in. The
+    // controller allowlist accepted these but THIS filter ran first and
+    // rejected them ("File type audio/mp4 is not allowed").
+    audio: ['audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/webm', 'audio/ogg', 'audio/mp4', 'audio/m4a', 'audio/x-m4a', 'audio/aac'],
     document: [
       'application/pdf',
       'application/msword',
@@ -34,7 +38,9 @@ const fileFilter = (req, file, cb) => {
   };
 
   const maxSizes = {
-    image: 10 * 1024 * 1024, // 10MB
+    // Board photos upload as ORIGINALS (EXIF for Mriz) — modern phone
+    // photos routinely exceed the old 10MB cap.
+    image: 25 * 1024 * 1024, // 25MB
     audio: 25 * 1024 * 1024, // 25MB
     document: 10 * 1024 * 1024, // 10MB
     video: 100 * 1024 * 1024 // 100MB

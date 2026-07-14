@@ -910,7 +910,10 @@ class __$PostAuthorCopyWithImpl<$Res> implements _$PostAuthorCopyWith<$Res> {
 /// @nodoc
 mixin _$PostImage {
   String get url;
-  String? get caption;
+  String?
+      get caption; // Attachments can be videos too (web uploads them); rendering them as
+// images produced permanent broken-image placeholders.
+  String get type;
 
   /// Create a copy of PostImage
   /// with the given fields replaced by the non-null parameter values.
@@ -928,16 +931,17 @@ mixin _$PostImage {
         (other.runtimeType == runtimeType &&
             other is PostImage &&
             (identical(other.url, url) || other.url == url) &&
-            (identical(other.caption, caption) || other.caption == caption));
+            (identical(other.caption, caption) || other.caption == caption) &&
+            (identical(other.type, type) || other.type == type));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode => Object.hash(runtimeType, url, caption);
+  int get hashCode => Object.hash(runtimeType, url, caption, type);
 
   @override
   String toString() {
-    return 'PostImage(url: $url, caption: $caption)';
+    return 'PostImage(url: $url, caption: $caption, type: $type)';
   }
 }
 
@@ -946,7 +950,7 @@ abstract mixin class $PostImageCopyWith<$Res> {
   factory $PostImageCopyWith(PostImage value, $Res Function(PostImage) _then) =
       _$PostImageCopyWithImpl;
   @useResult
-  $Res call({String url, String? caption});
+  $Res call({String url, String? caption, String type});
 }
 
 /// @nodoc
@@ -963,6 +967,7 @@ class _$PostImageCopyWithImpl<$Res> implements $PostImageCopyWith<$Res> {
   $Res call({
     Object? url = null,
     Object? caption = freezed,
+    Object? type = null,
   }) {
     return _then(_self.copyWith(
       url: null == url
@@ -973,6 +978,10 @@ class _$PostImageCopyWithImpl<$Res> implements $PostImageCopyWith<$Res> {
           ? _self.caption
           : caption // ignore: cast_nullable_to_non_nullable
               as String?,
+      type: null == type
+          ? _self.type
+          : type // ignore: cast_nullable_to_non_nullable
+              as String,
     ));
   }
 }
@@ -980,7 +989,7 @@ class _$PostImageCopyWithImpl<$Res> implements $PostImageCopyWith<$Res> {
 /// @nodoc
 @JsonSerializable()
 class _PostImage implements PostImage {
-  const _PostImage({required this.url, this.caption});
+  const _PostImage({required this.url, this.caption, this.type = 'image'});
   factory _PostImage.fromJson(Map<String, dynamic> json) =>
       _$PostImageFromJson(json);
 
@@ -988,6 +997,11 @@ class _PostImage implements PostImage {
   final String url;
   @override
   final String? caption;
+// Attachments can be videos too (web uploads them); rendering them as
+// images produced permanent broken-image placeholders.
+  @override
+  @JsonKey()
+  final String type;
 
   /// Create a copy of PostImage
   /// with the given fields replaced by the non-null parameter values.
@@ -1010,16 +1024,17 @@ class _PostImage implements PostImage {
         (other.runtimeType == runtimeType &&
             other is _PostImage &&
             (identical(other.url, url) || other.url == url) &&
-            (identical(other.caption, caption) || other.caption == caption));
+            (identical(other.caption, caption) || other.caption == caption) &&
+            (identical(other.type, type) || other.type == type));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode => Object.hash(runtimeType, url, caption);
+  int get hashCode => Object.hash(runtimeType, url, caption, type);
 
   @override
   String toString() {
-    return 'PostImage(url: $url, caption: $caption)';
+    return 'PostImage(url: $url, caption: $caption, type: $type)';
   }
 }
 
@@ -1031,7 +1046,7 @@ abstract mixin class _$PostImageCopyWith<$Res>
       __$PostImageCopyWithImpl;
   @override
   @useResult
-  $Res call({String url, String? caption});
+  $Res call({String url, String? caption, String type});
 }
 
 /// @nodoc
@@ -1048,6 +1063,7 @@ class __$PostImageCopyWithImpl<$Res> implements _$PostImageCopyWith<$Res> {
   $Res call({
     Object? url = null,
     Object? caption = freezed,
+    Object? type = null,
   }) {
     return _then(_PostImage(
       url: null == url
@@ -1058,6 +1074,10 @@ class __$PostImageCopyWithImpl<$Res> implements _$PostImageCopyWith<$Res> {
           ? _self.caption
           : caption // ignore: cast_nullable_to_non_nullable
               as String?,
+      type: null == type
+          ? _self.type
+          : type // ignore: cast_nullable_to_non_nullable
+              as String,
     ));
   }
 }

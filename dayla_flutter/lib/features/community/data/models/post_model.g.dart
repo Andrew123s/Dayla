@@ -85,12 +85,14 @@ Map<String, dynamic> _$PostAuthorToJson(_PostAuthor instance) =>
 _PostImage _$PostImageFromJson(Map<String, dynamic> json) => _PostImage(
       url: json['url'] as String,
       caption: json['caption'] as String?,
+      type: json['type'] as String? ?? 'image',
     );
 
 Map<String, dynamic> _$PostImageToJson(_PostImage instance) =>
     <String, dynamic>{
       'url': instance.url,
       'caption': instance.caption,
+      'type': instance.type,
     };
 
 _PostLocation _$PostLocationFromJson(Map<String, dynamic> json) =>

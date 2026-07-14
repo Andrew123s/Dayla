@@ -23,6 +23,9 @@ class DaylaApp extends ConsumerWidget {
         ref.read(pushServiceProvider).register();
         final userId = next.user?.id;
         if (userId != null) RevenueCatBilling.logIn(userId);
+        // Hydrate the full profile (trip/post counts etc.) from /me so the
+        // profile never shows zeros while waiting for a manual refresh.
+        ref.read(authSessionProvider.notifier).refreshUser();
       }
     });
 

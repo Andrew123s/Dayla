@@ -15,8 +15,13 @@ const uploadImage = async (req, res) => {
 
     const file = req.file;
 
-    // Validate file
-    const validation = validateFile(file, ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'], 10 * 1024 * 1024);
+    // Validate file — heic/heif for iPhone shots; 25MB because board photos
+    // upload as originals (EXIF preserved for Mriz memories).
+    const validation = validateFile(
+      file,
+      ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'image/heif'],
+      25 * 1024 * 1024
+    );
     if (!validation.isValid) {
       return res.status(400).json({
         success: false,
