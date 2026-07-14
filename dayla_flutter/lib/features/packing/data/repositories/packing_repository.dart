@@ -1,4 +1,3 @@
-import 'package:dio/dio.dart';
 import 'package:dayla_flutter/features/packing/data/datasources/packing_remote_datasource.dart';
 import 'package:dayla_flutter/features/packing/data/models/packing_model.dart';
 
@@ -15,7 +14,7 @@ class PackingRepository {
         return PackingListModel.fromJson(data as Map<String, dynamic>);
       }
       return null;
-    } on DioException {
+    } catch (_) {
       return null;
     }
   }
@@ -28,7 +27,7 @@ class PackingRepository {
         return PackingListModel.fromJson(data as Map<String, dynamic>);
       }
       return null;
-    } on DioException {
+    } catch (_) {
       return null;
     }
   }
@@ -37,7 +36,7 @@ class PackingRepository {
     try {
       final json = await _remote.addItem(tripId, data);
       return json['success'] == true;
-    } on DioException {
+    } catch (_) {
       return false;
     }
   }
@@ -50,7 +49,7 @@ class PackingRepository {
     try {
       final json = await _remote.updateItem(tripId, itemId, data);
       return json['success'] == true;
-    } on DioException {
+    } catch (_) {
       return false;
     }
   }
@@ -59,7 +58,7 @@ class PackingRepository {
     try {
       final json = await _remote.removeItem(tripId, itemId);
       return json['success'] == true;
-    } on DioException {
+    } catch (_) {
       return false;
     }
   }
@@ -68,7 +67,7 @@ class PackingRepository {
     try {
       final json = await _remote.addLuggage(tripId, data);
       return json['success'] == true;
-    } on DioException {
+    } catch (_) {
       return false;
     }
   }
@@ -77,7 +76,7 @@ class PackingRepository {
     try {
       final json = await _remote.removeLuggage(tripId, luggageId);
       return json['success'] == true;
-    } on DioException {
+    } catch (_) {
       return false;
     }
   }
@@ -89,7 +88,7 @@ class PackingRepository {
       return suggestions
           .map((s) => PackingSuggestion.fromJson(s as Map<String, dynamic>))
           .toList();
-    } on DioException {
+    } catch (_) {
       return [];
     }
   }
@@ -101,7 +100,7 @@ class PackingRepository {
       return templates
           .map((t) => PackingTemplate.fromJson(t as Map<String, dynamic>))
           .toList();
-    } on DioException {
+    } catch (_) {
       return [];
     }
   }
@@ -110,7 +109,7 @@ class PackingRepository {
     try {
       final json = await _remote.applyTemplate(tripId, templateId);
       return json['success'] == true;
-    } on DioException {
+    } catch (_) {
       return false;
     }
   }

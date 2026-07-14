@@ -26,11 +26,34 @@ abstract class TripModel with _$TripModel {
   }) = _TripModel;
 
   factory TripModel.fromJson(Map<String, dynamic> json) =>
-      _$TripModelFromJson(_normalizeId(json));
+      _$TripModelFromJson(_normalize(json));
 
-  static Map<String, dynamic> _normalizeId(Map<String, dynamic> json) {
+  /// The API returns trips in two shapes: list/detail endpoints populate
+  /// `owner`/`collaborators` into objects, while the create endpoint returns
+  /// the raw document where `owner` is a plain id string and collaborators
+  /// may be unpopulated subdocuments. Coerce both shapes so parsing never
+  /// throws.
+  static Map<String, dynamic> _normalize(Map<String, dynamic> json) {
     final copy = Map<String, dynamic>.from(json);
     copy['id'] ??= copy['_id'];
+
+    if (copy['owner'] is! Map) copy.remove('owner');
+
+    final collaborators = copy['collaborators'];
+    if (collaborators is List) {
+      copy['collaborators'] = collaborators
+          .map((c) {
+            if (c is! Map) return null;
+            // Either the user object itself, or {user: {...}, role: ...}.
+            final user = c['user'] is Map ? c['user'] as Map : c;
+            if (user['name'] == null) return null;
+            return Map<String, dynamic>.from(user);
+          })
+          .whereType<Map<String, dynamic>>()
+          .toList();
+    } else {
+      copy.remove('collaborators');
+    }
     return copy;
   }
 }

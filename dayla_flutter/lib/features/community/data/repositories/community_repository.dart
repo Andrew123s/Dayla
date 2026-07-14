@@ -1,4 +1,3 @@
-import 'package:dio/dio.dart';
 import 'package:dayla_flutter/features/community/data/datasources/community_remote_datasource.dart';
 import 'package:dayla_flutter/features/community/data/models/post_model.dart';
 
@@ -14,7 +13,7 @@ class CommunityRepository {
       return posts
           .map((p) => PostModel.fromJson(p as Map<String, dynamic>))
           .toList();
-    } on DioException {
+    } catch (_) {
       return [];
     }
   }
@@ -27,7 +26,7 @@ class CommunityRepository {
         return PostModel.fromJson(post as Map<String, dynamic>);
       }
       return null;
-    } on DioException {
+    } catch (_) {
       return null;
     }
   }
@@ -57,7 +56,7 @@ class CommunityRepository {
         return PostModel.fromJson(post as Map<String, dynamic>);
       }
       return null;
-    } on DioException {
+    } catch (_) {
       return null;
     }
   }
@@ -78,7 +77,7 @@ class CommunityRepository {
       };
       final json = await _remote.createPost(data);
       return json['success'] == true;
-    } on DioException {
+    } catch (_) {
       return false;
     }
   }
@@ -90,7 +89,7 @@ class CommunityRepository {
         return json['data']?['url'] as String?;
       }
       return null;
-    } on DioException {
+    } catch (_) {
       return null;
     }
   }
@@ -99,7 +98,7 @@ class CommunityRepository {
     try {
       final json = await _remote.likePost(id);
       return json['success'] == true;
-    } on DioException {
+    } catch (_) {
       return false;
     }
   }
@@ -108,7 +107,7 @@ class CommunityRepository {
     try {
       final json = await _remote.unlikePost(id);
       return json['success'] == true;
-    } on DioException {
+    } catch (_) {
       return false;
     }
   }
@@ -117,7 +116,7 @@ class CommunityRepository {
     try {
       final json = await _remote.addComment(postId, content);
       return json['success'] == true;
-    } on DioException {
+    } catch (_) {
       return false;
     }
   }
@@ -126,7 +125,7 @@ class CommunityRepository {
     try {
       final json = await _remote.deleteComment(postId, commentId);
       return json['success'] == true;
-    } on DioException {
+    } catch (_) {
       return false;
     }
   }
@@ -135,7 +134,7 @@ class CommunityRepository {
     try {
       final json = await _remote.savePost(id);
       return json['success'] == true;
-    } on DioException {
+    } catch (_) {
       return false;
     }
   }
@@ -144,7 +143,7 @@ class CommunityRepository {
     try {
       final json = await _remote.deletePost(id);
       return json['success'] == true;
-    } on DioException {
+    } catch (_) {
       return false;
     }
   }
@@ -156,7 +155,7 @@ class CommunityRepository {
       return posts
           .map((p) => PostModel.fromJson(p as Map<String, dynamic>))
           .toList();
-    } on DioException {
+    } catch (_) {
       return [];
     }
   }
@@ -168,7 +167,7 @@ class CommunityRepository {
       return posts
           .map((p) => PostModel.fromJson(p as Map<String, dynamic>))
           .toList();
-    } on DioException {
+    } catch (_) {
       return [];
     }
   }

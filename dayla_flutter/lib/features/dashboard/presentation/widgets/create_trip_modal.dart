@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import 'package:dayla_flutter/core/theme/app_colors.dart';
 import 'package:dayla_flutter/features/dashboard/application/providers/dashboard_providers.dart';
+import 'package:dayla_flutter/features/dashboard/data/models/trip_model.dart';
 
 class CreateTripModal extends ConsumerStatefulWidget {
   const CreateTripModal({super.key});
@@ -62,17 +63,24 @@ class _CreateTripModalState extends ConsumerState<CreateTripModal> {
       };
     }
 
-    final trip = await ref.read(tripsProvider.notifier).createTrip(
-          name: _nameController.text.trim(),
-          description: _descriptionController.text.trim().isNotEmpty
-              ? _descriptionController.text.trim()
-              : null,
-          category: _category,
-          destination: _destinationController.text.trim().isNotEmpty
-              ? _destinationController.text.trim()
-              : null,
-          dates: dates,
-        );
+    // Never let an exception escape: the button must always either close
+    // the sheet or come back with an error message — never spin forever.
+    TripModel? trip;
+    try {
+      trip = await ref.read(tripsProvider.notifier).createTrip(
+            name: _nameController.text.trim(),
+            description: _descriptionController.text.trim().isNotEmpty
+                ? _descriptionController.text.trim()
+                : null,
+            category: _category,
+            destination: _destinationController.text.trim().isNotEmpty
+                ? _destinationController.text.trim()
+                : null,
+            dates: dates,
+          );
+    } catch (_) {
+      trip = null;
+    }
 
     if (mounted) {
       if (trip != null) {

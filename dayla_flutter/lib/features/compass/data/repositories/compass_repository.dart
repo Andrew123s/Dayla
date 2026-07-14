@@ -71,6 +71,8 @@ class CompassRepository {
         message,
         upgradeRequired: body is Map && body['code'] == 'UPGRADE_REQUIRED',
       );
+    } catch (_) {
+      throw const CompassException('Compass could not draft this trip.');
     }
   }
 }

@@ -1,4 +1,3 @@
-import 'package:dio/dio.dart';
 import 'package:dayla_flutter/features/climatiq/data/datasources/climatiq_remote_datasource.dart';
 import 'package:dayla_flutter/features/climatiq/data/models/climatiq_model.dart';
 
@@ -11,7 +10,7 @@ class ClimatiqRepository {
     try {
       final json = await _remote.validateConnection();
       return json['success'] == true && json['connected'] == true;
-    } on DioException {
+    } catch (_) {
       return false;
     }
   }
@@ -30,7 +29,7 @@ class ClimatiqRepository {
         return EmissionResult.fromJson(data as Map<String, dynamic>);
       }
       return null;
-    } on DioException {
+    } catch (_) {
       return null;
     }
   }
@@ -49,7 +48,7 @@ class ClimatiqRepository {
         return EmissionResult.fromJson(data as Map<String, dynamic>);
       }
       return null;
-    } on DioException {
+    } catch (_) {
       return null;
     }
   }
@@ -66,7 +65,7 @@ class ClimatiqRepository {
         return EmissionResult.fromJson(data as Map<String, dynamic>);
       }
       return null;
-    } on DioException {
+    } catch (_) {
       return null;
     }
   }
@@ -89,7 +88,7 @@ class ClimatiqRepository {
         return TripEmissionResult.fromJson(data as Map<String, dynamic>);
       }
       return null;
-    } on DioException {
+    } catch (_) {
       return null;
     }
   }
@@ -113,7 +112,7 @@ class ClimatiqRepository {
         return TripEmissionResult.fromJson(data as Map<String, dynamic>);
       }
       return null;
-    } on DioException {
+    } catch (_) {
       return null;
     }
   }

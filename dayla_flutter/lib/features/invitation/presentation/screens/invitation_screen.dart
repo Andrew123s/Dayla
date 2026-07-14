@@ -79,6 +79,13 @@ class _InvitationScreenState extends ConsumerState<InvitationScreen> {
         _message =
             msg ?? 'Failed to accept invitation. The link may be invalid or expired.';
       });
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _status = _InviteStatus.error;
+          _message = 'Failed to accept invitation. Please try again.';
+        });
+      }
     }
   }
 

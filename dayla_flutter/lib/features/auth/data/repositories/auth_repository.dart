@@ -16,6 +16,10 @@ class AuthRepository {
       return AuthResponse.fromJson(json);
     } on DioException catch (e) {
       return _handleDioError(e);
+    } catch (_) {
+      // Unexpected payload shape — fail soft instead of crashing the flow.
+      return AuthResponse(
+          success: false, message: 'Something went wrong. Please try again.');
     }
   }
 
@@ -30,6 +34,10 @@ class AuthRepository {
       return AuthResponse.fromJson(json);
     } on DioException catch (e) {
       return _handleDioError(e);
+    } catch (_) {
+      // Unexpected payload shape — fail soft instead of crashing the flow.
+      return AuthResponse(
+          success: false, message: 'Something went wrong. Please try again.');
     }
   }
 
@@ -39,6 +47,10 @@ class AuthRepository {
       return AuthResponse.fromJson(json);
     } on DioException catch (e) {
       return _handleDioError(e);
+    } catch (_) {
+      // Unexpected payload shape — fail soft instead of crashing the flow.
+      return AuthResponse(
+          success: false, message: 'Something went wrong. Please try again.');
     }
   }
 
@@ -48,6 +60,10 @@ class AuthRepository {
       return AuthResponse.fromJson(json);
     } on DioException catch (e) {
       return _handleDioError(e);
+    } catch (_) {
+      // Unexpected payload shape — fail soft instead of crashing the flow.
+      return AuthResponse(
+          success: false, message: 'Something went wrong. Please try again.');
     }
   }
 
@@ -67,6 +83,10 @@ class AuthRepository {
       return AuthResponse.fromJson(json);
     } on DioException catch (e) {
       return _handleDioError(e);
+    } catch (_) {
+      // Unexpected payload shape — fail soft instead of crashing the flow.
+      return AuthResponse(
+          success: false, message: 'Something went wrong. Please try again.');
     }
   }
 
@@ -82,6 +102,10 @@ class AuthRepository {
       return AuthResponse.fromJson(json);
     } on DioException catch (e) {
       return _handleDioError(e);
+    } catch (_) {
+      // Unexpected payload shape — fail soft instead of crashing the flow.
+      return AuthResponse(
+          success: false, message: 'Something went wrong. Please try again.');
     }
   }
 
@@ -91,6 +115,10 @@ class AuthRepository {
       return AuthResponse.fromJson(json);
     } on DioException catch (e) {
       return _handleDioError(e);
+    } catch (_) {
+      // Unexpected payload shape — fail soft instead of crashing the flow.
+      return AuthResponse(
+          success: false, message: 'Something went wrong. Please try again.');
     }
   }
 
@@ -100,6 +128,10 @@ class AuthRepository {
       return AuthResponse.fromJson(json);
     } on DioException catch (e) {
       return _handleDioError(e);
+    } catch (_) {
+      // Unexpected payload shape — fail soft instead of crashing the flow.
+      return AuthResponse(
+          success: false, message: 'Something went wrong. Please try again.');
     }
   }
 
@@ -109,13 +141,17 @@ class AuthRepository {
       return AuthResponse.fromJson(json);
     } on DioException catch (e) {
       return _handleDioError(e);
+    } catch (_) {
+      // Unexpected payload shape — fail soft instead of crashing the flow.
+      return AuthResponse(
+          success: false, message: 'Something went wrong. Please try again.');
     }
   }
 
   Future<void> logout() async {
     try {
       await _remote.logout();
-    } on DioException {
+    } catch (_) {
       // Logout locally even if the server request fails
     }
   }
@@ -126,6 +162,10 @@ class AuthRepository {
       return AuthResponse.fromJson(json);
     } on DioException catch (e) {
       return _handleDioError(e);
+    } catch (_) {
+      // Unexpected payload shape — fail soft instead of crashing the flow.
+      return AuthResponse(
+          success: false, message: 'Something went wrong. Please try again.');
     }
   }
 
@@ -136,7 +176,7 @@ class AuthRepository {
         return (json['data'] as Map<String, dynamic>?)?['avatar'] as String?;
       }
       return null;
-    } on DioException {
+    } catch (_) {
       return null;
     }
   }
@@ -148,7 +188,7 @@ class AuthRepository {
       return users
           .map((u) => SearchedUser.fromJson(u as Map<String, dynamic>))
           .toList();
-    } on DioException {
+    } catch (_) {
       return [];
     }
   }
@@ -160,7 +200,7 @@ class AuthRepository {
       return friends
           .map((f) => FriendRequestUser.fromJson(f as Map<String, dynamic>))
           .toList();
-    } on DioException {
+    } catch (_) {
       return [];
     }
   }
@@ -172,7 +212,7 @@ class AuthRepository {
       return requests
           .map((r) => FriendRequest.fromJson(r as Map<String, dynamic>))
           .toList();
-    } on DioException {
+    } catch (_) {
       return [];
     }
   }
@@ -181,7 +221,7 @@ class AuthRepository {
     try {
       final json = await _remote.sendFriendRequest(userId);
       return json['success'] == true;
-    } on DioException {
+    } catch (_) {
       return false;
     }
   }
@@ -190,7 +230,7 @@ class AuthRepository {
     try {
       final json = await _remote.acceptFriendRequest(userId);
       return json['success'] == true;
-    } on DioException {
+    } catch (_) {
       return false;
     }
   }
@@ -199,7 +239,7 @@ class AuthRepository {
     try {
       final json = await _remote.declineFriendRequest(userId);
       return json['success'] == true;
-    } on DioException {
+    } catch (_) {
       return false;
     }
   }
@@ -217,7 +257,7 @@ class AuthRepository {
             .toList(),
         unreadCount: (data['unreadCount'] as int?) ?? 0,
       );
-    } on DioException {
+    } catch (_) {
       return (notifications: <NotificationModel>[], unreadCount: 0);
     }
   }
@@ -226,7 +266,7 @@ class AuthRepository {
     try {
       final json = await _remote.markNotificationsRead();
       return json['success'] == true;
-    } on DioException {
+    } catch (_) {
       return false;
     }
   }
@@ -237,7 +277,7 @@ class AuthRepository {
         notificationsEnabled: notificationsEnabled,
       );
       return json['success'] == true;
-    } on DioException {
+    } catch (_) {
       return false;
     }
   }

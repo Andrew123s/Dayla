@@ -1,4 +1,3 @@
-import 'package:dio/dio.dart';
 import 'package:dayla_flutter/features/chat/data/datasources/chat_remote_datasource.dart';
 import 'package:dayla_flutter/features/chat/data/models/chat_model.dart';
 
@@ -104,7 +103,7 @@ class ChatRepository {
     try {
       final json = await _remote.deleteMessage(messageId);
       return json['success'] == true;
-    } on DioException {
+    } catch (_) {
       return false;
     }
   }
@@ -113,7 +112,7 @@ class ChatRepository {
     try {
       final json = await _remote.addReaction(messageId, emoji);
       return json['success'] == true;
-    } on DioException {
+    } catch (_) {
       return false;
     }
   }
@@ -122,7 +121,7 @@ class ChatRepository {
     try {
       final json = await _remote.markAsRead(conversationId);
       return json['success'] == true;
-    } on DioException {
+    } catch (_) {
       return false;
     }
   }

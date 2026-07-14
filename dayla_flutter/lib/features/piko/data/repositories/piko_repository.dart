@@ -83,7 +83,7 @@ class PikoRepository {
         return RouteModel.fromJson(route as Map<String, dynamic>);
       }
       return null;
-    } on DioException {
+    } catch (_) {
       return null;
     }
   }
@@ -95,7 +95,7 @@ class PikoRepository {
       return routes
           .map((r) => RouteModel.fromJson(r as Map<String, dynamic>))
           .toList();
-    } on DioException {
+    } catch (_) {
       return [];
     }
   }
@@ -112,7 +112,7 @@ class PikoRepository {
         );
       }
       return null;
-    } on DioException {
+    } catch (_) {
       return null;
     }
   }
@@ -129,6 +129,10 @@ class PikoRepository {
       );
     } on DioException catch (e) {
       throw PikoActionException(_messageFrom(e, 'Failed to vote'));
+    } on PikoActionException {
+      rethrow;
+    } catch (_) {
+      throw const PikoActionException('Failed to vote');
     }
   }
 
@@ -139,7 +143,7 @@ class PikoRepository {
       return comments
           .map((c) => RouteCommentModel.fromJson(c as Map<String, dynamic>))
           .toList();
-    } on DioException {
+    } catch (_) {
       return [];
     }
   }
@@ -152,7 +156,7 @@ class PikoRepository {
         return RouteCommentModel.fromJson(comment as Map<String, dynamic>);
       }
       return null;
-    } on DioException {
+    } catch (_) {
       return null;
     }
   }
@@ -171,6 +175,10 @@ class PikoRepository {
       await _remote.addToPlan(routeId, dashboardId.toString());
     } on DioException catch (e) {
       throw PikoActionException(_messageFrom(e, 'Failed to add to plan'));
+    } on PikoActionException {
+      rethrow;
+    } catch (_) {
+      throw const PikoActionException('Failed to add to plan');
     }
   }
 
@@ -198,6 +206,10 @@ class PikoRepository {
       );
     } on DioException catch (e) {
       throw PikoActionException(_messageFrom(e, 'Routing failed'));
+    } on PikoActionException {
+      rethrow;
+    } catch (_) {
+      throw const PikoActionException('Routing failed');
     }
   }
 
@@ -209,6 +221,10 @@ class PikoRepository {
           Map<String, dynamic>.from(json['data'] as Map));
     } on DioException catch (e) {
       throw PikoActionException(_messageFrom(e, 'Failed to create route'));
+    } on PikoActionException {
+      rethrow;
+    } catch (_) {
+      throw const PikoActionException('Failed to create route');
     }
   }
 
@@ -230,6 +246,10 @@ class PikoRepository {
     } on DioException catch (e) {
       throw PikoActionException(
           _messageFrom(e, 'Failed to load moderation queue'));
+    } on PikoActionException {
+      rethrow;
+    } catch (_) {
+      throw const PikoActionException('Failed to load moderation queue');
     }
   }
 
@@ -237,7 +257,7 @@ class PikoRepository {
     try {
       final json = await _remote.moderateRoute(id, action);
       return json['success'] == true;
-    } on DioException {
+    } catch (_) {
       return false;
     }
   }
@@ -246,7 +266,7 @@ class PikoRepository {
     try {
       final json = await _remote.reportRoute(id, reason: reason);
       return json['success'] == true;
-    } on DioException {
+    } catch (_) {
       return false;
     }
   }
@@ -268,7 +288,7 @@ class PikoRepository {
               : null,
         );
       }).toList();
-    } on DioException {
+    } catch (_) {
       return [];
     }
   }

@@ -1,4 +1,3 @@
-import 'package:dio/dio.dart';
 
 import 'package:dayla_flutter/features/memories/data/datasources/memory_remote_datasource.dart';
 import 'package:dayla_flutter/features/memories/data/models/memory_model.dart';
@@ -16,7 +15,7 @@ class MemoryRepository {
           .whereType<Map>()
           .map((m) => MemoryModel.fromJson(Map<String, dynamic>.from(m)))
           .toList();
-    } on DioException {
+    } catch (_) {
       return [];
     }
   }
@@ -29,7 +28,7 @@ class MemoryRepository {
         return MemoryModel.fromJson(Map<String, dynamic>.from(memory));
       }
       return null;
-    } on DioException {
+    } catch (_) {
       return null;
     }
   }
@@ -42,7 +41,7 @@ class MemoryRepository {
         return MemoryModel.fromJson(Map<String, dynamic>.from(memory));
       }
       return null;
-    } on DioException {
+    } catch (_) {
       return null;
     }
   }
@@ -51,7 +50,7 @@ class MemoryRepository {
     try {
       final json = await _remote.share(id);
       return json['success'] == true;
-    } on DioException {
+    } catch (_) {
       return false;
     }
   }

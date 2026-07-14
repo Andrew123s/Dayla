@@ -22,7 +22,7 @@ class BillingRepository {
             Map<String, dynamic>.from(plans['proAnnual'] as Map? ?? {})),
         billingEnabled: data['billingEnabled'] == true,
       );
-    } on DioException {
+    } catch (_) {
       return null;
     }
   }
@@ -34,7 +34,7 @@ class BillingRepository {
       final json = await _remote.getSubscription();
       final data = json['data'] as Map? ?? {};
       return SubscriptionAccess.fromJson(Map<String, dynamic>.from(data));
-    } on DioException {
+    } catch (_) {
       return SubscriptionAccess.free;
     }
   }
@@ -49,6 +49,10 @@ class BillingRepository {
           (json['message'] ?? 'Checkout unavailable').toString());
     } on DioException catch (e) {
       throw BillingException(_message(e, 'Checkout unavailable'));
+    } on BillingException {
+      rethrow;
+    } catch (_) {
+      throw const BillingException('Checkout unavailable');
     }
   }
 
@@ -61,6 +65,10 @@ class BillingRepository {
           (json['message'] ?? 'Billing portal unavailable').toString());
     } on DioException catch (e) {
       throw BillingException(_message(e, 'Billing portal unavailable'));
+    } on BillingException {
+      rethrow;
+    } catch (_) {
+      throw const BillingException('Billing portal unavailable');
     }
   }
 
