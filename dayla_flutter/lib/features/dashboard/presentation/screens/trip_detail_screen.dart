@@ -500,6 +500,7 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen>
             onMove: _moveNote,
             onTap: _showEditNote,
             onDelete: _confirmDeleteNote,
+            onLink: _linkNote,
           )
         else
           ListView.separated(
@@ -716,6 +717,24 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen>
     await ref
         .read(dashboardRepositoryProvider)
         .updateStickyNote(widget.tripId, note.id, {'x': x, 'y': y});
+  }
+
+  /// Mind-map linking: persist the note's linkTo (null = unlink) and
+  /// broadcast the full note so collaborators see the line live.
+  Future<void> _linkNote(StickyNoteModel note, String? targetId) async {
+    final boardId = _board?.id;
+    if (boardId != null) {
+      final full = note.copyWith(linkTo: targetId).toJson();
+      ref.read(socketServiceProvider).updateNote(boardId, note.id, full);
+    }
+    await ref
+        .read(dashboardRepositoryProvider)
+        .updateStickyNote(widget.tripId, note.id, {'linkTo': targetId});
+    await _loadData();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(targetId == null ? 'Link removed' : 'Notes linked')));
+    }
   }
 
   void _confirmDeleteNote(StickyNoteModel note) async {

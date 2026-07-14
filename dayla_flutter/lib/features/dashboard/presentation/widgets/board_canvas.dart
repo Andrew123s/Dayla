@@ -7,7 +7,9 @@ import 'package:dayla_flutter/features/dashboard/data/models/trip_model.dart';
 
 /// The spatial sticky-note board: notes keep their web x/y positions, can be
 /// dragged (position persists via [onMove]), tapped to edit and long-pressed
-/// to delete. Pinch/pan the canvas with InteractiveViewer.
+/// for a menu (map to another note / remove link / delete). Notes linked via
+/// `linkTo` are joined by dashed lines that follow them while dragging, same
+/// as the web board. Pinch/pan the canvas with InteractiveViewer.
 class BoardCanvas extends StatefulWidget {
   const BoardCanvas({
     super.key,
@@ -15,12 +17,17 @@ class BoardCanvas extends StatefulWidget {
     required this.onMove,
     required this.onTap,
     required this.onDelete,
+    required this.onLink,
   });
 
   final List<StickyNoteModel> notes;
   final void Function(StickyNoteModel note, double x, double y) onMove;
   final void Function(StickyNoteModel note) onTap;
   final void Function(StickyNoteModel note) onDelete;
+
+  /// Persist a link change: [linkTo] is the target note's id, or null to
+  /// remove the note's existing link.
+  final void Function(StickyNoteModel note, String? linkTo) onLink;
 
   @override
   State<BoardCanvas> createState() => _BoardCanvasState();
@@ -39,8 +46,104 @@ class _BoardCanvasState extends State<BoardCanvas> {
   /// dead zone notes can never enter.
   static const double _originPad = 1600;
 
+  /// Mind-map linking mode: id of the note waiting for a target, or null.
+  String? _linkingFromId;
+
+  static const _linkColor = Color(0xFF588157);
+
   Offset _positionOf(StickyNoteModel note) =>
       _positions[note.id] ?? Offset(note.x, note.y);
+
+  /// The size a note is actually rendered at (mirrors _NoteCard's clamps).
+  Size _displaySizeOf(StickyNoteModel note) {
+    final width = note.width.clamp(120.0, 360.0);
+    if (note.type == 'voice') return Size(width, 70);
+    return Size(width, note.height.clamp(90.0, 420.0));
+  }
+
+  /// Center-to-center segments (in shifted canvas coordinates) for every
+  /// note with a resolvable linkTo. Dangling targets are skipped, matching
+  /// the web renderer.
+  List<(Offset, Offset)> _linkSegments() {
+    final byId = {for (final n in widget.notes) n.id: n};
+    final segments = <(Offset, Offset)>[];
+    for (final note in widget.notes) {
+      final target = note.linkTo == null ? null : byId[note.linkTo];
+      if (target == null) continue;
+      final a = _positionOf(note);
+      final b = _positionOf(target);
+      final sizeA = _displaySizeOf(note);
+      final sizeB = _displaySizeOf(target);
+      segments.add((
+        Offset(a.dx + sizeA.width / 2 + _originPad,
+            a.dy + sizeA.height / 2 + _originPad),
+        Offset(b.dx + sizeB.width / 2 + _originPad,
+            b.dy + sizeB.height / 2 + _originPad),
+      ));
+    }
+    return segments;
+  }
+
+  void _handleNoteTap(StickyNoteModel note) {
+    final fromId = _linkingFromId;
+    if (fromId == null) {
+      widget.onTap(note);
+      return;
+    }
+    setState(() => _linkingFromId = null);
+    if (note.id == fromId) return; // Tapped the source again — cancel.
+    StickyNoteModel? source;
+    for (final n in widget.notes) {
+      if (n.id == fromId) {
+        source = n;
+        break;
+      }
+    }
+    if (source == null) return;
+    // Tapping the current target unlinks; anything else (re)links.
+    widget.onLink(source, source.linkTo == note.id ? null : note.id);
+  }
+
+  void _showNoteMenu(StickyNoteModel note) {
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.account_tree_outlined,
+                  color: _linkColor),
+              title: const Text('Map to a note'),
+              subtitle: const Text('Tap another note to draw a connection'),
+              onTap: () {
+                Navigator.pop(ctx);
+                setState(() => _linkingFromId = note.id);
+              },
+            ),
+            if (note.linkTo != null && note.linkTo!.isNotEmpty)
+              ListTile(
+                leading: const Icon(Icons.link_off),
+                title: const Text('Remove link'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  widget.onLink(note, null);
+                },
+              ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline, color: Colors.red),
+              title: const Text('Delete',
+                  style: TextStyle(color: Colors.red)),
+              onTap: () {
+                Navigator.pop(ctx);
+                widget.onDelete(note);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   void initState() {
@@ -113,15 +216,31 @@ class _BoardCanvasState extends State<BoardCanvas> {
             child: Stack(
               children: [
                 Positioned.fill(
-                  child: CustomPaint(painter: _GridPainter()),
+                  child: GestureDetector(
+                    // Tapping empty canvas cancels linking mode.
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () {
+                      if (_linkingFromId != null) {
+                        setState(() => _linkingFromId = null);
+                      }
+                    },
+                    child: CustomPaint(painter: _GridPainter()),
+                  ),
+                ),
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: CustomPaint(
+                      painter: _LinkPainter(segments: _linkSegments()),
+                    ),
+                  ),
                 ),
                 for (final note in widget.notes)
                   Positioned(
                     left: _positionOf(note).dx + _originPad,
                     top: _positionOf(note).dy + _originPad,
                     child: GestureDetector(
-                      onTap: () => widget.onTap(note),
-                      onLongPress: () => widget.onDelete(note),
+                      onTap: () => _handleNoteTap(note),
+                      onLongPress: () => _showNoteMenu(note),
                       onPanUpdate: (details) {
                         setState(() {
                           // World coordinates; may go negative down to
@@ -140,13 +259,61 @@ class _BoardCanvasState extends State<BoardCanvas> {
                         final p = _positionOf(note);
                         widget.onMove(note, p.dx, p.dy);
                       },
-                      child: _NoteCard(note: note),
+                      child: Container(
+                        decoration: _linkingFromId == note.id
+                            ? BoxDecoration(
+                                borderRadius: BorderRadius.circular(17),
+                                border: Border.all(
+                                    color: _linkColor, width: 3),
+                              )
+                            : null,
+                        child: _NoteCard(note: note),
+                      ),
                     ),
                   ),
               ],
             ),
           ),
         ),
+        // Linking-mode banner.
+        if (_linkingFromId != null)
+          Positioned(
+            top: 12,
+            left: 12,
+            right: 12,
+            child: Card(
+              color: const Color(0xFF3A5A40),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 8, 6, 8),
+                child: Row(
+                  children: [
+                    const Icon(Icons.account_tree_outlined,
+                        color: Colors.white, size: 18),
+                    const SizedBox(width: 10),
+                    const Expanded(
+                      child: Text(
+                        'Tap another note to link it — tap its current '
+                        'link to unlink',
+                        style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () =>
+                          setState(() => _linkingFromId = null),
+                      child: const Text('CANCEL',
+                          style: TextStyle(color: Colors.white)),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
         // Zoom controls (mirrors the web board's +/−/% panel).
         Positioned(
           right: 12,
@@ -189,6 +356,47 @@ class _BoardCanvasState extends State<BoardCanvas> {
         ),
       ],
     );
+  }
+}
+
+/// Dashed lines between linked notes (web parity: #588157, dash 5/5).
+class _LinkPainter extends CustomPainter {
+  _LinkPainter({required this.segments});
+
+  final List<(Offset, Offset)> segments;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = const Color(0xFF588157).withValues(alpha: 0.6)
+      ..strokeWidth = 2
+      ..strokeCap = StrokeCap.round;
+    for (final (a, b) in segments) {
+      _dashedLine(canvas, a, b, paint);
+    }
+  }
+
+  void _dashedLine(Canvas canvas, Offset a, Offset b, Paint paint) {
+    const dash = 6.0;
+    const gap = 5.0;
+    final total = (b - a).distance;
+    if (total <= 0) return;
+    final dir = (b - a) / total;
+    var d = 0.0;
+    while (d < total) {
+      final end = d + dash < total ? d + dash : total;
+      canvas.drawLine(a + dir * d, a + dir * end, paint);
+      d = end + gap;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _LinkPainter oldDelegate) {
+    if (oldDelegate.segments.length != segments.length) return true;
+    for (var i = 0; i < segments.length; i++) {
+      if (oldDelegate.segments[i] != segments[i]) return true;
+    }
+    return false;
   }
 }
 

@@ -109,7 +109,8 @@ const tripSchemas = {
     content: Joi.string().max(50000).required(),
     color: Joi.string().optional(),
     emoji: Joi.string().max(10).optional(),
-    linkTo: Joi.string().optional(),
+    // null/'' clears an existing link (mind-map unlink)
+    linkTo: Joi.string().optional().allow('', null),
     scheduledDate: Joi.string().optional(),
     audioUrl: Joi.string().optional().allow('', null),
     crop: Joi.object({
@@ -133,7 +134,8 @@ const tripSchemas = {
     content: Joi.string().max(50000).optional(),
     color: Joi.string().optional(),
     emoji: Joi.string().max(10).optional(),
-    linkTo: Joi.string().optional(),
+    // null/'' clears an existing link (mind-map unlink)
+    linkTo: Joi.string().optional().allow('', null),
     scheduledDate: Joi.string().optional(),
     audioUrl: Joi.string().optional().allow('', null),
     crop: Joi.object({

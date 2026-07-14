@@ -206,6 +206,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   const dirtyNoteIdsRef = useRef<Set<string>>(new Set());
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // ── Mind-map linking: id of the note waiting for a target ──────────────────
+  const [linkingFromId, setLinkingFromId] = useState<string | null>(null);
+
   // ── Infinite canvas state ────────────────────────────────────────────────────
   const canvasContainerRef = useRef<HTMLDivElement>(null);
   const canvasLayerRef = useRef<HTMLDivElement>(null);
@@ -1218,9 +1221,23 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
     }
   };
 
+  // Link button on a note: enter (or leave) pick-a-target mode.
   const toggleLink = (id: string) => {
-    setNotes(prev => prev.map(n => n.id === id ? { ...n, linkTo: prev[prev.findIndex(item => item.id === id) - 1]?.id } : n));
-    stampEdit(id);
+    setLinkingFromId(prev => (prev === id ? null : id));
+  };
+
+  // Clicking a note while in linking mode: link source → target, or unlink
+  // when the clicked note is already the source's target. stampEdit persists
+  // the full note and broadcasts it to collaborators.
+  const completeLink = (targetId: string) => {
+    const sourceId = linkingFromId;
+    setLinkingFromId(null);
+    if (!sourceId || sourceId === targetId) return;
+    const source = notes.find(n => n.id === sourceId);
+    if (!source) return;
+    const newTarget = source.linkTo === targetId ? null : targetId;
+    setNotes(prev => prev.map(n => n.id === sourceId ? { ...n, linkTo: newTarget } : n));
+    stampEdit(sourceId);
   };
 
   const formatDate = (dateStr?: string) => dateStr ? new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
@@ -1453,6 +1470,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   // Canvas pan pointer handlers (only fire when notes stopPropagation is not triggered)
   const handleCanvasPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (e.button !== 0 && e.button !== 1) return;
+    if (linkingFromId) setLinkingFromId(null); // Empty-canvas click cancels linking.
     isPanningRef.current = true;
     setIsPanning(true);
     panOriginRef.current = { clientX: e.clientX, clientY: e.clientY, panX: panXRef.current, panY: panYRef.current };
@@ -1596,8 +1614,44 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
               }}
             />
           ))}
+
+          {/* Linking mode: click-capture overlays over every note */}
+          {linkingFromId && notes.map(n => (
+            <div
+              key={`pick-${n.id}`}
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => { e.stopPropagation(); completeLink(n.id); }}
+              style={{
+                position: 'absolute', left: n.x, top: n.y,
+                width: n.width, height: n.height, zIndex: 40,
+                cursor: 'crosshair', borderRadius: 14,
+                border: n.id === linkingFromId
+                  ? '3px solid #588157'
+                  : '2px dashed rgba(88,129,87,.55)',
+                background: n.id === linkingFromId
+                  ? 'rgba(88,129,87,.10)'
+                  : 'rgba(88,129,87,.04)',
+              }}
+              title={n.id === linkingFromId ? 'Linking from this note' : 'Click to link'}
+            />
+          ))}
         </div>
       </div>
+
+      {/* Linking-mode banner */}
+      {linkingFromId && (
+        <div style={{ position: 'absolute', top: 16, left: '50%', transform: 'translateX(-50%)', zIndex: 90, background: '#3a5a40', color: '#fff', borderRadius: 16, padding: '10px 10px 10px 18px', display: 'flex', alignItems: 'center', gap: 14, boxShadow: '0 12px 26px -10px rgba(58,90,64,.6)' }}>
+          <span style={{ fontSize: 13, fontWeight: 700 }}>
+            Click another note to link it — click its current link to unlink
+          </span>
+          <button
+            onClick={() => setLinkingFromId(null)}
+            style={{ background: 'rgba(255,255,255,.15)', color: '#fff', border: 'none', borderRadius: 10, padding: '6px 12px', fontSize: 12, fontWeight: 800, cursor: 'pointer', letterSpacing: '.04em' }}
+          >
+            CANCEL
+          </button>
+        </div>
+      )}
 
       {/* Empty-board hint */}
       {notes.length === 0 && !isInitializing && (

@@ -28,14 +28,14 @@ export interface NoteAuthor {
 
 export interface StickyNote {
   id: string;
-  type: 'text' | 'image' | 'voice' | 'weather' | 'schedule' | 'budget' | 'sustainability';
+  type: 'text' | 'image' | 'voice' | 'weather' | 'schedule' | 'budget' | 'sustainability' | 'route';
   x: number;
   y: number;
   width: number;
   height: number;
   content: string; // Text or Image URL
   color: string;
-  linkTo?: string; // ID of another note
+  linkTo?: string | null; // ID of another note (null clears the link)
   emoji?: string;
   audioUrl?: string;
   metadata?: any;
