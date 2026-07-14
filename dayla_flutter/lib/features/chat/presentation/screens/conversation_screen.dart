@@ -28,47 +28,19 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   final _messageController = TextEditingController();
   final _scrollController = ScrollController();
   bool _sending = false;
-  List<MessageModel> _messages = [];
-  bool _loaded = false;
   String? _typingUser;
   Timer? _typingStopTimer;
+
+  // Message data (history, socket room, live fold-in, mark-as-read) is
+  // owned entirely by conversationMessagesProvider — this widget only
+  // renders and handles the typing indicator, a pure UI concern.
 
   @override
   void initState() {
     super.initState();
-    ref.read(chatRepositoryProvider).markAsRead(widget.conversationId);
-    _setupSocket();
-  }
-
-  void _setupSocket() {
     final socket = ref.read(socketServiceProvider);
-    socket.joinConversation(widget.conversationId);
-    socket.on('new_message', _handleNewMessage);
     socket.on('user_typing', _handleTyping);
     socket.on('user_stopped_typing', _handleStoppedTyping);
-  }
-
-  void _handleNewMessage(dynamic data) {
-    if (!mounted) return;
-    if (data is Map) {
-      final map = Map<String, dynamic>.from(data);
-      final msgConvoId = map['conversationId'] as String?;
-      if (msgConvoId == widget.conversationId) {
-        try {
-          final msg = MessageModel.fromJson(map);
-          // The sender already appended this message locally.
-          final currentUserId = ref.read(authSessionProvider).user?.id;
-          final isMine = msg.senderId == currentUserId ||
-              msg.sender?.id == currentUserId;
-          if (!isMine && !_messages.any((m) => m.id == msg.id)) {
-            setState(() => _messages.insert(0, msg));
-          }
-          ref.read(chatRepositoryProvider).markAsRead(widget.conversationId);
-        } catch (_) {
-          ref.invalidate(messagesProvider(widget.conversationId));
-        }
-      }
-    }
   }
 
   void _handleTyping(dynamic data) {
@@ -100,8 +72,6 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     _typingStopTimer?.cancel();
     final socket = ref.read(socketServiceProvider);
     socket.stopTyping(widget.conversationId);
-    socket.leaveConversation(widget.conversationId);
-    socket.off('new_message', _handleNewMessage);
     socket.off('user_typing', _handleTyping);
     socket.off('user_stopped_typing', _handleStoppedTyping);
     _messageController.dispose();
@@ -119,26 +89,20 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     _typingStopTimer?.cancel();
     ref.read(socketServiceProvider).stopTyping(widget.conversationId);
 
-    final repo = ref.read(chatRepositoryProvider);
-    final sent = await repo.sendMessage(widget.conversationId, text);
+    final ok = await ref
+        .read(conversationMessagesProvider(widget.conversationId).notifier)
+        .send(text);
 
-    if (sent == null) {
+    if (!mounted) return;
+    setState(() => _sending = false);
+
+    if (!ok) {
       // Give the text back instead of silently eating it.
-      if (mounted) {
-        _messageController.text = text;
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Message not sent — try again')));
-        setState(() => _sending = false);
-      }
+      _messageController.text = text;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Message not sent — try again')));
       return;
     }
-
-    // Repopulate the local list from the refetch so the sent message shows.
-    _loaded = false;
-    ref.invalidate(messagesProvider(widget.conversationId));
-    ref.read(conversationsProvider.notifier).refresh();
-
-    setState(() => _sending = false);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
@@ -153,20 +117,8 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Keep the local list in sync with EVERY provider refresh (invalidations
-    // from sends, socket fallbacks, pull-to-refresh) — the old first-load-only
-    // gate could leave the screen stale or empty after a refetch.
-    ref.listen(messagesProvider(widget.conversationId), (previous, next) {
-      final data = next.valueOrNull;
-      if (data != null && mounted) {
-        setState(() {
-          _messages = List.from(data);
-          _loaded = true;
-        });
-      }
-    });
-
-    final messagesAsync = ref.watch(messagesProvider(widget.conversationId));
+    final messagesAsync =
+        ref.watch(conversationMessagesProvider(widget.conversationId));
     final currentUserId = ref.watch(authSessionProvider).user?.id;
 
     return Scaffold(
@@ -178,15 +130,22 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
               loading: () =>
                   const Center(child: CircularProgressIndicator()),
               error: (e, _) => Center(
-                child: Text('Failed to load messages',
-                    style: TextStyle(color: Colors.grey.shade600)),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('Failed to load messages',
+                        style: TextStyle(color: Colors.grey.shade600)),
+                    const SizedBox(height: 12),
+                    FilledButton.tonal(
+                      onPressed: () => ref.invalidate(
+                          conversationMessagesProvider(
+                              widget.conversationId)),
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ),
               ),
-              data: (fetchedMessages) {
-                if (!_loaded) {
-                  _messages = List.from(fetchedMessages);
-                  _loaded = true;
-                }
-                final messages = _messages;
+              data: (messages) {
                 if (messages.isEmpty) {
                   return Center(
                     child: Text(
