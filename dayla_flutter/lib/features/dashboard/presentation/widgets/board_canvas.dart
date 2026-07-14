@@ -32,12 +32,21 @@ class _BoardCanvasState extends State<BoardCanvas> {
   final _transform = TransformationController();
   double _zoom = 1.0;
 
+  /// World-space padding rendered around the note area on every side, so
+  /// notes can be dragged left of / above the origin too (the backend and
+  /// web board both allow negative coordinates). Without it the canvas
+  /// starts exactly at world (0,0) and everything beyond that edge is a
+  /// dead zone notes can never enter.
+  static const double _originPad = 1600;
+
   Offset _positionOf(StickyNoteModel note) =>
       _positions[note.id] ?? Offset(note.x, note.y);
 
   @override
   void initState() {
     super.initState();
+    // Start with world (0,0) at the viewport's top-left, not the padding.
+    _transform.value = Matrix4.identity()..translate(-_originPad, -_originPad);
     _transform.addListener(() {
       final scale = _transform.value.getMaxScaleOnAxis();
       if ((scale - _zoom).abs() > 0.01) {
@@ -69,9 +78,12 @@ class _BoardCanvasState extends State<BoardCanvas> {
   }
 
   void _resetView() {
-    _transform.value = Matrix4.identity();
+    _transform.value = Matrix4.identity()
+      ..translate(-_originPad, -_originPad);
   }
 
+  /// Canvas size in shifted coordinates: [_originPad] of free space on the
+  /// left/top, and the note extent plus breathing room on the right/bottom.
   Size get _canvasSize {
     var maxX = 900.0;
     var maxY = 1200.0;
@@ -80,7 +92,7 @@ class _BoardCanvasState extends State<BoardCanvas> {
       if (p.dx + note.width + 120 > maxX) maxX = p.dx + note.width + 120;
       if (p.dy + note.height + 200 > maxY) maxY = p.dy + note.height + 200;
     }
-    return Size(maxX, maxY);
+    return Size(maxX + _originPad, maxY + _originPad);
   }
 
   @override
@@ -105,17 +117,22 @@ class _BoardCanvasState extends State<BoardCanvas> {
                 ),
                 for (final note in widget.notes)
                   Positioned(
-                    left: _positionOf(note).dx,
-                    top: _positionOf(note).dy,
+                    left: _positionOf(note).dx + _originPad,
+                    top: _positionOf(note).dy + _originPad,
                     child: GestureDetector(
                       onTap: () => widget.onTap(note),
                       onLongPress: () => widget.onDelete(note),
                       onPanUpdate: (details) {
                         setState(() {
+                          // World coordinates; may go negative down to
+                          // -_originPad, matching the padded canvas.
                           final p = _positionOf(note) + details.delta;
                           _positions[note.id] = Offset(
-                            p.dx.clamp(0, size.width - note.width),
-                            p.dy.clamp(0, size.height - note.height),
+                            p.dx.clamp(
+                                -_originPad, size.width - _originPad - note.width),
+                            p.dy.clamp(
+                                -_originPad,
+                                size.height - _originPad - note.height),
                           );
                         });
                       },

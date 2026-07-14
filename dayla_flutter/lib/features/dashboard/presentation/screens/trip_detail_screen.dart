@@ -51,7 +51,15 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    // Rebuild on tab change so the TabBarView's physics can switch: the
+    // board tab disables page swiping (its drag gestures move notes and
+    // pan the canvas), the other tabs keep it.
+    _tabController.addListener(_onTabChanged);
     _loadData();
+  }
+
+  void _onTabChanged() {
+    if (mounted) setState(() {});
   }
 
   Future<void> _loadData() async {
@@ -116,6 +124,7 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen>
       socket.off('note_deleted', _handleBoardChanged);
       socket.off('route:added', _handleBoardChanged);
     }
+    _tabController.removeListener(_onTabChanged);
     _tabController.dispose();
     super.dispose();
   }
@@ -270,6 +279,14 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen>
       ),
       body: TabBarView(
         controller: _tabController,
+        // On the board tab, horizontal swipes must always drag notes /
+        // pan the canvas — never switch pages. TabBarView's horizontal
+        // recognizer needs less movement (kTouchSlop) than a pan
+        // recognizer (kPanSlop), so left enabled it steals every
+        // horizontal-ish note drag. Tabs remain switchable by tapping.
+        physics: _tabController.index == 0
+            ? const NeverScrollableScrollPhysics()
+            : null,
         children: [
           _buildBoard(),
           _buildOverview(trip),
