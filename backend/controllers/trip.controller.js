@@ -21,12 +21,19 @@ const createTrip = async (req, res) => {
 
     // Create default dashboard for the trip
     // Owner is tracked by the `owner` field; don't duplicate into collaborators.
-    const dashboard = await Dashboard.create({
-      tripId: trip._id,
-      name: `${name} Dashboard`,
-      owner: req.user._id,
-      collaborators: []
-    });
+    // Best-effort: if this fails the trip must NOT be orphaned into a 500 —
+    // getDashboardByTrip self-heals a missing dashboard on first board open.
+    let dashboard = null;
+    try {
+      dashboard = await Dashboard.create({
+        tripId: trip._id,
+        name: `${name} Dashboard`,
+        owner: req.user._id,
+        collaborators: []
+      });
+    } catch (dashboardError) {
+      logger.error(`Dashboard creation failed for trip ${trip._id}: ${dashboardError.message}`);
+    }
 
     logger.info(`Trip created: ${trip.name} by ${req.user.email}`);
 
@@ -231,7 +238,29 @@ const deleteTrip = async (req, res) => {
 // @access  Private
 const addCollaborator = async (req, res) => {
   try {
-    const { userId, role = 'editor' } = req.body;
+    const { role = 'editor', email } = req.body;
+    let { userId } = req.body;
+
+    // The mobile app (and any email-first client) sends { email } — resolve
+    // it to a user. Previously only userId was read, so userId was undefined
+    // and the save always failed.
+    if (!userId && email) {
+      const User = require('../models/user.model');
+      const target = await User.findOne({ email: email.toLowerCase() }).select('_id');
+      if (!target) {
+        return res.status(404).json({
+          success: false,
+          message: 'No Dayla account with that email — send them a board invitation instead'
+        });
+      }
+      userId = target._id;
+    }
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        message: 'userId or email is required'
+      });
+    }
 
     const trip = await Trip.findById(req.params.id);
 
@@ -251,7 +280,7 @@ const addCollaborator = async (req, res) => {
     }
 
     // Check if user is already a collaborator
-    if (trip.collaborators.includes(userId)) {
+    if (trip.collaborators.some((c) => c.toString() === userId.toString())) {
       return res.status(400).json({
         success: false,
         message: 'User is already a collaborator'
@@ -277,6 +306,34 @@ const addCollaborator = async (req, res) => {
 
     const updatedTrip = await Trip.findById(req.params.id)
       .populate('collaborators', 'name avatar');
+
+    // Tell the person they were added (in-app + socket + push, best-effort).
+    try {
+      const Notification = require('../models/notification.model');
+      await Notification.create({
+        recipient: userId,
+        sender: req.user._id,
+        type: 'board_invite',
+        message: `${req.user.name} added you to the trip "${trip.name}"`
+      });
+      const io = req.app.get('io');
+      if (io) {
+        io.to(`user:${userId.toString()}`).emit('notification:new', {
+          recipientId: userId.toString(),
+          type: 'board_invite',
+          senderName: req.user.name,
+          timestamp: new Date()
+        });
+      }
+      const push = require('../services/push.service');
+      push.sendToUser(userId, {
+        title: 'Dayla',
+        body: `${req.user.name} added you to the trip "${trip.name}"`,
+        data: { type: 'trip_collaborator', tripId: trip._id.toString() }
+      });
+    } catch (notifError) {
+      logger.error('Collaborator notification failed:', notifError);
+    }
 
     res.status(200).json({
       success: true,

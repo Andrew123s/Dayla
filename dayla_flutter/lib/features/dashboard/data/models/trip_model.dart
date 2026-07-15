@@ -184,6 +184,47 @@ abstract class BoardModel with _$BoardModel {
     } else {
       copy['tripId'] = tripId?.toString() ?? '';
     }
+
+    // Legacy notes tolerance: one malformed note used to throw and take the
+    // WHOLE board down ("No board available"). Coerce each note into a
+    // parseable shape and skip only the truly hopeless ones.
+    final notes = copy['notes'];
+    if (notes is List) {
+      double numOr(dynamic v, double fallback) =>
+          v is num ? v.toDouble() : fallback;
+      copy['notes'] = notes
+          .map((n) {
+            if (n is! Map) return null;
+            final m = Map<String, dynamic>.from(n);
+            final id = (m['id'] ?? m['_id'] ?? '').toString();
+            if (id.isEmpty) return null;
+            m['id'] = id;
+            m['x'] = numOr(m['x'], 40);
+            m['y'] = numOr(m['y'], 40);
+            m['width'] = numOr(m['width'], 220);
+            m['height'] = numOr(m['height'], 170);
+            if (m['type'] is! String) m['type'] = 'text';
+            m['content'] = (m['content'] ?? '').toString();
+            if (m['color'] is! String) m.remove('color');
+            if (m['emoji'] != null && m['emoji'] is! String) m.remove('emoji');
+            if (m['linkTo'] != null && m['linkTo'] is! String) {
+              m.remove('linkTo');
+            }
+            if (m['audioUrl'] != null && m['audioUrl'] is! String) {
+              m.remove('audioUrl');
+            }
+            if (m['metadata'] is! Map) m.remove('metadata');
+            if (m['scheduledDate'] != null && m['scheduledDate'] is! String) {
+              m['scheduledDate'] = m['scheduledDate'].toString();
+            }
+            if (m['scale'] is! num) m.remove('scale');
+            return m;
+          })
+          .whereType<Map<String, dynamic>>()
+          .toList();
+    } else {
+      copy['notes'] = <Map<String, dynamic>>[];
+    }
     return copy;
   }
 }

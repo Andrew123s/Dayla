@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:dayla_flutter/core/theme/app_colors.dart';
+import 'package:dayla_flutter/features/auth/application/providers/auth_session_provider.dart';
 import 'package:dayla_flutter/features/dashboard/application/providers/dashboard_providers.dart';
+import 'package:dayla_flutter/features/dashboard/data/models/expense_model.dart';
 import 'package:dayla_flutter/features/dashboard/data/models/trip_model.dart';
 
 class BudgetScreen extends ConsumerStatefulWidget {
@@ -19,7 +21,9 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
   TripModel? _trip;
   bool _loading = true;
   String _currency = 'USD';
-  final List<_Expense> _expenses = [];
+  // Server-backed: loaded from and written to /api/trips/:id/expenses so
+  // expenses survive navigation, restarts and are shared with collaborators.
+  List<ExpenseModel> _expenses = [];
 
   static const _currencies = [
     ('USD', '\$'),
@@ -46,31 +50,47 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
 
   Future<void> _loadTrip() async {
     final repo = ref.read(dashboardRepositoryProvider);
-    final trip = await repo.getTrip(widget.tripId);
+    final results = await Future.wait([
+      repo.getTrip(widget.tripId),
+      repo.getBudget(widget.tripId),
+    ]);
     if (!mounted) return;
+    final trip = results[0] as TripModel?;
+    final budget =
+        results[1] as ({List<ExpenseModel> expenses, double budgetUSD});
     setState(() {
       _trip = trip;
+      _expenses = budget.expenses;
       _currency = trip?.budget?.currency ?? 'USD';
       _loading = false;
     });
   }
 
-  String get _symbol {
+  void _showError(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  String get _symbol => _symbolFor(_currency);
+
+  String _symbolFor(String code) {
     for (final c in _currencies) {
-      if (c.$1 == _currency) return c.$2;
+      if (c.$1 == code) return c.$2;
     }
-    return '\$';
+    return code;
   }
 
   double get _totalBudget => _trip?.budget?.total ?? 0;
 
+  // Totals use the server's USD snapshot so mixed-currency expenses add up.
   double get _totalSpent =>
-      _expenses.fold(0.0, (sum, e) => sum + e.amount);
+      _expenses.fold(0.0, (sum, e) => sum + e.amountUSD);
 
   Map<String, double> get _spentByCategory {
     final map = <String, double>{};
     for (final e in _expenses) {
-      map[e.category] = (map[e.category] ?? 0) + e.amount;
+      map[e.category] = (map[e.category] ?? 0) + e.amountUSD;
     }
     return map;
   }
@@ -80,10 +100,51 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
     final ok = await repo.updateTrip(widget.tripId, {
       'budget': {
         'total': total,
-        'currency': _currency,
+        'currency': 'USD',
       },
     });
-    if (ok) await _loadTrip();
+    if (ok) {
+      await _loadTrip();
+    } else {
+      _showError('Could not save the budget — try again');
+    }
+  }
+
+  Future<void> _createExpense({
+    required String title,
+    required double amount,
+    required String category,
+  }) async {
+    final userId = ref.read(authSessionProvider).user?.id;
+    if (userId == null) {
+      _showError('Not signed in');
+      return;
+    }
+    final repo = ref.read(dashboardRepositoryProvider);
+    final ok = await repo.createExpense(widget.tripId, {
+      'title': title,
+      'amount': amount,
+      'currency': _currency,
+      'category': category,
+      'date': DateTime.now().toIso8601String().substring(0, 10),
+      'paidBy': userId,
+      'splitMethod': 'equal',
+      'splits': [
+        {'user': userId, 'amount': amount},
+      ],
+    });
+    if (ok) {
+      await _loadTrip();
+    } else {
+      _showError('Could not save the expense — try again');
+    }
+  }
+
+  Future<void> _deleteExpense(ExpenseModel expense) async {
+    final repo = ref.read(dashboardRepositoryProvider);
+    final ok = await repo.deleteExpense(widget.tripId, expense.id);
+    if (!ok) _showError('Could not delete the expense');
+    await _loadTrip();
   }
 
   void _showSetBudgetDialog() {
@@ -98,8 +159,9 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
           controller: controller,
           keyboardType: TextInputType.number,
           decoration: InputDecoration(
-            prefixText: '$_symbol ',
+            prefixText: '\$ ',
             hintText: '0.00',
+            helperText: 'Budget is tracked in USD',
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
             ),
@@ -184,15 +246,12 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
                 final title = titleController.text.trim();
                 final amount = double.tryParse(amountController.text) ?? 0;
                 if (title.isEmpty || amount <= 0) return;
-                setState(() {
-                  _expenses.add(_Expense(
-                    title: title,
-                    amount: amount,
-                    category: category,
-                    date: DateTime.now(),
-                  ));
-                });
                 Navigator.pop(ctx);
+                _createExpense(
+                  title: title,
+                  amount: amount,
+                  category: category,
+                );
               },
               child: const Text('Save'),
             ),
@@ -263,7 +322,7 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          '$_symbol${_totalSpent.toStringAsFixed(2)}',
+                          '\$${_totalSpent.toStringAsFixed(2)}',
                           style: const TextStyle(
                             fontSize: 32,
                             fontWeight: FontWeight.w900,
@@ -297,7 +356,7 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Budget: $_symbol${_totalBudget.toStringAsFixed(0)}',
+                    'Budget: \$${_totalBudget.toStringAsFixed(0)}',
                     style: TextStyle(
                       fontSize: 12,
                       color: Colors.white.withValues(alpha: 0.7),
@@ -397,7 +456,7 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
                             ),
                           ),
                           Text(
-                            '$_symbol${e.value.toStringAsFixed(2)}',
+                            '\$${e.value.toStringAsFixed(2)}',
                             style: const TextStyle(
                               fontWeight: FontWeight.w800,
                               fontSize: 14,
@@ -454,7 +513,7 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
               final color =
                   _categoryColors[exp.category] ?? Colors.grey.shade300;
               return Dismissible(
-                key: ValueKey(exp.hashCode),
+                key: ValueKey(exp.id),
                 direction: DismissDirection.endToStart,
                 background: Container(
                   alignment: Alignment.centerRight,
@@ -466,8 +525,10 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
                   child:
                       const Icon(Icons.delete, color: Colors.white),
                 ),
-                onDismissed: (_) =>
-                    setState(() => _expenses.removeAt(i)),
+                onDismissed: (_) {
+                  setState(() => _expenses.removeAt(i));
+                  _deleteExpense(exp);
+                },
                 child: Container(
                   margin: const EdgeInsets.only(bottom: 8),
                   padding: const EdgeInsets.all(14),
@@ -512,7 +573,7 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
                         ),
                       ),
                       Text(
-                        '$_symbol${exp.amount.toStringAsFixed(2)}',
+                        '${_symbolFor(exp.currency)}${exp.amount.toStringAsFixed(2)}',
                         style: const TextStyle(
                           fontWeight: FontWeight.w800,
                           fontSize: 15,
@@ -567,16 +628,3 @@ class _CategoryRow extends StatelessWidget {
   }
 }
 
-class _Expense {
-  _Expense({
-    required this.title,
-    required this.amount,
-    required this.category,
-    required this.date,
-  });
-
-  final String title;
-  final double amount;
-  final String category;
-  final DateTime date;
-}

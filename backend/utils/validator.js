@@ -94,7 +94,20 @@ const tripSchemas = {
     }).optional(),
     coverImage: Joi.string().uri().optional(),
     tags: Joi.array().items(Joi.string()).optional(),
-    isPublic: Joi.boolean().optional()
+    isPublic: Joi.boolean().optional(),
+    // validate() strips unknown keys, so without this entry a budget update
+    // is silently dropped while the request still returns 200.
+    budget: Joi.object({
+      total: Joi.number().min(0).optional(),
+      currency: Joi.string().min(2).max(8).optional(),
+      categories: Joi.object({
+        accommodation: Joi.number().min(0).optional(),
+        transportation: Joi.number().min(0).optional(),
+        food: Joi.number().min(0).optional(),
+        activities: Joi.number().min(0).optional(),
+        other: Joi.number().min(0).optional()
+      }).optional()
+    }).optional()
   }),
 
   createStickyNote: Joi.object({

@@ -989,8 +989,16 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen>
                           success = null;
                         });
                         final repo = ref.read(dashboardRepositoryProvider);
-                        final ok =
-                            await repo.addCollaborator(tripId, email);
+                        // Proper invitation flow (same as web): creates an
+                        // invitation on the board, emails it via Resend, and
+                        // notifies existing users in-app + push. Accepting
+                        // adds them to the board AND the trip. The old code
+                        // posted {email} to an endpoint that expected
+                        // {userId}, so every invite failed.
+                        var board = _board;
+                        board ??= await repo.getBoardByTrip(tripId);
+                        final ok = board != null &&
+                            await repo.inviteToBoard(board.id, email);
                         if (ok) {
                           setDialogState(() {
                             sending = false;
@@ -1001,7 +1009,9 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen>
                         } else {
                           setDialogState(() {
                             sending = false;
-                            error = 'Failed to invite. Check the email.';
+                            error =
+                                'Could not send the invite. Check the email '
+                                '(Free plans allow up to 3 collaborators).';
                           });
                         }
                       },

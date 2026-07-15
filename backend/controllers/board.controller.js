@@ -1,4 +1,5 @@
 const Dashboard = require('../models/dashboard.model');
+const Trip = require('../models/trip.model');
 const User = require('../models/user.model');
 const Notification = require('../models/notification.model');
 const { sendInvitationEmail } = require('../services/email.service');
@@ -450,6 +451,15 @@ const acceptInvitation = async (req, res) => {
 
     await dashboard.save();
 
+    // Also add them to the TRIP itself — trip membership is what makes the
+    // trip appear in their list and unlocks budget/packing/etc. Without this
+    // an accepted invite gave board access but the trip never showed up.
+    if (dashboard.tripId) {
+      await Trip.findByIdAndUpdate(dashboard.tripId, {
+        $addToSet: { collaborators: req.user._id },
+      });
+    }
+
     logger.info(`User ${req.user.email} accepted invitation to dashboard ${dashboard._id}`);
 
     const ownerId = dashboard.owner.toString();
@@ -653,13 +663,42 @@ const getDashboard = async (req, res) => {
 const getDashboardByTrip = async (req, res) => {
   try {
     const { tripId } = req.params;
-    const dashboard = await Dashboard.findOne({ tripId })
+    let dashboard = await Dashboard.findOne({ tripId })
       .populate('owner', 'name avatar')
       .populate('collaborators.user', 'name avatar')
       .populate('activeUsers.userId', 'name avatar');
 
     if (!dashboard) {
-      return res.status(404).json({ success: false, message: 'Dashboard not found for this trip' });
+      // Self-heal: some legacy trips exist without a dashboard (Trip.create
+      // succeeded but the follow-up Dashboard.create failed), which locked
+      // their planning board behind a permanent 404. Create it now for any
+      // trip member, seeded with the trip's collaborators.
+      const trip = await Trip.findById(tripId);
+      if (!trip) {
+        return res.status(404).json({ success: false, message: 'Trip not found' });
+      }
+      const requesterId = req.user._id.toString();
+      const isTripMember =
+        trip.owner.toString() === requesterId ||
+        trip.collaborators.some((c) => c.toString() === requesterId);
+      if (!isTripMember) {
+        return res.status(403).json({ success: false, message: 'Not authorized to view this dashboard' });
+      }
+      await Dashboard.create({
+        tripId: trip._id,
+        name: `${trip.name} Dashboard`,
+        owner: trip.owner,
+        collaborators: trip.collaborators.map((c) => ({
+          user: c,
+          role: 'editor',
+          joinedAt: new Date(),
+        })),
+      });
+      logger.info(`Self-healed missing dashboard for trip ${tripId}`);
+      dashboard = await Dashboard.findOne({ tripId })
+        .populate('owner', 'name avatar')
+        .populate('collaborators.user', 'name avatar')
+        .populate('activeUsers.userId', 'name avatar');
     }
 
     const isOwner = dashboard.owner._id.toString() === req.user._id.toString();

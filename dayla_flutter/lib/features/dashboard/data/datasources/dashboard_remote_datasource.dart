@@ -50,6 +50,31 @@ class DashboardRemoteDatasource {
     return response.data as Map<String, dynamic>;
   }
 
+  // ── Budget / expenses ────────────────────────────────────────────────
+
+  Future<Map<String, dynamic>> getBudget(String tripId) async {
+    final response = await _dio.get('/api/trips/$tripId/expenses');
+    return response.data as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> createExpense(
+    String tripId,
+    Map<String, dynamic> data,
+  ) async {
+    final response =
+        await _dio.post('/api/trips/$tripId/expenses', data: data);
+    return response.data as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> deleteExpense(
+    String tripId,
+    String expenseId,
+  ) async {
+    final response =
+        await _dio.delete('/api/trips/$tripId/expenses/$expenseId');
+    return response.data as Map<String, dynamic>;
+  }
+
   Future<Map<String, dynamic>> addCollaborator(
     String tripId,
     String email,

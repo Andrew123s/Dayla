@@ -131,7 +131,11 @@ app.get('/version', (req, res) => {
     uptimeSeconds: Math.round(process.uptime()),
     features: {
       // Present only because this build includes the budget routes/controller.
-      budget: true
+      budget: true,
+      // Env-dependent integrations — false here means the env var is missing
+      // on this deployment, not that the code is absent.
+      push: require('./services/push.service').isConfigured(),
+      email: !!process.env.RESEND_API_KEY
     }
   });
 });

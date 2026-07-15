@@ -1,4 +1,5 @@
 import 'package:dayla_flutter/features/dashboard/data/datasources/dashboard_remote_datasource.dart';
+import 'package:dayla_flutter/features/dashboard/data/models/expense_model.dart';
 import 'package:dayla_flutter/features/dashboard/data/models/trip_model.dart';
 
 class DashboardRepository {
@@ -96,6 +97,43 @@ class DashboardRepository {
       // 404 (no board yet), auth errors, or an unexpected payload shape —
       // the screen falls back to its no-board state either way.
       return null;
+    }
+  }
+
+  /// Expenses + the trip's budget total (USD), from the budget module.
+  Future<({List<ExpenseModel> expenses, double budgetUSD})> getBudget(
+      String tripId) async {
+    try {
+      final json = await _remote.getBudget(tripId);
+      final data = json['data'] as Map? ?? {};
+      final raw = (data['expenses'] as List?) ?? [];
+      final expenses =
+          raw.map(ExpenseModel.fromJson).whereType<ExpenseModel>().toList();
+      final budget = data['budgetUSD'];
+      return (
+        expenses: expenses,
+        budgetUSD: budget is num ? budget.toDouble() : 0.0,
+      );
+    } catch (_) {
+      return (expenses: <ExpenseModel>[], budgetUSD: 0.0);
+    }
+  }
+
+  Future<bool> createExpense(String tripId, Map<String, dynamic> data) async {
+    try {
+      final json = await _remote.createExpense(tripId, data);
+      return json['success'] == true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> deleteExpense(String tripId, String expenseId) async {
+    try {
+      final json = await _remote.deleteExpense(tripId, expenseId);
+      return json['success'] == true;
+    } catch (_) {
+      return false;
     }
   }
 

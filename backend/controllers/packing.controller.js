@@ -8,6 +8,23 @@ const packingService = require('../services/packing.service');
 // @desc    Get or create packing list for a trip
 // @route   GET /api/packing/:tripId
 // @access  Private
+// Writes used to 404 when the list document didn't exist yet (only the GET
+// auto-created it), so the very first "add item" on a trip whose list load
+// had failed did nothing. Create the list on demand instead.
+async function findOrCreateList(tripId, userId) {
+  let list = await PackingList.findOne({ tripId });
+  if (list) return list;
+  const trip = await Trip.findById(tripId);
+  if (!trip) return null;
+  return PackingList.create({
+    tripId,
+    owner: userId,
+    collaborators: trip.collaborators.map(c => ({ user: c, role: 'editor' })),
+    items: [],
+    luggage: [{ name: 'Main Bag', type: 'checked', maxWeight: 23000, maxVolume: 62000 }],
+  });
+}
+
 const getPackingList = async (req, res) => {
   try {
     const { tripId } = req.params;
@@ -185,9 +202,9 @@ const addItem = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Item name is required' });
     }
 
-    const list = await PackingList.findOne({ tripId });
+    const list = await findOrCreateList(tripId, req.user._id);
     if (!list) {
-      return res.status(404).json({ success: false, message: 'Packing list not found' });
+      return res.status(404).json({ success: false, message: 'Trip not found' });
     }
 
     const spec = packingService.getItemSpec(name);
@@ -308,9 +325,9 @@ const addLuggage = async (req, res) => {
     const { tripId } = req.params;
     const { name, type, maxWeight, maxVolume, airline, color } = req.body;
 
-    const list = await PackingList.findOne({ tripId });
+    const list = await findOrCreateList(tripId, req.user._id);
     if (!list) {
-      return res.status(404).json({ success: false, message: 'Packing list not found' });
+      return res.status(404).json({ success: false, message: 'Trip not found' });
     }
 
     const newBag = {

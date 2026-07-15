@@ -61,15 +61,29 @@ class _PackingScreenState extends ConsumerState<PackingScreen>
     setState(() => _generating = false);
   }
 
+  void _notify(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
+  }
+
   Future<void> _addItem() async {
     final name = _itemNameController.text.trim();
-    if (name.isEmpty) return;
+    if (name.isEmpty) {
+      // Never a silent no-op: the + button submits the adjacent text field.
+      _notify('Type an item name first');
+      return;
+    }
     final repo = ref.read(packingRepositoryProvider);
-    await repo.addItem(widget.tripId, {
+    final ok = await repo.addItem(widget.tripId, {
       'name': name,
       'category': 'other',
       'quantity': 1,
     });
+    if (!ok) {
+      _notify('Could not add "$name" — check your connection and try again');
+      return;
+    }
     _itemNameController.clear();
     ref.invalidate(packingListProvider(widget.tripId));
   }
@@ -88,7 +102,8 @@ class _PackingScreenState extends ConsumerState<PackingScreen>
 
   Future<void> _addLuggage(Map<String, dynamic> data) async {
     final repo = ref.read(packingRepositoryProvider);
-    await repo.addLuggage(widget.tripId, data);
+    final ok = await repo.addLuggage(widget.tripId, data);
+    if (!ok) _notify('Could not add the bag — try again');
     ref.invalidate(packingListProvider(widget.tripId));
   }
 
