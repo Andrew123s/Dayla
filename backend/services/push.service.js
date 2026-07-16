@@ -36,6 +36,16 @@ function init() {
       initError = 'FIREBASE_SERVICE_ACCOUNT env var is not set';
       return null;
     }
+    if (!credentialJson.private_key || !credentialJson.client_email) {
+      // The most common mix-up: pasting google-services.json (the CLIENT
+      // config) instead of a service-account key.
+      initError =
+        'FIREBASE_SERVICE_ACCOUNT is not a service-account key (missing ' +
+        'private_key/client_email — this looks like google-services.json). ' +
+        'Generate one: Firebase console → Project settings → Service ' +
+        'accounts → Generate new private key, and paste that JSON.';
+      return null;
+    }
 
     const admin = require('firebase-admin');
     if (!admin.apps.length) {
