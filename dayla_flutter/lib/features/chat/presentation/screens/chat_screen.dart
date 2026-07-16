@@ -232,7 +232,7 @@ class _ConversationTile extends StatelessWidget {
       ),
       subtitle: lastMsg?.content != null
           ? Text(
-              '${lastMsg!.sender?.name ?? ''}: ${lastMsg.content}',
+              _lastMessagePreview(),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
@@ -259,6 +259,24 @@ class _ConversationTile extends StatelessWidget {
         );
       },
     );
+  }
+
+  /// Preview line under the conversation name. Avoids duplicating the
+  /// title: own messages get "You:", group chats get the sender's first
+  /// name, and 1:1 messages from the other person need no prefix at all
+  /// (the title already names them).
+  String _lastMessagePreview() {
+    final msg = conversation.lastMessage!;
+    final content = msg.content ?? '';
+    final senderId = msg.sender?.id;
+    if (senderId != null && senderId == currentUserId) {
+      return 'You: $content';
+    }
+    if (conversation.isGroup) {
+      final first = (msg.sender?.name ?? '').split(' ').first;
+      return first.isEmpty ? content : '$first: $content';
+    }
+    return content;
   }
 
   String _getDisplayName() {

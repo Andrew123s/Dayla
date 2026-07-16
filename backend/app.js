@@ -135,7 +135,12 @@ app.get('/version', (req, res) => {
       // Env-dependent integrations — false here means the env var is missing
       // on this deployment, not that the code is absent.
       push: require('./services/push.service').isConfigured(),
-      email: !!process.env.RESEND_API_KEY
+      // Why push is off (bad JSON paste, missing var, …); null when healthy.
+      pushError: require('./services/push.service').configError(),
+      email: !!process.env.RESEND_API_KEY,
+      emailVerification:
+        process.env.EMAIL_VERIFICATION_REQUIRED === 'true' ||
+        (process.env.EMAIL_VERIFICATION_REQUIRED !== 'false' && !!process.env.RESEND_API_KEY)
     }
   });
 });

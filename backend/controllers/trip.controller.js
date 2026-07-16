@@ -443,6 +443,12 @@ const createStickyNote = async (req, res) => {
         typeContentFallback[req.body.type] ||
         'Note',
       id: req.body.id || Math.random().toString(36).substr(2, 9),
+      // Attribution (e.g. voice memos show the recorder's name).
+      createdBy: req.body.createdBy || {
+        userId: req.user._id.toString(),
+        name: req.user.name,
+        avatar: req.user.avatar || null,
+      },
     };
 
     await Dashboard.findByIdAndUpdate(dashboard._id, {

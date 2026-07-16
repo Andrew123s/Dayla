@@ -420,9 +420,12 @@ class _GridPainter extends CustomPainter {
 
 /// Inline voice memo player for the canvas: tap to play/stop.
 class _VoiceNotePlayer extends StatefulWidget {
-  const _VoiceNotePlayer({required this.url});
+  const _VoiceNotePlayer({required this.url, required this.label});
 
   final String url;
+
+  /// Recorder's first name (falls back to "Voice memo").
+  final String label;
 
   @override
   State<_VoiceNotePlayer> createState() => _VoiceNotePlayerState();
@@ -471,7 +474,7 @@ class _VoiceNotePlayerState extends State<_VoiceNotePlayer> {
           ),
           const SizedBox(width: 8),
           Text(
-            _playing ? 'Playing…' : 'Voice memo',
+            _playing ? 'Playing…' : widget.label,
             style: TextStyle(
               fontSize: 12.5,
               fontWeight: FontWeight.w600,
@@ -531,7 +534,11 @@ class _NoteCard extends StatelessWidget {
           width: width,
           height: 70,
           color: Colors.white,
-          child: _VoiceNotePlayer(url: url),
+          child: _VoiceNotePlayer(
+            url: url,
+            // "Andrew" instead of the generic "Voice memo".
+            label: note.creatorFirstName ?? 'Voice memo',
+          ),
         );
 
       case 'route':

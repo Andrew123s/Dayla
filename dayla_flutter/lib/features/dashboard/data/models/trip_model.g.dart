@@ -230,6 +230,7 @@ _StickyNoteModel _$StickyNoteModelFromJson(Map<String, dynamic> json) =>
       metadata: json['metadata'] as Map<String, dynamic>?,
       scheduledDate: json['scheduledDate'] as String?,
       scale: (json['scale'] as num?)?.toDouble() ?? 1.0,
+      createdBy: json['createdBy'] as Map<String, dynamic>?,
     );
 
 Map<String, dynamic> _$StickyNoteModelToJson(_StickyNoteModel instance) =>
@@ -248,4 +249,5 @@ Map<String, dynamic> _$StickyNoteModelToJson(_StickyNoteModel instance) =>
       'metadata': instance.metadata,
       'scheduledDate': instance.scheduledDate,
       'scale': instance.scale,
+      'createdBy': instance.createdBy,
     };

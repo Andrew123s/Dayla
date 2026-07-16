@@ -81,12 +81,17 @@ class _PostCardState extends ConsumerState<PostCard> {
                       : null,
                 ),
                 const SizedBox(width: 10),
+                // The author column must never be squeezed into per-letter
+                // wrapping by a long location chip: the name keeps priority
+                // and the LOCATION truncates instead.
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         post.author?.name ?? 'Unknown',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           fontWeight: FontWeight.w600,
                           fontSize: 14,
@@ -95,6 +100,8 @@ class _PostCardState extends ConsumerState<PostCard> {
                       if (post.createdAt != null)
                         Text(
                           _formatTime(post.createdAt!),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             color: Colors.grey.shade500,
                             fontSize: 12,
@@ -105,27 +112,34 @@ class _PostCardState extends ConsumerState<PostCard> {
                 ),
                 if (post.location?.name != null &&
                     post.location!.name!.isNotEmpty)
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: AppColors.sage.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.location_on,
-                            size: 12, color: AppColors.primary),
-                        const SizedBox(width: 3),
-                        Text(
-                          post.location!.name!,
-                          style: const TextStyle(
-                            fontSize: 11,
-                            color: AppColors.primary,
+                  Flexible(
+                    child: Container(
+                      margin: const EdgeInsets.only(left: 8),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: AppColors.sage.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.location_on,
+                              size: 12, color: AppColors.primary),
+                          const SizedBox(width: 3),
+                          Flexible(
+                            child: Text(
+                              post.location!.name!,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: AppColors.primary,
+                              ),
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
               ],

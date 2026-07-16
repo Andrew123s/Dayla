@@ -214,6 +214,7 @@ abstract class BoardModel with _$BoardModel {
               m.remove('audioUrl');
             }
             if (m['metadata'] is! Map) m.remove('metadata');
+            if (m['createdBy'] is! Map) m.remove('createdBy');
             if (m['scheduledDate'] != null && m['scheduledDate'] is! String) {
               m['scheduledDate'] = m['scheduledDate'].toString();
             }
@@ -258,8 +259,20 @@ abstract class StickyNoteModel with _$StickyNoteModel {
     Map<String, dynamic>? metadata,
     String? scheduledDate,
     @Default(1.0) double scale,
+    // {userId, name, avatar} of whoever created the note (server-stamped).
+    Map<String, dynamic>? createdBy,
   }) = _StickyNoteModel;
 
   factory StickyNoteModel.fromJson(Map<String, dynamic> json) =>
       _$StickyNoteModelFromJson(json);
+}
+
+/// Convenience accessors over the loosely-typed createdBy map.
+extension StickyNoteAttribution on StickyNoteModel {
+  String? get creatorName {
+    final name = createdBy?['name'];
+    return name is String && name.trim().isNotEmpty ? name.trim() : null;
+  }
+
+  String? get creatorFirstName => creatorName?.split(' ').first;
 }

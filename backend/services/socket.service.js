@@ -242,10 +242,12 @@ const initializeSocket = (io) => {
 
     // ── Typing ────────────────────────────────────────────────────────
     socket.on('typing_start', (data) => {
-      socket.to(data.conversationId).emit('user_typing', { userId: user._id, userName: user.name, timestamp: new Date() });
+      // conversationId must be echoed back: clients filter typing events by
+      // the thread they have open, so without it indicators never showed.
+      socket.to(data.conversationId).emit('user_typing', { conversationId: data.conversationId, userId: user._id, userName: user.name, timestamp: new Date() });
     });
     socket.on('typing_stop', (data) => {
-      socket.to(data.conversationId).emit('user_stopped_typing', { userId: user._id, timestamp: new Date() });
+      socket.to(data.conversationId).emit('user_stopped_typing', { conversationId: data.conversationId, userId: user._id, timestamp: new Date() });
     });
 
     socket.on('disconnect', async () => {

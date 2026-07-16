@@ -11,6 +11,12 @@ import 'package:dayla_flutter/core/network/auth_token_provider.dart';
 class SocketService {
   io.Socket? _socket;
 
+  /// roomId → roomType for every room we should be in. Socket.io loses ALL
+  /// room membership server-side on reconnect (mobile apps reconnect every
+  /// time they background), so without re-joining here, live updates went
+  /// dead until the screen was reopened — boards looked "not real time".
+  final Map<String, String> _joinedRooms = {};
+
   bool get isConnected => _socket?.connected ?? false;
 
   void connect(String baseUrl, String token) {
@@ -25,14 +31,24 @@ class SocketService {
           .enableReconnection()
           .build(),
     );
+
+    // Re-enter every active room on each (re)connect.
+    _socket!.onConnect((_) {
+      for (final entry in _joinedRooms.entries) {
+        _socket?.emit(
+            'join_room', {'roomId': entry.key, 'roomType': entry.value});
+      }
+    });
   }
 
   // ── Rooms ──
   void joinRoom(String roomId, String roomType) {
+    _joinedRooms[roomId] = roomType;
     _socket?.emit('join_room', {'roomId': roomId, 'roomType': roomType});
   }
 
   void leaveRoom(String roomId, String roomType) {
+    _joinedRooms.remove(roomId);
     _socket?.emit('leave_room', {'roomId': roomId, 'roomType': roomType});
   }
 
@@ -64,6 +80,17 @@ class SocketService {
       'roomId': dashboardId,
       'noteId': noteId,
     });
+  }
+
+  /// Board presence: tell collaborators we started/stopped editing a note
+  /// (server relays as `user_editing` / `user_stopped_editing`).
+  void startEditingNote(String dashboardId, String noteId) {
+    _socket?.emit(
+        'start_editing', {'roomId': dashboardId, 'noteId': noteId});
+  }
+
+  void stopEditingNote(String dashboardId, String noteId) {
+    _socket?.emit('stop_editing', {'roomId': dashboardId, 'noteId': noteId});
   }
 
   // ── Chat ──
@@ -100,6 +127,7 @@ class SocketService {
   }
 
   void disconnect() {
+    _joinedRooms.clear();
     _socket?.disconnect();
     _socket?.dispose();
     _socket = null;

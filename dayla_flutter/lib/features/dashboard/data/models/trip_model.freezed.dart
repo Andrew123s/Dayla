@@ -2571,7 +2571,9 @@ mixin _$StickyNoteModel {
   String? get audioUrl;
   Map<String, dynamic>? get metadata;
   String? get scheduledDate;
-  double get scale;
+  double
+      get scale; // {userId, name, avatar} of whoever created the note (server-stamped).
+  Map<String, dynamic>? get createdBy;
 
   /// Create a copy of StickyNoteModel
   /// with the given fields replaced by the non-null parameter values.
@@ -2604,7 +2606,8 @@ mixin _$StickyNoteModel {
             const DeepCollectionEquality().equals(other.metadata, metadata) &&
             (identical(other.scheduledDate, scheduledDate) ||
                 other.scheduledDate == scheduledDate) &&
-            (identical(other.scale, scale) || other.scale == scale));
+            (identical(other.scale, scale) || other.scale == scale) &&
+            const DeepCollectionEquality().equals(other.createdBy, createdBy));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -2624,11 +2627,12 @@ mixin _$StickyNoteModel {
       audioUrl,
       const DeepCollectionEquality().hash(metadata),
       scheduledDate,
-      scale);
+      scale,
+      const DeepCollectionEquality().hash(createdBy));
 
   @override
   String toString() {
-    return 'StickyNoteModel(id: $id, type: $type, x: $x, y: $y, width: $width, height: $height, content: $content, color: $color, emoji: $emoji, linkTo: $linkTo, audioUrl: $audioUrl, metadata: $metadata, scheduledDate: $scheduledDate, scale: $scale)';
+    return 'StickyNoteModel(id: $id, type: $type, x: $x, y: $y, width: $width, height: $height, content: $content, color: $color, emoji: $emoji, linkTo: $linkTo, audioUrl: $audioUrl, metadata: $metadata, scheduledDate: $scheduledDate, scale: $scale, createdBy: $createdBy)';
   }
 }
 
@@ -2652,7 +2656,8 @@ abstract mixin class $StickyNoteModelCopyWith<$Res> {
       String? audioUrl,
       Map<String, dynamic>? metadata,
       String? scheduledDate,
-      double scale});
+      double scale,
+      Map<String, dynamic>? createdBy});
 }
 
 /// @nodoc
@@ -2682,6 +2687,7 @@ class _$StickyNoteModelCopyWithImpl<$Res>
     Object? metadata = freezed,
     Object? scheduledDate = freezed,
     Object? scale = null,
+    Object? createdBy = freezed,
   }) {
     return _then(_self.copyWith(
       id: null == id
@@ -2740,6 +2746,10 @@ class _$StickyNoteModelCopyWithImpl<$Res>
           ? _self.scale
           : scale // ignore: cast_nullable_to_non_nullable
               as double,
+      createdBy: freezed == createdBy
+          ? _self.createdBy
+          : createdBy // ignore: cast_nullable_to_non_nullable
+              as Map<String, dynamic>?,
     ));
   }
 }
@@ -2761,8 +2771,10 @@ class _StickyNoteModel implements StickyNoteModel {
       this.audioUrl,
       final Map<String, dynamic>? metadata,
       this.scheduledDate,
-      this.scale = 1.0})
-      : _metadata = metadata;
+      this.scale = 1.0,
+      final Map<String, dynamic>? createdBy})
+      : _metadata = metadata,
+        _createdBy = createdBy;
   factory _StickyNoteModel.fromJson(Map<String, dynamic> json) =>
       _$StickyNoteModelFromJson(json);
 
@@ -2805,6 +2817,17 @@ class _StickyNoteModel implements StickyNoteModel {
   @override
   @JsonKey()
   final double scale;
+// {userId, name, avatar} of whoever created the note (server-stamped).
+  final Map<String, dynamic>? _createdBy;
+// {userId, name, avatar} of whoever created the note (server-stamped).
+  @override
+  Map<String, dynamic>? get createdBy {
+    final value = _createdBy;
+    if (value == null) return null;
+    if (_createdBy is EqualUnmodifiableMapView) return _createdBy;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableMapView(value);
+  }
 
   /// Create a copy of StickyNoteModel
   /// with the given fields replaced by the non-null parameter values.
@@ -2841,7 +2864,9 @@ class _StickyNoteModel implements StickyNoteModel {
             const DeepCollectionEquality().equals(other._metadata, _metadata) &&
             (identical(other.scheduledDate, scheduledDate) ||
                 other.scheduledDate == scheduledDate) &&
-            (identical(other.scale, scale) || other.scale == scale));
+            (identical(other.scale, scale) || other.scale == scale) &&
+            const DeepCollectionEquality()
+                .equals(other._createdBy, _createdBy));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -2861,11 +2886,12 @@ class _StickyNoteModel implements StickyNoteModel {
       audioUrl,
       const DeepCollectionEquality().hash(_metadata),
       scheduledDate,
-      scale);
+      scale,
+      const DeepCollectionEquality().hash(_createdBy));
 
   @override
   String toString() {
-    return 'StickyNoteModel(id: $id, type: $type, x: $x, y: $y, width: $width, height: $height, content: $content, color: $color, emoji: $emoji, linkTo: $linkTo, audioUrl: $audioUrl, metadata: $metadata, scheduledDate: $scheduledDate, scale: $scale)';
+    return 'StickyNoteModel(id: $id, type: $type, x: $x, y: $y, width: $width, height: $height, content: $content, color: $color, emoji: $emoji, linkTo: $linkTo, audioUrl: $audioUrl, metadata: $metadata, scheduledDate: $scheduledDate, scale: $scale, createdBy: $createdBy)';
   }
 }
 
@@ -2891,7 +2917,8 @@ abstract mixin class _$StickyNoteModelCopyWith<$Res>
       String? audioUrl,
       Map<String, dynamic>? metadata,
       String? scheduledDate,
-      double scale});
+      double scale,
+      Map<String, dynamic>? createdBy});
 }
 
 /// @nodoc
@@ -2921,6 +2948,7 @@ class __$StickyNoteModelCopyWithImpl<$Res>
     Object? metadata = freezed,
     Object? scheduledDate = freezed,
     Object? scale = null,
+    Object? createdBy = freezed,
   }) {
     return _then(_StickyNoteModel(
       id: null == id
@@ -2979,6 +3007,10 @@ class __$StickyNoteModelCopyWithImpl<$Res>
           ? _self.scale
           : scale // ignore: cast_nullable_to_non_nullable
               as double,
+      createdBy: freezed == createdBy
+          ? _self._createdBy
+          : createdBy // ignore: cast_nullable_to_non_nullable
+              as Map<String, dynamic>?,
     ));
   }
 }

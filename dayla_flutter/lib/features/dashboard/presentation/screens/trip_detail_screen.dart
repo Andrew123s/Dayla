@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import 'dart:async';
 import 'dart:io';
 
 import 'package:exif/exif.dart';
@@ -47,6 +48,12 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen>
   // Live presence: who else has this board open right now (socket-driven).
   final Map<String, String> _activeUsers = {};
 
+  // Live editing indicators: userId → name of collaborators editing a note.
+  // Entries expire automatically so a dropped stop-event can't leave a
+  // stuck "X is editing…" banner.
+  final Map<String, String> _editingUsers = {};
+  final Map<String, Timer> _editingExpiry = {};
+
   @override
   void initState() {
     super.initState();
@@ -84,6 +91,29 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen>
     socket.on('note_updated', _handleBoardChanged);
     socket.on('note_deleted', _handleBoardChanged);
     socket.on('route:added', _handleBoardChanged);
+    socket.on('user_editing', _handleUserEditing);
+    socket.on('user_stopped_editing', _handleUserStoppedEditing);
+  }
+
+  void _handleUserEditing(dynamic data) {
+    if (!mounted || data is! Map) return;
+    final id = data['userId']?.toString();
+    final name = data['userName'] as String?;
+    final myId = ref.read(authSessionProvider).user?.id;
+    if (id == null || name == null || id == myId) return;
+    setState(() => _editingUsers[id] = name);
+    _editingExpiry[id]?.cancel();
+    _editingExpiry[id] = Timer(const Duration(seconds: 8), () {
+      if (mounted) setState(() => _editingUsers.remove(id));
+    });
+  }
+
+  void _handleUserStoppedEditing(dynamic data) {
+    if (!mounted || data is! Map) return;
+    final id = data['userId']?.toString();
+    if (id == null) return;
+    _editingExpiry.remove(id)?.cancel();
+    setState(() => _editingUsers.remove(id));
   }
 
   void _handleUserJoined(dynamic data) {
@@ -123,6 +153,11 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen>
       socket.off('note_updated', _handleBoardChanged);
       socket.off('note_deleted', _handleBoardChanged);
       socket.off('route:added', _handleBoardChanged);
+      socket.off('user_editing', _handleUserEditing);
+      socket.off('user_stopped_editing', _handleUserStoppedEditing);
+    }
+    for (final t in _editingExpiry.values) {
+      t.cancel();
     }
     _tabController.removeListener(_onTabChanged);
     _tabController.dispose();
@@ -595,6 +630,47 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen>
               ),
             ),
           ),
+        // Live editing indicator ("Sarah is editing…").
+        if (_editingUsers.isNotEmpty)
+          Positioned(
+            top: 10,
+            left: 12,
+            right: 12,
+            child: Center(
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF3A5A40),
+                  borderRadius: BorderRadius.circular(18),
+                  boxShadow: const [
+                    BoxShadow(color: Colors.black26, blurRadius: 8),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const SizedBox(
+                      width: 10,
+                      height: 10,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white70),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      _editingUsers.length == 1
+                          ? '${_editingUsers.values.first} is editing…'
+                          : '${_editingUsers.values.join(', ')} are editing…',
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
         // Web-style board toolbar: create tools, then module shortcuts.
         Positioned(
           left: 12,
@@ -776,6 +852,12 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen>
     final contentCtrl = TextEditingController(text: note.content);
     String color = note.color;
     const palette = _notePalette;
+    // Live presence: collaborators see "<name> is editing…" while the
+    // dialog is open.
+    final boardId = _board?.id;
+    if (boardId != null) {
+      ref.read(socketServiceProvider).startEditingNote(boardId, note.id);
+    }
     showDialog(
       context: context,
       builder: (ctx) {
@@ -848,7 +930,11 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen>
           ),
         );
       },
-    );
+    ).whenComplete(() {
+      if (boardId != null) {
+        ref.read(socketServiceProvider).stopEditingNote(boardId, note.id);
+      }
+    });
   }
 
   Widget _buildDetails(TripModel trip) {

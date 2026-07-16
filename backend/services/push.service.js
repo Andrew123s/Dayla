@@ -14,32 +14,47 @@
 const logger = require('../utils/logger');
 
 let messaging = null;
+let initError = null;
 
 function init() {
   if (messaging) return messaging;
   try {
     let credentialJson = null;
     if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-      credentialJson = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+      let raw = process.env.FIREBASE_SERVICE_ACCOUNT.trim();
+      // Render/console pastes sometimes wrap the JSON in quotes.
+      if (raw.startsWith("'") || raw.startsWith('"')) raw = raw.slice(1, -1);
+      credentialJson = JSON.parse(raw);
+      // A pasted key can arrive with literal \n sequences instead of newlines.
+      if (credentialJson.private_key && !credentialJson.private_key.includes('\n')) {
+        credentialJson.private_key = credentialJson.private_key.replace(/\\n/g, '\n');
+      }
     } else if (process.env.FIREBASE_SERVICE_ACCOUNT_PATH) {
       credentialJson = require(process.env.FIREBASE_SERVICE_ACCOUNT_PATH);
     }
-    if (!credentialJson) return null;
+    if (!credentialJson) {
+      initError = 'FIREBASE_SERVICE_ACCOUNT env var is not set';
+      return null;
+    }
 
     const admin = require('firebase-admin');
     if (!admin.apps.length) {
       admin.initializeApp({ credential: admin.credential.cert(credentialJson) });
     }
     messaging = admin.messaging();
+    initError = null;
     logger.info('Push notifications enabled (firebase-admin initialized)');
     return messaging;
   } catch (error) {
+    initError = error.message;
     logger.warn(`Push notifications disabled: ${error.message}`);
     return null;
   }
 }
 
 const isConfigured = () => !!init();
+// Why push is disabled (for /version diagnostics); null when healthy.
+const configError = () => { init(); return initError; };
 
 /**
  * Send a push to all of a user's devices. Best-effort: failures are logged,
@@ -93,4 +108,4 @@ async function sendToUser(userId, { title, body, data = {} }) {
   }
 }
 
-module.exports = { isConfigured, sendToUser };
+module.exports = { isConfigured, configError, sendToUser };

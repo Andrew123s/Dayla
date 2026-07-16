@@ -45,6 +45,15 @@ const clearTokenCookie = (res) => {
   });
 };
 
+// Email verification policy: ON whenever the deployment can actually send
+// email (RESEND_API_KEY present), unless explicitly disabled. It used to be
+// opt-in via EMAIL_VERIFICATION_REQUIRED=true — the env var was never set in
+// production, so every signup was silently auto-verified and no verification
+// email was ever sent, letting unverifiable addresses in.
+const emailVerificationRequired = () =>
+  process.env.EMAIL_VERIFICATION_REQUIRED === 'true' ||
+  (process.env.EMAIL_VERIFICATION_REQUIRED !== 'false' && !!process.env.RESEND_API_KEY);
+
 // @desc    Register user
 // @route   POST /api/auth/register
 // @access  Public
@@ -53,7 +62,7 @@ const register = async (req, res) => {
     console.log('Registration request received:', { name: req.body.name, email: req.body.email });
     const { name, email, password, bio, interests } = req.body;
 
-    const requireEmailVerification = process.env.EMAIL_VERIFICATION_REQUIRED === 'true';
+    const requireEmailVerification = emailVerificationRequired();
 
     // Check if user exists
     const existingUser = await User.findOne({ email });
@@ -185,7 +194,7 @@ const login = async (req, res) => {
     }
 
     // Check if email is verified (only enforce when verification is required)
-    const requireEmailVerification = process.env.EMAIL_VERIFICATION_REQUIRED === 'true';
+    const requireEmailVerification = emailVerificationRequired();
     if (requireEmailVerification && !user.emailVerified) {
       return res.status(403).json({
         success: false,

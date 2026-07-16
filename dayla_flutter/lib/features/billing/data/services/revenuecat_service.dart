@@ -23,8 +23,13 @@ abstract final class RevenueCatBilling {
   static const _androidKey = String.fromEnvironment('REVENUECAT_ANDROID_KEY');
   static const _iosKey = String.fromEnvironment('REVENUECAT_IOS_KEY');
 
-  /// The entitlement identifier configured in RevenueCat.
+  /// The entitlement identifier configured in RevenueCat. Dayla sells one
+  /// tier, so ANY active entitlement counts as Pro — this tolerates the
+  /// dashboard's entitlement being named 'pro', 'Dayla', or anything else.
   static const proEntitlement = 'pro';
+
+  static bool _hasPro(CustomerInfo info) =>
+      info.entitlements.active.isNotEmpty;
 
   static bool _configured = false;
 
@@ -92,13 +97,32 @@ abstract final class RevenueCatBilling {
       }
       final result =
           await Purchases.purchase(PurchaseParams.package(package));
-      return result.customerInfo.entitlements.all[proEntitlement]
-              ?.isActive ??
-          false;
+      return _hasPro(result.customerInfo);
     } on PlatformException catch (e) {
       final code = PurchasesErrorHelper.getErrorCode(e);
       if (code == PurchasesErrorCode.purchaseCancelledError) return false;
-      throw RevenueCatException(e.message ?? 'Purchase failed');
+      // The SDK's raw messages ("There is an issue with your configuration…")
+      // give the user nothing to act on — translate the common ones.
+      switch (code) {
+        case PurchasesErrorCode.configurationError:
+        case PurchasesErrorCode.productNotAvailableForPurchaseError:
+          throw const RevenueCatException(
+              'Subscriptions are not available on this install. Make sure '
+              'the app was installed from Google Play (testing track) and '
+              'your Google account is a licensed tester.');
+        case PurchasesErrorCode.offlineConnectionError:
+        case PurchasesErrorCode.networkError:
+          throw const RevenueCatException(
+              'No connection to the store — check your internet and retry.');
+        case PurchasesErrorCode.paymentPendingError:
+          throw const RevenueCatException(
+              'Your payment is pending — Pro activates once it completes.');
+        case PurchasesErrorCode.productAlreadyPurchasedError:
+          throw const RevenueCatException(
+              'You already own Pro — try "Restore purchases".');
+        default:
+          throw RevenueCatException(e.message ?? 'Purchase failed');
+      }
     } catch (e) {
       if (e is RevenueCatException) rethrow;
       throw RevenueCatException('Purchase failed: $e');
@@ -111,7 +135,7 @@ abstract final class RevenueCatBilling {
     if (!_configured) return false;
     try {
       final info = await Purchases.restorePurchases();
-      return info.entitlements.all[proEntitlement]?.isActive ?? false;
+      return _hasPro(info);
     } catch (e) {
       debugPrint('RevenueCat restore failed: $e');
       return false;
