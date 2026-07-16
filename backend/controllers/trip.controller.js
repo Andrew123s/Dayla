@@ -146,12 +146,26 @@ const updateTrip = async (req, res) => {
       });
     }
 
-    // Check if user is owner
-    if (trip.owner.toString() !== req.user._id.toString()) {
-      return res.status(403).json({
-        success: false,
-        message: 'Not authorized to update this trip'
-      });
+    // Owners can update anything. Collaborators plan the trip together, so
+    // they may update the shared BUDGET (and only the budget) — every other
+    // field (name, dates, status, visibility, …) stays owner-only.
+    const requesterId = req.user._id.toString();
+    const isOwner = trip.owner.toString() === requesterId;
+    if (!isOwner) {
+      const isCollaborator = trip.collaborators.some(
+        (c) => c.toString() === requesterId
+      );
+      const budgetOnly =
+        Object.keys(req.body).length > 0 &&
+        Object.keys(req.body).every((k) => k === 'budget');
+      if (!isCollaborator || !budgetOnly) {
+        return res.status(403).json({
+          success: false,
+          message: isCollaborator
+            ? 'Collaborators can only update the trip budget'
+            : 'Not authorized to update this trip'
+        });
+      }
     }
 
     const wasCompleted = trip.status === 'completed';

@@ -246,6 +246,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   const [collaboratorCount, setCollaboratorCount] = useState(1);
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [editingUser, setEditingUser] = useState<User | null>(null);
+  // Auto-expire the editing indicator so a dropped stop-event (closed tab,
+  // network hiccup) can never leave a stuck "X is editing…" banner.
+  const editingExpiryRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [inviteSending, setInviteSending] = useState(false);
   const [inviteError, setInviteError] = useState('');
@@ -720,9 +723,15 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
     socket.on('user_editing', (data: { userId: string; userName: string; avatar?: string; noteId: string }) => {
       setEditingNoteId(data.noteId);
       setEditingUser({ id: data.userId, name: data.userName, avatar: data.avatar || '', bio: '', interests: [] });
+      if (editingExpiryRef.current) clearTimeout(editingExpiryRef.current);
+      editingExpiryRef.current = setTimeout(() => {
+        setEditingNoteId(null);
+        setEditingUser(null);
+      }, 8000);
     });
 
     socket.on('user_stopped_editing', () => {
+      if (editingExpiryRef.current) clearTimeout(editingExpiryRef.current);
       setEditingNoteId(null);
       setEditingUser(null);
     });
@@ -1637,6 +1646,14 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
           ))}
         </div>
       </div>
+
+      {/* Live editing indicator (same banner the mobile board shows) */}
+      {editingUser && !linkingFromId && (
+        <div style={{ position: 'absolute', top: 16, left: '50%', transform: 'translateX(-50%)', zIndex: 90, background: '#3a5a40', color: '#fff', borderRadius: 16, padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 10, boxShadow: '0 12px 26px -10px rgba(58,90,64,.6)', pointerEvents: 'none' }}>
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#a3e635', animation: 'pulse 1.2s ease-in-out infinite' }} />
+          <span style={{ fontSize: 13, fontWeight: 700 }}>{editingUser.name} is editing…</span>
+        </div>
+      )}
 
       {/* Linking-mode banner */}
       {linkingFromId && (
