@@ -71,7 +71,7 @@ const COORDS = {
 
 // Bump when seed content changes (photos, copy, …) so existing databases
 // refresh on the next boot via ensureCuratedRoutes().
-const SEED_VERSION = 3;
+const SEED_VERSION = 4;
 
 // Real photographs of each place (Wikipedia/Wikimedia Commons lead images,
 // every URL verified reachable at seed-authoring time).
@@ -176,6 +176,27 @@ const PHOTOS = {
   'quiraing-skye': 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/91/North_over_the_Quiraing%2C_Isle_of_Skye.jpg/3840px-North_over_the_Quiraing%2C_Isle_of_Skye.jpg',
   'malham-cove': 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/9f/Malham_Cove_Yorkshire_Dales.jpg/3840px-Malham_Cove_Yorkshire_Dales.jpg',
   'durdle-door-coast': 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/64/Durdle_Door_Overview.jpg/3840px-Durdle_Door_Overview.jpg',
+  // Fill-ins for the destinations whose first image pass came back empty —
+  // sourced from language-specific Wikipedias and Commons, all verified.
+  'hadrians-wall-housesteads': 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/2c/Housesteads_Roman_Fort_aerial.jpg/3840px-Housesteads_Roman_Fort_aerial.jpg',
+  'schafberg-wolfgangsee': 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/24/Aerial_image_of_the_Wolfgangsee_%28view_from_the_southeast%29.jpg/3840px-Aerial_image_of_the_Wolfgangsee_%28view_from_the_southeast%29.jpg',
+  'ahornboden-eng': 'https://upload.wikimedia.org/wikipedia/commons/c/cd/2010_Gro%C3%9Fer_Ahornboden-4.jpg',
+  'gosausee-dachstein': 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/92/Gosauseen20100912.jpg/3840px-Gosauseen20100912.jpg',
+  'dachstein-five-fingers': 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/7f/Krippenstein_von_Hallstatt.jpg/3840px-Krippenstein_von_Hallstatt.jpg',
+  'emerald-lake-rockies': 'https://upload.wikimedia.org/wikipedia/commons/b/b4/Hallet%27s_Peak_reflected_in_Lake_Haiyaha_at_darn_in_Rocky_Mountain_National_Park._NPS-Debra_Miller_%2818659267056%29.jpg',
+  'ebenalp-seealpsee': 'https://upload.wikimedia.org/wikipedia/commons/2/2f/Luftbild_Ebenalp.jpg',
+  'chamonix-lac-blanc': 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/fd/Aiguilles_Rouges_%40_Refuge_de_Mo%C3%ABde_Anterne.jpg/3840px-Aiguilles_Rouges_%40_Refuge_de_Mo%C3%ABde_Anterne.jpg',
+  'camargue-flamingo-trail': 'https://upload.wikimedia.org/wikipedia/commons/d/dc/Portrait_de_flamant_rose_dans_la_r%C3%A9serve_nationale_de_Camargue.jpg',
+  'ligatne-nature-trails': 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/6e/Lustuzis_cliff_-_panoramio.jpg/1280px-Lustuzis_cliff_-_panoramio.jpg',
+  'daugavas-loki': 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/30/Daugavas_loki_pie_Sluti%C5%A1kiem.jpg/1280px-Daugavas_loki_pie_Sluti%C5%A1kiem.jpg',
+  'tombeau-du-geant': 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b8/0_Botassart_-_Tombeau_du_G%C3%A9ant_%281%29.jpg/3840px-0_Botassart_-_Tombeau_du_G%C3%A9ant_%281%29.jpg',
+  'besseggen-ridge': 'https://upload.wikimedia.org/wikipedia/commons/e/e5/Gjende_from_Besseggen.jpg',
+  romsdalseggen: 'https://upload.wikimedia.org/wikipedia/commons/b/bc/Troll_Wall_in_shadow.jpg',
+  'senja-segla': 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b9/S%C3%B6rreisa_Lenvik_IMG_4917_senja_solbergfjorden_reisfjorden.JPG/3840px-S%C3%B6rreisa_Lenvik_IMG_4917_senja_solbergfjorden_reisfjorden.JPG',
+  aurlandsdalen: 'https://upload.wikimedia.org/wikipedia/commons/a/a7/View_of_the_Aurlandsfjord%2C_Aurlandsvangen_and_Flam_from_below_the_Prest_Summit.jpg',
+  'amata-river-trail': 'https://upload.wikimedia.org/wikipedia/commons/f/fc/Zvartes_rock.jpg',
+  'jurmala-beach-walk': 'https://upload.wikimedia.org/wikipedia/commons/a/a3/Majori.26.VII.2018_%2842885784595%29.jpg',
+  'colorado-provencal': 'https://upload.wikimedia.org/wikipedia/commons/e/e8/OcherQuarry_Rustrel.jpg',
 };
 
 const IMG = [
@@ -186,9 +207,11 @@ const IMG = [
   'https://images.unsplash.com/photo-1502082553048-f009c37129b9?auto=format&fit=crop&q=80&w=1200',
   'https://images.unsplash.com/photo-1426604966848-d7adac402bff?auto=format&fit=crop&q=80&w=1200',
   'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&q=80&w=1200',
-  'https://images.unsplash.com/photo-1444090542259-0af8fa96557e?auto=format&fit=crop&q=80&w=1200',
-  'https://images.unsplash.com/photo-1483721310020-03333e577078?auto=format&fit=crop&q=80&w=1200',
-  'https://images.unsplash.com/photo-1486870591958-9b9d0d1dda99?auto=format&fit=crop&q=80&w=1200',
+  // The three entries below replaced non-nature stock shots (one showed a
+  // runner tying shoes) that leaked onto trail cards as primary images.
+  'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?auto=format&fit=crop&q=80&w=1200',
+  'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&q=80&w=1200',
+  'https://images.unsplash.com/photo-1469474968028-56623f02e42e?auto=format&fit=crop&q=80&w=1200',
   'https://images.unsplash.com/photo-1551632811-561732d1e306?auto=format&fit=crop&q=80&w=1200',
   'https://images.unsplash.com/photo-1454496522488-7a8e488e8606?auto=format&fit=crop&q=80&w=1200',
 ];

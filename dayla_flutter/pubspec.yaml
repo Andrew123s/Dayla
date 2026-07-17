@@ -19,7 +19,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # versionCode (after +) must increase for every Play Console upload.
 # Store builds: pass --dart-define=REVENUECAT_ANDROID_KEY=goog_xxx (kept out
 # of the repo; see android/store-build.local.bat).
-version: 1.0.13+14
+version: 1.0.14+15
 
 environment:
   sdk: ^3.6.1

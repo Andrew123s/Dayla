@@ -92,8 +92,12 @@ abstract final class RevenueCatBilling {
       final package =
           (annual ? offering.annual : offering.monthly) ?? fallback;
       if (package == null) {
-        throw const RevenueCatException(
-            'No subscription package is available.');
+        // Exact state observed via RevenueCat's API: the offering exists
+        // but has no packages attached in the dashboard.
+        throw RevenueCatException(
+            'The "${offering.identifier}" offering has no subscription '
+            'packages attached yet — add the monthly/annual products to it '
+            'in the RevenueCat dashboard.');
       }
       final result =
           await Purchases.purchase(PurchaseParams.package(package));
