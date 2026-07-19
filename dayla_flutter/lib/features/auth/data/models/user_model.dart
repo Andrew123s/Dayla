@@ -52,6 +52,11 @@ abstract class AuthResponse with _$AuthResponse {
     String? message,
     @Default(false) bool requiresVerification,
     AuthData? data,
+    /// True when the failure was network/indeterminate (timeout, no
+    /// connectivity, unexpected error) rather than the SERVER rejecting the
+    /// session. Session restore must never destroy a stored token unless
+    /// this is false — otherwise a Render cold start logs everyone out.
+    @Default(false) bool networkError,
   }) = _AuthResponse;
 
   factory AuthResponse.fromJson(Map<String, dynamic> json) =>

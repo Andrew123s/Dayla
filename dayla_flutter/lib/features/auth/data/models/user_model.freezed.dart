@@ -682,6 +682,12 @@ mixin _$AuthResponse {
   bool get requiresVerification;
   AuthData? get data;
 
+  /// True when the failure was network/indeterminate (timeout, no
+  /// connectivity, unexpected error) rather than the SERVER rejecting the
+  /// session. Session restore must never destroy a stored token unless
+  /// this is false — otherwise a Render cold start logs everyone out.
+  bool get networkError;
+
   /// Create a copy of AuthResponse
   /// with the given fields replaced by the non-null parameter values.
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -702,17 +708,19 @@ mixin _$AuthResponse {
             (identical(other.message, message) || other.message == message) &&
             (identical(other.requiresVerification, requiresVerification) ||
                 other.requiresVerification == requiresVerification) &&
-            (identical(other.data, data) || other.data == data));
+            (identical(other.data, data) || other.data == data) &&
+            (identical(other.networkError, networkError) ||
+                other.networkError == networkError));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode =>
-      Object.hash(runtimeType, success, message, requiresVerification, data);
+  int get hashCode => Object.hash(
+      runtimeType, success, message, requiresVerification, data, networkError);
 
   @override
   String toString() {
-    return 'AuthResponse(success: $success, message: $message, requiresVerification: $requiresVerification, data: $data)';
+    return 'AuthResponse(success: $success, message: $message, requiresVerification: $requiresVerification, data: $data, networkError: $networkError)';
   }
 }
 
@@ -726,7 +734,8 @@ abstract mixin class $AuthResponseCopyWith<$Res> {
       {bool success,
       String? message,
       bool requiresVerification,
-      AuthData? data});
+      AuthData? data,
+      bool networkError});
 
   $AuthDataCopyWith<$Res>? get data;
 }
@@ -747,6 +756,7 @@ class _$AuthResponseCopyWithImpl<$Res> implements $AuthResponseCopyWith<$Res> {
     Object? message = freezed,
     Object? requiresVerification = null,
     Object? data = freezed,
+    Object? networkError = null,
   }) {
     return _then(_self.copyWith(
       success: null == success
@@ -765,6 +775,10 @@ class _$AuthResponseCopyWithImpl<$Res> implements $AuthResponseCopyWith<$Res> {
           ? _self.data
           : data // ignore: cast_nullable_to_non_nullable
               as AuthData?,
+      networkError: null == networkError
+          ? _self.networkError
+          : networkError // ignore: cast_nullable_to_non_nullable
+              as bool,
     ));
   }
 
@@ -790,7 +804,8 @@ class _AuthResponse implements AuthResponse {
       {required this.success,
       this.message,
       this.requiresVerification = false,
-      this.data});
+      this.data,
+      this.networkError = false});
   factory _AuthResponse.fromJson(Map<String, dynamic> json) =>
       _$AuthResponseFromJson(json);
 
@@ -803,6 +818,14 @@ class _AuthResponse implements AuthResponse {
   final bool requiresVerification;
   @override
   final AuthData? data;
+
+  /// True when the failure was network/indeterminate (timeout, no
+  /// connectivity, unexpected error) rather than the SERVER rejecting the
+  /// session. Session restore must never destroy a stored token unless
+  /// this is false — otherwise a Render cold start logs everyone out.
+  @override
+  @JsonKey()
+  final bool networkError;
 
   /// Create a copy of AuthResponse
   /// with the given fields replaced by the non-null parameter values.
@@ -828,17 +851,19 @@ class _AuthResponse implements AuthResponse {
             (identical(other.message, message) || other.message == message) &&
             (identical(other.requiresVerification, requiresVerification) ||
                 other.requiresVerification == requiresVerification) &&
-            (identical(other.data, data) || other.data == data));
+            (identical(other.data, data) || other.data == data) &&
+            (identical(other.networkError, networkError) ||
+                other.networkError == networkError));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode =>
-      Object.hash(runtimeType, success, message, requiresVerification, data);
+  int get hashCode => Object.hash(
+      runtimeType, success, message, requiresVerification, data, networkError);
 
   @override
   String toString() {
-    return 'AuthResponse(success: $success, message: $message, requiresVerification: $requiresVerification, data: $data)';
+    return 'AuthResponse(success: $success, message: $message, requiresVerification: $requiresVerification, data: $data, networkError: $networkError)';
   }
 }
 
@@ -854,7 +879,8 @@ abstract mixin class _$AuthResponseCopyWith<$Res>
       {bool success,
       String? message,
       bool requiresVerification,
-      AuthData? data});
+      AuthData? data,
+      bool networkError});
 
   @override
   $AuthDataCopyWith<$Res>? get data;
@@ -877,6 +903,7 @@ class __$AuthResponseCopyWithImpl<$Res>
     Object? message = freezed,
     Object? requiresVerification = null,
     Object? data = freezed,
+    Object? networkError = null,
   }) {
     return _then(_AuthResponse(
       success: null == success
@@ -895,6 +922,10 @@ class __$AuthResponseCopyWithImpl<$Res>
           ? _self.data
           : data // ignore: cast_nullable_to_non_nullable
               as AuthData?,
+      networkError: null == networkError
+          ? _self.networkError
+          : networkError // ignore: cast_nullable_to_non_nullable
+              as bool,
     ));
   }
 

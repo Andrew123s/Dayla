@@ -33,6 +33,11 @@ class AuthRemoteDatasource {
     return response.data as Map<String, dynamic>;
   }
 
+  Future<Map<String, dynamic>> refreshSession() async {
+    final response = await _dio.post('/api/auth/refresh');
+    return response.data as Map<String, dynamic>;
+  }
+
   Future<Map<String, dynamic>> getMe() async {
     final response = await _dio.get('/api/auth/me');
     return response.data as Map<String, dynamic>;

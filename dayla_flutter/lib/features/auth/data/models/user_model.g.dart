@@ -71,6 +71,7 @@ _AuthResponse _$AuthResponseFromJson(Map<String, dynamic> json) =>
       data: json['data'] == null
           ? null
           : AuthData.fromJson(json['data'] as Map<String, dynamic>),
+      networkError: json['networkError'] as bool? ?? false,
     );
 
 Map<String, dynamic> _$AuthResponseToJson(_AuthResponse instance) =>
@@ -79,6 +80,7 @@ Map<String, dynamic> _$AuthResponseToJson(_AuthResponse instance) =>
       'message': instance.message,
       'requiresVerification': instance.requiresVerification,
       'data': instance.data,
+      'networkError': instance.networkError,
     };
 
 _AuthData _$AuthDataFromJson(Map<String, dynamic> json) => _AuthData(

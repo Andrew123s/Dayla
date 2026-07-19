@@ -1290,11 +1290,28 @@ const updatePreferences = async (req, res) => {
   }
 };
 
+// @desc    Issue a fresh token for an already-valid session (rolling
+//          sessions: active users never hit the JWT expiry cliff; only
+//          JWT_EXPIRE of total inactivity ends a session).
+// @route   POST /api/auth/refresh
+// @access  Private
+const refreshSession = async (req, res) => {
+  try {
+    const token = generateToken(req.user._id);
+    setTokenCookie(res, token);
+    res.status(200).json({ success: true, data: { token } });
+  } catch (error) {
+    logger.error('Refresh session error:', error);
+    res.status(500).json({ success: false, message: 'Failed to refresh session' });
+  }
+};
+
 module.exports = {
   register,
   login,
   logout,
   checkAuth,
+  refreshSession,
   getMe,
   updateProfile,
   uploadAvatar,

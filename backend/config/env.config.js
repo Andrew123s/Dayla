@@ -10,7 +10,9 @@ const envSchema = Joi.object({
 
   // JWT
   JWT_SECRET: Joi.string().min(32).required(),
-  JWT_EXPIRE: Joi.string().default('7d'),
+  // 30 days paired with the client's rolling refresh: opening the app at
+  // least once a month keeps the session alive indefinitely.
+  JWT_EXPIRE: Joi.string().default('30d'),
 
   // Frontend
   FRONTEND_URL: Joi.string().default('http://localhost:5173'),

@@ -17,9 +17,12 @@ class AuthRepository {
     } on DioException catch (e) {
       return _handleDioError(e);
     } catch (_) {
-      // Unexpected payload shape — fail soft instead of crashing the flow.
+      // Unexpected payload shape — fail soft, and mark it indeterminate so
+      // session restore never treats a parse hiccup as a revoked session.
       return AuthResponse(
-          success: false, message: 'Something went wrong. Please try again.');
+          success: false,
+          message: 'Something went wrong. Please try again.',
+          networkError: true);
     }
   }
 
@@ -35,9 +38,12 @@ class AuthRepository {
     } on DioException catch (e) {
       return _handleDioError(e);
     } catch (_) {
-      // Unexpected payload shape — fail soft instead of crashing the flow.
+      // Unexpected payload shape — fail soft, and mark it indeterminate so
+      // session restore never treats a parse hiccup as a revoked session.
       return AuthResponse(
-          success: false, message: 'Something went wrong. Please try again.');
+          success: false,
+          message: 'Something went wrong. Please try again.',
+          networkError: true);
     }
   }
 
@@ -48,9 +54,12 @@ class AuthRepository {
     } on DioException catch (e) {
       return _handleDioError(e);
     } catch (_) {
-      // Unexpected payload shape — fail soft instead of crashing the flow.
+      // Unexpected payload shape — fail soft, and mark it indeterminate so
+      // session restore never treats a parse hiccup as a revoked session.
       return AuthResponse(
-          success: false, message: 'Something went wrong. Please try again.');
+          success: false,
+          message: 'Something went wrong. Please try again.',
+          networkError: true);
     }
   }
 
@@ -61,9 +70,12 @@ class AuthRepository {
     } on DioException catch (e) {
       return _handleDioError(e);
     } catch (_) {
-      // Unexpected payload shape — fail soft instead of crashing the flow.
+      // Unexpected payload shape — fail soft, and mark it indeterminate so
+      // session restore never treats a parse hiccup as a revoked session.
       return AuthResponse(
-          success: false, message: 'Something went wrong. Please try again.');
+          success: false,
+          message: 'Something went wrong. Please try again.',
+          networkError: true);
     }
   }
 
@@ -84,9 +96,12 @@ class AuthRepository {
     } on DioException catch (e) {
       return _handleDioError(e);
     } catch (_) {
-      // Unexpected payload shape — fail soft instead of crashing the flow.
+      // Unexpected payload shape — fail soft, and mark it indeterminate so
+      // session restore never treats a parse hiccup as a revoked session.
       return AuthResponse(
-          success: false, message: 'Something went wrong. Please try again.');
+          success: false,
+          message: 'Something went wrong. Please try again.',
+          networkError: true);
     }
   }
 
@@ -103,9 +118,12 @@ class AuthRepository {
     } on DioException catch (e) {
       return _handleDioError(e);
     } catch (_) {
-      // Unexpected payload shape — fail soft instead of crashing the flow.
+      // Unexpected payload shape — fail soft, and mark it indeterminate so
+      // session restore never treats a parse hiccup as a revoked session.
       return AuthResponse(
-          success: false, message: 'Something went wrong. Please try again.');
+          success: false,
+          message: 'Something went wrong. Please try again.',
+          networkError: true);
     }
   }
 
@@ -116,9 +134,12 @@ class AuthRepository {
     } on DioException catch (e) {
       return _handleDioError(e);
     } catch (_) {
-      // Unexpected payload shape — fail soft instead of crashing the flow.
+      // Unexpected payload shape — fail soft, and mark it indeterminate so
+      // session restore never treats a parse hiccup as a revoked session.
       return AuthResponse(
-          success: false, message: 'Something went wrong. Please try again.');
+          success: false,
+          message: 'Something went wrong. Please try again.',
+          networkError: true);
     }
   }
 
@@ -129,9 +150,12 @@ class AuthRepository {
     } on DioException catch (e) {
       return _handleDioError(e);
     } catch (_) {
-      // Unexpected payload shape — fail soft instead of crashing the flow.
+      // Unexpected payload shape — fail soft, and mark it indeterminate so
+      // session restore never treats a parse hiccup as a revoked session.
       return AuthResponse(
-          success: false, message: 'Something went wrong. Please try again.');
+          success: false,
+          message: 'Something went wrong. Please try again.',
+          networkError: true);
     }
   }
 
@@ -142,9 +166,12 @@ class AuthRepository {
     } on DioException catch (e) {
       return _handleDioError(e);
     } catch (_) {
-      // Unexpected payload shape — fail soft instead of crashing the flow.
+      // Unexpected payload shape — fail soft, and mark it indeterminate so
+      // session restore never treats a parse hiccup as a revoked session.
       return AuthResponse(
-          success: false, message: 'Something went wrong. Please try again.');
+          success: false,
+          message: 'Something went wrong. Please try again.',
+          networkError: true);
     }
   }
 
@@ -163,9 +190,12 @@ class AuthRepository {
     } on DioException catch (e) {
       return _handleDioError(e);
     } catch (_) {
-      // Unexpected payload shape — fail soft instead of crashing the flow.
+      // Unexpected payload shape — fail soft, and mark it indeterminate so
+      // session restore never treats a parse hiccup as a revoked session.
       return AuthResponse(
-          success: false, message: 'Something went wrong. Please try again.');
+          success: false,
+          message: 'Something went wrong. Please try again.',
+          networkError: true);
     }
   }
 
@@ -282,6 +312,19 @@ class AuthRepository {
     }
   }
 
+  /// Rolling session: exchange a still-valid token for a fresh one.
+  /// Returns the new token, or null (never throws) — callers keep the old
+  /// token when rotation fails.
+  Future<String?> refreshToken() async {
+    try {
+      final json = await _remote.refreshSession();
+      final token = json['data']?['token'];
+      return token is String && token.isNotEmpty ? token : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   AuthResponse _handleDioError(DioException e) {
     final data = e.response?.data;
     if (data is Map<String, dynamic>) {
@@ -294,7 +337,13 @@ class AuthRepository {
             : null,
       );
     }
-    return AuthResponse(success: false, message: _fallbackMessage(e));
+    // No response body: timeouts, dead connections, cancelled requests —
+    // the server never judged this session.
+    return AuthResponse(
+      success: false,
+      message: _fallbackMessage(e),
+      networkError: e.response == null,
+    );
   }
 
   String _fallbackMessage(DioException e) {

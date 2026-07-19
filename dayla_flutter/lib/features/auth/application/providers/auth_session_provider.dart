@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:dayla_flutter/core/network/auth_token_provider.dart';
 import 'package:dayla_flutter/core/network/token_storage.dart';
@@ -67,6 +69,55 @@ class AuthSessionNotifier extends Notifier<AuthState> {
     return const AuthState();
   }
 
+  static const _cachedUserKey = 'dayla_cached_user';
+
+  Future<void> _cacheUser(UserModel user) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_cachedUserKey, jsonEncode(user.toJson()));
+    } catch (_) {
+      // Cache is an optimization; never let it break auth.
+    }
+  }
+
+  Future<UserModel?> _readCachedUser() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_cachedUserKey);
+      if (raw == null) return null;
+      return UserModel.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  AuthState _signedInState(UserModel user) => AuthState(
+        status: user.onboardingCompleted
+            ? AuthStatus.authenticated
+            : AuthStatus.onboarding,
+        user: user,
+      );
+
+  Future<void> _clearSession() async {
+    await _tokenStorage.delete();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_cachedUserKey);
+    } catch (_) {}
+    ref.read(authTokenProvider.notifier).state = null;
+    state = const AuthState(status: AuthStatus.unauthenticated);
+  }
+
+  /// Restore the session on app launch.
+  ///
+  /// Rules (the old version violated all three):
+  ///  1. A stored token + cached profile signs the user in IMMEDIATELY —
+  ///     no network round-trip gates the dashboard.
+  ///  2. The server check retries through backend cold starts, and a
+  ///     network/indeterminate failure NEVER deletes the token — only an
+  ///     explicit server rejection (expired/revoked) logs the user out.
+  ///  3. On a successful check the token is rotated via /auth/refresh, so
+  ///     active users never hit the JWT expiry cliff (rolling sessions).
   Future<void> _tryRestoreSession() async {
     final token = await _tokenStorage.read();
     if (token == null || token.isEmpty) {
@@ -74,20 +125,42 @@ class AuthSessionNotifier extends Notifier<AuthState> {
       return;
     }
     ref.read(authTokenProvider.notifier).state = token;
-    final response = await _repo.checkAuth();
+
+    // Optimistic restore from the cached profile (works offline).
+    final cached = await _readCachedUser();
+    if (cached != null) {
+      state = _signedInState(cached);
+    }
+
+    // Validate with the server — retry through cold starts (Render can
+    // take 30-60s to wake, longer than one request timeout).
+    var response = await _repo.checkAuth();
+    for (var attempt = 1;
+        !response.success && response.networkError && attempt <= 2;
+        attempt++) {
+      await Future.delayed(Duration(seconds: 5 * attempt));
+      response = await _repo.checkAuth();
+    }
+
     if (response.success && response.data?.user != null) {
       final user = response.data!.user!;
-      state = AuthState(
-        status: user.onboardingCompleted
-            ? AuthStatus.authenticated
-            : AuthStatus.onboarding,
-        user: user,
-      );
-    } else {
-      await _tokenStorage.delete();
-      ref.read(authTokenProvider.notifier).state = null;
+      await _cacheUser(user);
+      state = _signedInState(user);
+      // Rolling session: swap in a fresh token while this one is valid.
+      final fresh = await _repo.refreshToken();
+      if (fresh != null) {
+        await _tokenStorage.write(fresh);
+        ref.read(authTokenProvider.notifier).state = fresh;
+      }
+    } else if (!response.networkError) {
+      // The server SAW the token and rejected it — the only real logout.
+      await _clearSession();
+    } else if (cached == null) {
+      // Unreachable server and nothing cached to render: show login but
+      // KEEP the token — the next launch tries again.
       state = state.copyWith(status: AuthStatus.unauthenticated);
     }
+    // Unreachable server + cached profile: stay signed in on cache.
   }
 
   Future<void> login({required String email, required String password}) async {
@@ -103,12 +176,8 @@ class AuthSessionNotifier extends Notifier<AuthState> {
       await _tokenStorage.write(token);
       ref.read(authTokenProvider.notifier).state = token;
       final user = response.data!.user!;
-      state = AuthState(
-        status: user.onboardingCompleted
-            ? AuthStatus.authenticated
-            : AuthStatus.onboarding,
-        user: user,
-      );
+      await _cacheUser(user);
+      state = _signedInState(user);
     } else {
       state = state.copyWith(
         isLoading: false,
@@ -145,12 +214,8 @@ class AuthSessionNotifier extends Notifier<AuthState> {
         await _tokenStorage.write(token);
         ref.read(authTokenProvider.notifier).state = token;
         final user = response.data!.user!;
-        state = AuthState(
-          status: user.onboardingCompleted
-              ? AuthStatus.authenticated
-              : AuthStatus.onboarding,
-          user: user,
-        );
+        await _cacheUser(user);
+        state = _signedInState(user);
       }
     } else {
       state = state.copyWith(
@@ -180,12 +245,14 @@ class AuthSessionNotifier extends Notifier<AuthState> {
   }
 
   Future<void> updateUser(UserModel user) async {
+    await _cacheUser(user);
     state = state.copyWith(user: user);
   }
 
   Future<void> refreshUser() async {
     final response = await _repo.getMe();
     if (response.success && response.data?.user != null) {
+      await _cacheUser(response.data!.user!);
       state = state.copyWith(user: response.data!.user);
     }
   }
@@ -195,9 +262,7 @@ class AuthSessionNotifier extends Notifier<AuthState> {
     await ref.read(pushServiceProvider).unregister();
     await RevenueCatBilling.logOut();
     await _repo.logout();
-    await _tokenStorage.delete();
-    ref.read(authTokenProvider.notifier).state = null;
-    state = const AuthState(status: AuthStatus.unauthenticated);
+    await _clearSession();
   }
 
   void clearMessages() {

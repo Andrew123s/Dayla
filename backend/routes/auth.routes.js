@@ -4,6 +4,7 @@ const {
   login,
   logout,
   checkAuth,
+  refreshSession,
   getMe,
   updateProfile,
   uploadAvatar,
@@ -65,6 +66,7 @@ router.post('/resend-verification', resendVerification);
 router.use(protect); // All routes below require authentication
 
 router.get('/check', checkAuth); // Check auth status and get user
+router.post('/refresh', refreshSession); // Rolling session: fresh token for a valid one
 router.post('/logout', logout); // Logout and clear cookie
 router.get('/me', getMe);
 router.get('/search', searchUsers);
