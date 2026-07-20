@@ -48,6 +48,24 @@ const startServer = async () => {
       }
     } catch (_) { /* index cleanup is best-effort */ }
 
+    // Legacy accounts predate email-verification enforcement: they have
+    // emailVerified false/absent but no verification token (they never went
+    // through the flow). Now that verification is enforced at login, they'd
+    // be locked out asking to "confirm" an email that was never sent. Mark
+    // them verified once; genuinely-unverified new signups keep their token
+    // and stay blocked until they click the link. Idempotent + best-effort.
+    require('./models/user.model')
+      .updateMany(
+        { emailVerified: { $ne: true }, emailVerificationToken: { $exists: false } },
+        { $set: { emailVerified: true } }
+      )
+      .then((r) => {
+        if (r.modifiedCount > 0) {
+          logger.info(`✉️ Marked ${r.modifiedCount} legacy accounts email-verified`);
+        }
+      })
+      .catch((err) => logger.error('Legacy verification migration failed (non-fatal):', err));
+
     // Self-populate the Piko curated trail catalogue on a fresh database.
     // Best-effort + non-blocking: an empty catalogue means the Trails feature
     // shows "0 routes", so seed it once; no-op when routes already exist.

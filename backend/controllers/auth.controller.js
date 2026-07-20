@@ -94,8 +94,10 @@ const register = async (req, res) => {
       const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
       const confirmationUrl = `${frontendUrl}/verify-email?token=${verificationToken}`;
 
+      let emailDelivered = false;
       try {
         await sendConfirmationEmail(user.email, user.name, confirmationUrl);
+        emailDelivered = true;
         logger.info(`Confirmation email sent to ${user.email}`);
       } catch (emailError) {
         logger.error('Failed to send confirmation email:', emailError);
@@ -105,10 +107,13 @@ const register = async (req, res) => {
 
       return res.status(201).json({
         success: true,
-        message: 'Registration successful! Please check your email to verify your account before logging in.',
+        message: emailDelivered
+          ? 'Registration successful! Please check your email to verify your account before logging in.'
+          : 'Registration successful, but the verification email could not be sent — use "Resend verification" in a moment.',
         requiresVerification: true,
         data: {
-          email: user.email
+          email: user.email,
+          emailDelivered
         }
       });
     }

@@ -138,6 +138,9 @@ app.get('/version', (req, res) => {
       // Why push is off (bad JSON paste, missing var, …); null when healthy.
       pushError: require('./services/push.service').configError(),
       email: !!process.env.RESEND_API_KEY,
+      // Sender identity + last provider rejection (unverified domain,
+      // test-mode sender, …) — diagnosable without log access.
+      emailDiagnostics: require('./services/email.service').emailDiagnostics(),
       emailVerification:
         process.env.EMAIL_VERIFICATION_REQUIRED === 'true' ||
         (process.env.EMAIL_VERIFICATION_REQUIRED !== 'false' && !!process.env.RESEND_API_KEY)

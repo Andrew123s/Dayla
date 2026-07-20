@@ -182,7 +182,12 @@ userSchema.virtual('profile').get(function() {
     friendCount: (this.friends || []).length,
     notificationsEnabled: this.notificationsEnabled,
     createdAt: this.createdAt,
-    subscription: this.subscriptionSnapshot
+    subscription: this.subscriptionSnapshot,
+    // These two were missing, so every /me response implied "not onboarded,
+    // unverified" — and once clients started caching /me users, onboarding
+    // and email-confirmation prompts reappeared for existing users.
+    onboardingCompleted: !!this.onboardingCompleted,
+    emailVerified: !!this.emailVerified
   };
 });
 

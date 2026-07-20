@@ -11,6 +11,15 @@ if (process.env.RESEND_API_KEY && process.env.RESEND_API_KEY !== 're_your_resend
   resend = new Resend(process.env.RESEND_API_KEY);
 }
 
+// Last delivery failure, surfaced via /version so a silent provider
+// rejection (unverified domain, test-mode sender, …) is visible without
+// log access.
+let lastEmailError = null;
+const emailDiagnostics = () => ({
+  from: process.env.EMAIL_FROM || 'onboarding@resend.dev (Resend test sender — delivers ONLY to the Resend account owner)',
+  lastError: lastEmailError,
+});
+
 /**
  * Send email confirmation to new user
  * @param {string} to - Recipient email address
@@ -39,13 +48,18 @@ const sendConfirmationEmail = async (to, userName, confirmationUrl) => {
     });
 
     if (error) {
+      lastEmailError = `${new Date().toISOString()} confirmation→${to}: ${error.message || JSON.stringify(error)}`;
       logger.error('Failed to send confirmation email:', error);
       throw new Error(error.message);
     }
 
+    lastEmailError = null;
     logger.info(`Confirmation email sent to ${to}`);
     return data;
   } catch (error) {
+    if (!lastEmailError) {
+      lastEmailError = `${new Date().toISOString()} confirmation→${to}: ${error.message}`;
+    }
     logger.error('Email service error:', error);
     throw error;
   }
@@ -126,4 +140,5 @@ module.exports = {
   sendConfirmationEmail,
   sendInvitationEmail,
   generateVerificationToken,
+  emailDiagnostics,
 };

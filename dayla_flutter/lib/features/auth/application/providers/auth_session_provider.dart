@@ -238,22 +238,41 @@ class AuthSessionNotifier extends Notifier<AuthState> {
 
   Future<void> completeOnboarding() async {
     await _repo.completeOnboarding();
+    final updated = state.user?.copyWith(onboardingCompleted: true);
+    if (updated != null) await _cacheUser(updated);
     state = state.copyWith(
       status: AuthStatus.authenticated,
-      user: state.user?.copyWith(onboardingCompleted: true),
+      user: updated,
+    );
+  }
+
+  /// Onboarding completion and email verification are monotonic — once
+  /// true they only reset by an intentional server-side change, never by a
+  /// partial payload that happened to omit the flags. Without this guard a
+  /// single incomplete /me response got cached and resurrected the
+  /// onboarding flow (and "confirm your email" prompts) on the next launch.
+  UserModel _mergeMonotonicFlags(UserModel incoming) {
+    final current = state.user;
+    if (current == null) return incoming;
+    return incoming.copyWith(
+      onboardingCompleted:
+          incoming.onboardingCompleted || current.onboardingCompleted,
+      emailVerified: incoming.emailVerified || current.emailVerified,
     );
   }
 
   Future<void> updateUser(UserModel user) async {
-    await _cacheUser(user);
-    state = state.copyWith(user: user);
+    final merged = _mergeMonotonicFlags(user);
+    await _cacheUser(merged);
+    state = state.copyWith(user: merged);
   }
 
   Future<void> refreshUser() async {
     final response = await _repo.getMe();
     if (response.success && response.data?.user != null) {
-      await _cacheUser(response.data!.user!);
-      state = state.copyWith(user: response.data!.user);
+      final merged = _mergeMonotonicFlags(response.data!.user!);
+      await _cacheUser(merged);
+      state = state.copyWith(user: merged);
     }
   }
 
