@@ -17,6 +17,9 @@ if (process.env.RESEND_API_KEY && process.env.RESEND_API_KEY !== 're_your_resend
 let lastEmailError = null;
 const emailDiagnostics = () => ({
   from: process.env.EMAIL_FROM || 'onboarding@resend.dev (Resend test sender — delivers ONLY to the Resend account owner)',
+  // Base of every confirmation/invitation link in outgoing mail — if this
+  // is the localhost default, emails deliver but their links are broken.
+  linkBase: process.env.FRONTEND_URL || 'http://localhost:5173 (DEFAULT — email links are broken, set FRONTEND_URL)',
   lastError: lastEmailError,
 });
 
