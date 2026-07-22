@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:dayla_flutter/core/network/auth_token_provider.dart';
 import 'package:dayla_flutter/core/network/token_storage.dart';
+import 'package:dayla_flutter/core/session/session_reset.dart';
 import 'package:dayla_flutter/features/auth/application/providers/auth_providers.dart';
 import 'package:dayla_flutter/features/auth/application/providers/push_provider.dart';
 import 'package:dayla_flutter/features/auth/data/models/user_model.dart';
@@ -177,6 +178,10 @@ class AuthSessionNotifier extends Notifier<AuthState> {
       ref.read(authTokenProvider.notifier).state = token;
       final user = response.data!.user!;
       await _cacheUser(user);
+      // Defense-in-depth: clear any account-scoped caches BEFORE entering the
+      // new session, so signing in as a different user can never surface the
+      // previous user's data even if a prior logout was interrupted.
+      resetUserScopedProviders(ref);
       state = _signedInState(user);
     } else {
       state = state.copyWith(
@@ -215,6 +220,7 @@ class AuthSessionNotifier extends Notifier<AuthState> {
         ref.read(authTokenProvider.notifier).state = token;
         final user = response.data!.user!;
         await _cacheUser(user);
+        resetUserScopedProviders(ref);
         state = _signedInState(user);
       }
     } else {
@@ -282,6 +288,11 @@ class AuthSessionNotifier extends Notifier<AuthState> {
     await RevenueCatBilling.logOut();
     await _repo.logout();
     await _clearSession();
+    // Wipe every account-scoped provider so nothing from this user survives
+    // into the next sign-in. Done last: the token/session is already gone,
+    // the UI has left for the auth screen, so the invalidated providers just
+    // dispose — no refetch, no listeners, no leak.
+    resetUserScopedProviders(ref);
   }
 
   void clearMessages() {
