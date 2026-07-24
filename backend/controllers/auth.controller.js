@@ -5,7 +5,7 @@ const Post = require('../models/post.model');
 const Notification = require('../models/notification.model');
 const config = require('../config/env.config');
 const logger = require('../utils/logger');
-const { sendConfirmationEmail, generateVerificationToken } = require('../services/email.service');
+const { sendConfirmationEmail, sendPasswordResetEmail, generateVerificationToken } = require('../services/email.service');
 const { uploadFile, getOptimizedImageUrl, validateFile } = require('../services/cloud.service');
 const push = require('../services/push.service');
 
@@ -588,6 +588,105 @@ const resendVerification = async (req, res) => {
       success: false,
       message: 'Something went wrong. Please try again later.'
     });
+  }
+};
+
+// @desc    Request a password reset link
+// @route   POST /api/auth/forgot-password
+// @access  Public
+const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ success: false, message: 'Email is required' });
+    }
+
+    // Generic response either way — never reveal whether an account exists
+    // for a given email (prevents account enumeration).
+    const genericMessage =
+      'If an account exists for that email, a password reset link is on its way. Please check your inbox and spam folder.';
+
+    const user = await User.findOne({ email: email.toLowerCase().trim() });
+    if (!user || !user.isActive) {
+      return res.status(200).json({ success: true, message: genericMessage });
+    }
+
+    // Time-limited single-use token (1 hour), same crypto as verification.
+    const resetToken = generateVerificationToken();
+    user.resetPasswordToken = resetToken;
+    user.resetPasswordExpires = new Date(Date.now() + 60 * 60 * 1000);
+    await user.save({ validateBeforeSave: false });
+
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const resetUrl = `${frontendUrl}/reset-password?token=${resetToken}`;
+
+    try {
+      await sendPasswordResetEmail(user.email, user.name, resetUrl);
+      logger.info(`Password-reset email sent to ${user.email}`);
+    } catch (emailError) {
+      logger.error('Failed to send password-reset email:', emailError);
+      // Still generic — don't leak existence via a different error.
+    }
+
+    return res.status(200).json({ success: true, message: genericMessage });
+  } catch (error) {
+    logger.error('Forgot password error:', error);
+    res.status(500).json({ success: false, message: 'Something went wrong. Please try again later.' });
+  }
+};
+
+// @desc    Reset the password using a valid token
+// @route   POST /api/auth/reset-password
+// @access  Public
+const resetPassword = async (req, res) => {
+  try {
+    const { token, password } = req.body;
+
+    if (!token) {
+      return res.status(400).json({ success: false, message: 'Reset token is required' });
+    }
+    if (!password || password.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must be at least 6 characters'
+      });
+    }
+    if (password.length > 128) {
+      return res.status(400).json({ success: false, message: 'Password is too long' });
+    }
+
+    // Match on token AND unexpired — the select:false fields are pulled in
+    // explicitly. An invalid or expired token finds no user.
+    const user = await User.findOne({
+      resetPasswordToken: token,
+      resetPasswordExpires: { $gt: Date.now() }
+    }).select('+resetPasswordToken +resetPasswordExpires +password');
+
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        message: 'This password reset link is invalid or has expired. Please request a new one.'
+      });
+    }
+
+    // The pre-save hook hashes the new password. Clearing the token makes it
+    // single-use. A user resetting their password is implicitly verified.
+    user.password = password;
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpires = undefined;
+    if (!user.emailVerified) user.emailVerified = true;
+    await user.save();
+
+    logger.info(`Password reset for user: ${user.email}`);
+
+    res.status(200).json({
+      success: true,
+      message: 'Your password has been reset. You can now sign in with your new password.'
+    });
+  } catch (error) {
+    logger.error('Reset password error:', error);
+    res.status(500).json({ success: false, message: 'Password reset failed. Please try again.' });
   }
 };
 
@@ -1325,6 +1424,8 @@ module.exports = {
   completeOnboarding,
   verifyEmail,
   resendVerification,
+  forgotPassword,
+  resetPassword,
   getFriends,
   sendFriendRequest,
   acceptFriendRequest,

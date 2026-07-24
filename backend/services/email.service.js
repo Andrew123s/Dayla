@@ -3,6 +3,7 @@ const React = require('react');
 const { render } = require('@react-email/components');
 const ConfirmationEmail = require('../emails/ConfirmationEmail.jsx');
 const InvitationEmail = require('../emails/InvitationEmail.jsx');
+const ResetPasswordEmail = require('../emails/ResetPasswordEmail.jsx');
 const logger = require('../utils/logger');
 
 // Initialize Resend with API key (only if key is provided)
@@ -131,6 +132,51 @@ const sendInvitationEmail = async (to, inviterName, dashboardName, invitationUrl
 };
 
 /**
+ * Send a password-reset email. Mirrors sendConfirmationEmail: throws on a
+ * real delivery failure so the caller can report it, records the failure in
+ * the shared diagnostics, and no-ops (dev mode) when Resend isn't configured.
+ * @param {string} to - Recipient email address
+ * @param {string} userName - User's name
+ * @param {string} resetUrl - URL to reset the password
+ */
+const sendPasswordResetEmail = async (to, userName, resetUrl) => {
+  try {
+    if (!resend) {
+      logger.warn('Resend API key not configured. Password-reset email not sent.');
+      logger.info(`[DEV] Password reset URL for ${to}: ${resetUrl}`);
+      return { id: 'dev-mode', message: 'Email skipped - no API key' };
+    }
+
+    const emailHtml = await render(
+      React.createElement(ResetPasswordEmail, { userName, resetUrl })
+    );
+
+    const { data, error } = await resend.emails.send({
+      from: process.env.EMAIL_FROM || 'onboarding@resend.dev',
+      to: [to],
+      subject: 'Reset your Dayla password',
+      html: emailHtml,
+    });
+
+    if (error) {
+      lastEmailError = `${new Date().toISOString()} reset→${to}: ${error.message || JSON.stringify(error)}`;
+      logger.error('Failed to send password-reset email:', error);
+      throw new Error(error.message);
+    }
+
+    lastEmailError = null;
+    logger.info(`Password-reset email sent to ${to}`);
+    return data;
+  } catch (error) {
+    if (!lastEmailError) {
+      lastEmailError = `${new Date().toISOString()} reset→${to}: ${error.message}`;
+    }
+    logger.error('Password-reset email service error:', error);
+    throw error;
+  }
+};
+
+/**
  * Generate email verification token
  * @returns {string} - Random token
  */
@@ -142,6 +188,7 @@ const generateVerificationToken = () => {
 module.exports = {
   sendConfirmationEmail,
   sendInvitationEmail,
+  sendPasswordResetEmail,
   generateVerificationToken,
   emailDiagnostics,
 };

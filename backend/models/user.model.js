@@ -116,6 +116,17 @@ const userSchema = new mongoose.Schema({
     type: Date,
     select: false
   },
+  // Password reset — mirrors the email-verification token pattern. Both are
+  // select:false so they never leak in a normal user fetch; the reset flow
+  // explicitly selects them. Cleared on a successful reset (single-use).
+  resetPasswordToken: {
+    type: String,
+    select: false
+  },
+  resetPasswordExpires: {
+    type: Date,
+    select: false
+  },
 
   // ── Billing snapshot ──────────────────────────────────────────────────────
   // Denormalized copy of the user's current plan so permission checks (which run

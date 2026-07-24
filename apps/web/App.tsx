@@ -4,6 +4,7 @@ import { ViewType, User } from './types';
 import AuthView from './components/AuthView';
 import Onboarding from './components/Onboarding';
 import VerifyEmail from './components/VerifyEmail';
+import ResetPassword from './components/ResetPassword';
 import AcceptInvitation from './components/AcceptInvitation';
 import Navigation from './components/Navigation';
 import { Loader, X, Check, UserPlus, Bell, Heart, MessageCircle, Layout, UserCheck, MessageSquare } from 'lucide-react';
@@ -56,6 +57,7 @@ const App: React.FC = () => {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [verificationToken, setVerificationToken] = useState<string | null>(null);
+  const [resetToken, setResetToken] = useState<string | null>(null);
   const [invitationId, setInvitationId] = useState<string | null>(null);
 
   // Notification state
@@ -75,7 +77,15 @@ const App: React.FC = () => {
     const path = window.location.pathname;
     const token = urlParams.get('token');
     const invitation = urlParams.get('invitationId');
-    
+
+    // Password reset must be checked BEFORE verify-email: both carry ?token=,
+    // so the reset link is disambiguated by its /reset-password path.
+    if (path === '/reset-password' && token) {
+      setResetToken(token);
+      setIsLoading(false);
+      return;
+    }
+
     if (token || path === '/verify-email') {
       if (token) setVerificationToken(token);
       setIsLoading(false);
@@ -428,11 +438,25 @@ const App: React.FC = () => {
     );
   }
 
+  // Show reset-password view if a reset token is present
+  if (resetToken) {
+    return (
+      <ResetPassword
+        token={resetToken}
+        onComplete={() => {
+          setResetToken(null);
+          window.history.replaceState({}, document.title, window.location.pathname);
+          setView('auth');
+        }}
+      />
+    );
+  }
+
   // Show email verification view if token is present
   if (verificationToken) {
     return (
-      <VerifyEmail 
-        token={verificationToken} 
+      <VerifyEmail
+        token={verificationToken}
         onComplete={() => {
           setVerificationToken(null);
           // Clear token from URL

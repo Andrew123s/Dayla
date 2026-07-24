@@ -159,6 +159,37 @@ class AuthRepository {
     }
   }
 
+  Future<AuthResponse> forgotPassword(String email) async {
+    try {
+      final json = await _remote.forgotPassword(email);
+      return AuthResponse.fromJson(json);
+    } on DioException catch (e) {
+      return _handleDioError(e);
+    } catch (_) {
+      return AuthResponse(
+          success: false,
+          message: 'Something went wrong. Please try again.',
+          networkError: true);
+    }
+  }
+
+  Future<AuthResponse> resetPassword({
+    required String token,
+    required String password,
+  }) async {
+    try {
+      final json = await _remote.resetPassword(token: token, password: password);
+      return AuthResponse.fromJson(json);
+    } on DioException catch (e) {
+      return _handleDioError(e);
+    } catch (_) {
+      return AuthResponse(
+          success: false,
+          message: 'Something went wrong. Please try again.',
+          networkError: true);
+    }
+  }
+
   Future<AuthResponse> completeOnboarding() async {
     try {
       final json = await _remote.completeOnboarding();

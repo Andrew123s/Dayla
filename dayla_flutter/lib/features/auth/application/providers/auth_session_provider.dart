@@ -242,6 +242,20 @@ class AuthSessionNotifier extends Notifier<AuthState> {
     );
   }
 
+  /// Request a password-reset email. The backend always responds generically
+  /// (it never reveals whether the account exists), so success just means the
+  /// request was accepted.
+  Future<bool> forgotPassword(String email) async {
+    state = state.copyWith(isLoading: true, clearError: true, clearSuccess: true);
+    final response = await _repo.forgotPassword(email);
+    state = state.copyWith(
+      isLoading: false,
+      successMessage: response.success ? response.message : null,
+      error: response.success ? null : response.message,
+    );
+    return response.success;
+  }
+
   Future<void> completeOnboarding() async {
     await _repo.completeOnboarding();
     final updated = state.user?.copyWith(onboardingCompleted: true);

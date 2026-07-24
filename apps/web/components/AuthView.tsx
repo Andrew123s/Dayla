@@ -10,6 +10,7 @@ interface AuthViewProps {
 
 const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
   const [isLogin, setIsLogin] = useState(true);
+  const [forgotMode, setForgotMode] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -112,6 +113,35 @@ const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
     }
   };
 
+  // Request a password reset link. The backend always responds generically
+  // (never revealing whether the account exists), so we show success on any
+  // 2xx and prompt the user to check their inbox.
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setError('');
+    setSuccess('');
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/auth/forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: formData.email }),
+      });
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new Error('Server returned an unexpected response. Please try again.');
+      }
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Could not send the reset link');
+      setSuccess(data.message || 'If an account exists for that email, a reset link is on its way.');
+    } catch (error) {
+      console.error('Forgot password error:', error);
+      setError(error instanceof Error ? error.message : 'Something went wrong. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleResendVerification = async () => {
     setIsLoading(true);
     setError('');
@@ -187,68 +217,122 @@ const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
           </div>
         )}
 
-        <form onSubmit={handleAuth} className="space-y-4">
-          {!isLogin && (
-            <input
-              type="text"
-              name="name"
-              placeholder="Full Name"
-              value={formData.name}
-              onChange={handleInputChange}
-              required={!isLogin}
-              className="w-full bg-white/10 border border-white/20 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-[#a3b18a] focus:border-[#a3b18a] placeholder-stone-300 transition-colors"
-            />
-          )}
-          <input
-            type="email"
-            name="email"
-            placeholder="Email Address"
-            value={formData.email}
-            onChange={handleInputChange}
-            required
-            className="w-full bg-white/10 border border-white/20 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-[#a3b18a] focus:border-[#a3b18a] placeholder-stone-300 transition-colors"
-          />
-          <input
-            type="password"
-            name="password"
-            placeholder="Password"
-            value={formData.password}
-            onChange={handleInputChange}
-            required
-            minLength={6}
-            className="w-full bg-white/10 border border-white/20 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-[#a3b18a] focus:border-[#a3b18a] placeholder-stone-300 transition-colors"
-          />
+        {forgotMode ? (
+          <>
+            <p className="text-white/70 text-sm mb-4 text-center">
+              Enter your email and we'll send you a link to set a new password.
+            </p>
+            <form onSubmit={handleForgotPassword} className="space-y-4">
+              <input
+                type="email"
+                name="email"
+                placeholder="Email Address"
+                value={formData.email}
+                onChange={handleInputChange}
+                required
+                className="w-full bg-white/10 border border-white/20 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-[#a3b18a] focus:border-[#a3b18a] placeholder-stone-300 transition-colors"
+              />
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full bg-[#a3b18a] hover:bg-[#588157] disabled:bg-stone-400 text-[#3a5a40] font-bold py-4 rounded-2xl transition-all duration-300 shadow-lg mt-2 active:scale-95 flex items-center justify-center gap-2"
+              >
+                {isLoading ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-[#3a5a40] border-t-transparent rounded-full animate-spin"></div>
+                    Sending...
+                  </>
+                ) : (
+                  'Send reset link'
+                )}
+              </button>
+            </form>
+            <button
+              onClick={() => { setForgotMode(false); setError(''); setSuccess(''); }}
+              disabled={isLoading}
+              className="w-full text-center text-xs mt-6 text-[#a3b18a] hover:underline disabled:opacity-50"
+            >
+              Back to sign in
+            </button>
+          </>
+        ) : (
+          <>
+            <form onSubmit={handleAuth} className="space-y-4">
+              {!isLogin && (
+                <input
+                  type="text"
+                  name="name"
+                  placeholder="Full Name"
+                  value={formData.name}
+                  onChange={handleInputChange}
+                  required={!isLogin}
+                  className="w-full bg-white/10 border border-white/20 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-[#a3b18a] focus:border-[#a3b18a] placeholder-stone-300 transition-colors"
+                />
+              )}
+              <input
+                type="email"
+                name="email"
+                placeholder="Email Address"
+                value={formData.email}
+                onChange={handleInputChange}
+                required
+                className="w-full bg-white/10 border border-white/20 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-[#a3b18a] focus:border-[#a3b18a] placeholder-stone-300 transition-colors"
+              />
+              <input
+                type="password"
+                name="password"
+                placeholder="Password"
+                value={formData.password}
+                onChange={handleInputChange}
+                required
+                minLength={6}
+                className="w-full bg-white/10 border border-white/20 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-[#a3b18a] focus:border-[#a3b18a] placeholder-stone-300 transition-colors"
+              />
 
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="w-full bg-[#a3b18a] hover:bg-[#588157] disabled:bg-stone-400 text-[#3a5a40] font-bold py-4 rounded-2xl transition-all duration-300 shadow-lg mt-4 active:scale-95 flex items-center justify-center gap-2"
-          >
-            {isLoading ? (
-              <>
-                <div className="w-4 h-4 border-2 border-[#3a5a40] border-t-transparent rounded-full animate-spin"></div>
-                {isLogin ? 'Signing In...' : 'Creating Account...'}
-              </>
-            ) : (
-              isLogin ? 'Sign In' : 'Join the Wild'
-            )}
-          </button>
-        </form>
+              {isLogin && (
+                <div className="text-right">
+                  <button
+                    type="button"
+                    onClick={() => { setForgotMode(true); setError(''); setSuccess(''); }}
+                    className="text-xs text-[#a3b18a] hover:underline"
+                  >
+                    Forgot password?
+                  </button>
+                </div>
+              )}
 
-        <button
-          onClick={() => {
-            setIsLogin(!isLogin);
-            setError('');
-            setSuccess('');
-            setShowResendButton(false);
-            setUserEmail('');
-            setFormData({ name: '', email: '', password: '' });
-          }}
-          disabled={isLoading}
-          className="w-full text-center text-xs mt-6 text-[#a3b18a] hover:underline disabled:opacity-50"
-        >
-          {isLogin ? "Don't have an account? Sign up" : "Already a member? Sign in"}
-        </button>
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full bg-[#a3b18a] hover:bg-[#588157] disabled:bg-stone-400 text-[#3a5a40] font-bold py-4 rounded-2xl transition-all duration-300 shadow-lg mt-4 active:scale-95 flex items-center justify-center gap-2"
+              >
+                {isLoading ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-[#3a5a40] border-t-transparent rounded-full animate-spin"></div>
+                    {isLogin ? 'Signing In...' : 'Creating Account...'}
+                  </>
+                ) : (
+                  isLogin ? 'Sign In' : 'Join the Wild'
+                )}
+              </button>
+            </form>
+
+            <button
+              onClick={() => {
+                setIsLogin(!isLogin);
+                setError('');
+                setSuccess('');
+                setShowResendButton(false);
+                setUserEmail('');
+                setFormData({ name: '', email: '', password: '' });
+              }}
+              disabled={isLoading}
+              className="w-full text-center text-xs mt-6 text-[#a3b18a] hover:underline disabled:opacity-50"
+            >
+              {isLogin ? "Don't have an account? Sign up" : "Already a member? Sign in"}
+            </button>
+          </>
+        )}
       </div>
 
       <p className="mt-12 text-[10px] text-stone-400 font-medium max-w-[200px] text-center leading-relaxed">

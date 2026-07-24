@@ -89,6 +89,25 @@ class AuthRemoteDatasource {
     return response.data as Map<String, dynamic>;
   }
 
+  Future<Map<String, dynamic>> forgotPassword(String email) async {
+    final response = await _dio.post(
+      '/api/auth/forgot-password',
+      data: {'email': email},
+    );
+    return response.data as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> resetPassword({
+    required String token,
+    required String password,
+  }) async {
+    final response = await _dio.post(
+      '/api/auth/reset-password',
+      data: {'token': token, 'password': password},
+    );
+    return response.data as Map<String, dynamic>;
+  }
+
   Future<Map<String, dynamic>> completeOnboarding() async {
     final response = await _dio.post('/api/auth/complete-onboarding');
     return response.data as Map<String, dynamic>;

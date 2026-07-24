@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:dayla_flutter/core/theme/app_colors.dart';
 import 'package:dayla_flutter/features/auth/application/providers/auth_session_provider.dart';
+import 'package:dayla_flutter/features/auth/presentation/screens/forgot_password_screen.dart';
 
 class AuthScreen extends ConsumerStatefulWidget {
   const AuthScreen({super.key});
@@ -217,6 +218,33 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                 return null;
               },
             ),
+            if (_isLogin)
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: authState.isLoading
+                      ? null
+                      : () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => ForgotPasswordScreen(
+                                initialEmail:
+                                    _emailController.text.trim().isEmpty
+                                        ? null
+                                        : _emailController.text.trim(),
+                              ),
+                            ),
+                          ),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: Text(
+                    'Forgot password?',
+                    style: TextStyle(color: AppColors.sage, fontSize: 12),
+                  ),
+                ),
+              ),
             const SizedBox(height: 24),
             SizedBox(
               height: 52,

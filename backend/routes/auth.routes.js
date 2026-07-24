@@ -13,6 +13,8 @@ const {
   completeOnboarding,
   verifyEmail,
   resendVerification,
+  forgotPassword,
+  resetPassword,
   getFriends,
   sendFriendRequest,
   acceptFriendRequest,
@@ -61,6 +63,10 @@ router.post('/login', (req, res, next) => {
 // Email verification routes (public)
 router.post('/verify-email', verifyEmail);
 router.post('/resend-verification', resendVerification);
+
+// Password reset routes (public)
+router.post('/forgot-password', forgotPassword);
+router.post('/reset-password', resetPassword);
 
 // Protected routes
 router.use(protect); // All routes below require authentication
